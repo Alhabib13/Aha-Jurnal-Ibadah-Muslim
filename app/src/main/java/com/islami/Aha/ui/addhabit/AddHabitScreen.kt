@@ -1,63 +1,50 @@
 package com.islami.Aha.ui.addhabit
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
+import androidx.compose.ui.tooling.preview.Preview
+import com.islami.Aha.ui.theme.HabitIslamiTheme
 
-/**
- * Add Habit Screen - Layar untuk menambah kebiasaan ibadah baru.
- *
- * Fitur:
- * - Input nama kebiasaan
- * - Input deskripsi (opsional)
- * - Pilih kategori ibadah
- * - Pilih frekuensi (harian/mingguan/bulanan/kustom)
- * - Set target jumlah
- * - Set waktu pengingat
- *
- * @param viewModel ViewModel untuk mengelola state form
- * @param onNavigateBack Callback untuk kembali ke layar sebelumnya
- * @param onHabitSaved Callback ketika habit berhasil disimpan
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddHabitScreen(
-    viewModel: AddHabitViewModel = viewModel(),
+    viewModel: AddHabitViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
     onHabitSaved: () -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val focusManager = LocalFocusManager.current
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // Handle save success
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
             onHabitSaved()
@@ -67,60 +54,45 @@ fun AddHabitScreen(
 
     AddHabitScreenContent(
         uiState = uiState,
-        formattedReminderTime = viewModel.getFormattedReminderTime(),
-        onNameChange = viewModel::onNameChange,
-        onDescriptionChange = viewModel::onDescriptionChange,
-        onCategorySelected = viewModel::onCategorySelected,
-        onToggleCategoryDropdown = viewModel::toggleCategoryDropdown,
-        onDismissCategoryDropdown = viewModel::dismissCategoryDropdown,
-        onFrequencySelected = viewModel::onFrequencySelected,
-        onToggleFrequencyDropdown = viewModel::toggleFrequencyDropdown,
-        onDismissFrequencyDropdown = viewModel::dismissFrequencyDropdown,
-        onIncrementTarget = viewModel::incrementTargetCount,
-        onDecrementTarget = viewModel::decrementTargetCount,
+        onSelectCategory = viewModel::selectCategory,
+        onSelectHabit = viewModel::selectHabit,
+        onSelectExtraHabit = viewModel::selectExtraHabit,
+        onEnableCustomInput = viewModel::enableCustomInput,
+        onCustomHabitNameChange = viewModel::updateCustomHabitName,
+        onSelectRakaat = viewModel::selectRakaat,
+        onSelectFrequency = viewModel::selectFrequency,
+        onToggleDay = viewModel::toggleDay,
         onToggleReminder = viewModel::toggleReminder,
         onShowTimePicker = viewModel::showTimePicker,
         onHideTimePicker = viewModel::hideTimePicker,
         onReminderTimeChange = viewModel::onReminderTimeChange,
-        onToggleDaySelection = viewModel::toggleDaySelection,
-        onSaveClick = {
-            focusManager.clearFocus()
-            viewModel.saveHabit()
-        },
+        onSaveClick = viewModel::saveHabit,
+        getFormattedReminderTime = { viewModel.getFormattedReminderTime(uiState) },
         onNavigateBack = onNavigateBack
     )
 }
 
-/**
- * Konten Add Habit Screen - Stateless composable.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddHabitScreenContent(
     uiState: AddHabitUiState,
-    formattedReminderTime: String,
-    onNameChange: (String) -> Unit,
-    onDescriptionChange: (String) -> Unit,
-    onCategorySelected: (HabitCategory) -> Unit,
-    onToggleCategoryDropdown: () -> Unit,
-    onDismissCategoryDropdown: () -> Unit,
-    onFrequencySelected: (HabitFrequency) -> Unit,
-    onToggleFrequencyDropdown: () -> Unit,
-    onDismissFrequencyDropdown: () -> Unit,
-    onIncrementTarget: () -> Unit,
-    onDecrementTarget: () -> Unit,
+    onSelectCategory: (SunnahCategoryType) -> Unit,
+    onSelectHabit: (String) -> Unit,
+    onSelectExtraHabit: (String) -> Unit,
+    onEnableCustomInput: () -> Unit,
+    onCustomHabitNameChange: (String) -> Unit,
+    onSelectRakaat: (Int) -> Unit,
+    onSelectFrequency: (FrequencyType) -> Unit,
+    onToggleDay: (Int) -> Unit,
     onToggleReminder: () -> Unit,
     onShowTimePicker: () -> Unit,
     onHideTimePicker: () -> Unit,
     onReminderTimeChange: (Int, Int) -> Unit,
-    onToggleDaySelection: (Int) -> Unit,
     onSaveClick: () -> Unit,
+    getFormattedReminderTime: () -> String,
     onNavigateBack: () -> Unit
 ) {
-    val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
-
-    // Time Picker State
     val timePickerState = rememberTimePickerState(
         initialHour = uiState.reminderHour,
         initialMinute = uiState.reminderMinute,
@@ -128,473 +100,213 @@ fun AddHabitScreenContent(
     )
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Tambah Kebiasaan",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Gray900
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Tutup",
-                            tint = Gray900
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = SurfaceWhite
-                )
-            )
-        },
         bottomBar = {
-            // Save Button
             Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = SurfaceWhite,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 8.dp
             ) {
                 Button(
                     onClick = onSaveClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                         .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = GreenPrimary,
-                        disabledContainerColor = GreenPrimary.copy(alpha = 0.5f)
-                    ),
-                    enabled = !uiState.isLoading
+                    shape = RoundedCornerShape(28.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald)
                 ) {
-                    if (uiState.isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = SurfaceWhite,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Check,
+                            imageVector = Icons.Filled.Check,
                             contentDescription = null,
-                            modifier = Modifier.size(20.dp)
+                            tint = MaterialTheme.colorScheme.onPrimary
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            text = "Simpan Kebiasaan",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
+                            text = stringResource(R.string.save_sunnah_worship),
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                 }
             }
         },
-        containerColor = BackgroundLight
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(scrollState)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(bottom = paddingValues.calculateBottomPadding())
         ) {
-            // ================================================================
-            // NAMA KEBIASAAN
-            // ================================================================
-            FormSection(title = "Nama Kebiasaan") {
-                OutlinedTextField(
-                    value = uiState.name,
-                    onValueChange = onNameChange,
+            // Header
+            AddHabitHeader(onNavigateBack = onNavigateBack)
+
+            // Scrollable content
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                // ── Kategori ──
+                SectionHeading(stringResource(R.string.category_heading))
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = {
-                        Text(
-                            text = "Contoh: Sholat Subuh Berjamaah",
-                            color = Gray400
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SunnahCategoryType.entries.forEach { category ->
+                        val isSelected = uiState.selectedCategory == category
+                        SelectableChip(
+                            text = category.displayName,
+                            isSelected = isSelected,
+                            onClick = { onSelectCategory(category) }
                         )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = null,
-                            tint = if (uiState.nameError != null) ErrorRed else Gray400
-                        )
-                    },
-                    singleLine = true,
-                    isError = uiState.nameError != null,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GreenPrimary,
-                        unfocusedBorderColor = Gray200,
-                        errorBorderColor = ErrorRed,
-                        focusedContainerColor = SurfaceWhite,
-                        unfocusedContainerColor = SurfaceWhite,
-                        errorContainerColor = ErrorRed.copy(alpha = 0.05f)
-                    )
-                )
-
-                if (uiState.nameError != null) {
-                    Text(
-                        text = uiState.nameError,
-                        fontSize = 12.sp,
-                        color = ErrorRed,
-                        modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-                    )
+                    }
                 }
-            }
 
-            // ================================================================
-            // DESKRIPSI (OPSIONAL)
-            // ================================================================
-            FormSection(title = "Deskripsi (Opsional)") {
-                OutlinedTextField(
-                    value = uiState.description,
-                    onValueChange = onDescriptionChange,
+                // ── Pilih Ibadah ──
+                SectionHeading(stringResource(R.string.select_worship_heading))
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(100.dp),
-                    placeholder = {
-                        Text(
-                            text = "Tambahkan catatan atau motivasi...",
-                            color = Gray400
-                        )
-                    },
-                    maxLines = 4,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = { focusManager.clearFocus() }
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GreenPrimary,
-                        unfocusedBorderColor = Gray200,
-                        focusedContainerColor = SurfaceWhite,
-                        unfocusedContainerColor = SurfaceWhite
-                    )
-                )
-            }
-
-            // ================================================================
-            // KATEGORI
-            // ================================================================
-            FormSection(title = "Kategori") {
-                ExposedDropdownMenuBox(
-                    expanded = uiState.isCategoryExpanded,
-                    onExpandedChange = { onToggleCategoryDropdown() }
+                        .height(IntrinsicSize.Min)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedTextField(
-                        value = "${uiState.selectedCategory.icon} ${uiState.selectedCategory.displayName}",
-                        onValueChange = {},
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        readOnly = true,
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = uiState.isCategoryExpanded)
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GreenPrimary,
-                            unfocusedBorderColor = Gray200,
-                            focusedContainerColor = SurfaceWhite,
-                            unfocusedContainerColor = SurfaceWhite
-                        )
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = uiState.isCategoryExpanded,
-                        onDismissRequest = onDismissCategoryDropdown
-                    ) {
-                        HabitCategory.entries.forEach { category ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = "${category.icon} ${category.displayName}",
-                                        fontSize = 14.sp
-                                    )
-                                },
-                                onClick = { onCategorySelected(category) },
-                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                    uiState.availableHabits.forEach { habit ->
+                        val isSelected = habit.id == uiState.selectedHabitId
+                        Card(
+                            modifier = Modifier
+                                .width(150.dp)
+                                .fillMaxHeight()
+                                .clickable { onSelectHabit(habit.id) },
+                            shape = RoundedCornerShape(16.dp),
+                            border = if (isSelected) BorderStroke(2.dp, Emerald) else null,
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected) EmeraldLight.copy(alpha = 0.2f)
+                                else MaterialTheme.colorScheme.surface
                             )
-                        }
-                    }
-                }
-            }
-
-            // ================================================================
-            // FREKUENSI
-            // ================================================================
-            FormSection(title = "Frekuensi") {
-                ExposedDropdownMenuBox(
-                    expanded = uiState.isFrequencyExpanded,
-                    onExpandedChange = { onToggleFrequencyDropdown() }
-                ) {
-                    OutlinedTextField(
-                        value = uiState.selectedFrequency.displayName,
-                        onValueChange = {},
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        readOnly = true,
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.DateRange,
-                                contentDescription = null,
-                                tint = Gray500
-                            )
-                        },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = uiState.isFrequencyExpanded)
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GreenPrimary,
-                            unfocusedBorderColor = Gray200,
-                            focusedContainerColor = SurfaceWhite,
-                            unfocusedContainerColor = SurfaceWhite
-                        )
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = uiState.isFrequencyExpanded,
-                        onDismissRequest = onDismissFrequencyDropdown
-                    ) {
-                        HabitFrequency.entries.forEach { frequency ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = frequency.displayName,
-                                        fontSize = 14.sp
-                                    )
-                                },
-                                onClick = { onFrequencySelected(frequency) },
-                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                            )
-                        }
-                    }
-                }
-
-                // Day selector (untuk Weekly dan Custom)
-                AnimatedVisibility(
-                    visible = uiState.selectedFrequency == HabitFrequency.WEEKLY ||
-                            uiState.selectedFrequency == HabitFrequency.CUSTOM
-                ) {
-                    Column(modifier = Modifier.padding(top = 12.dp)) {
-                        Text(
-                            text = "Pilih Hari",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Gray700,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            uiState.selectedDays.forEach { day ->
-                                DayChip(
-                                    day = day,
-                                    onClick = { onToggleDaySelection(day.id) }
+                            Column(
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = habit.name,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isSelected) Emerald else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = habit.description,
+                                    fontSize = 12.sp,
+                                    color = Gray500
                                 )
                             }
                         }
                     }
                 }
-            }
 
-            // ================================================================
-            // TARGET
-            // ================================================================
-            FormSection(title = "Target Harian") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Jumlah target per hari",
-                            fontSize = 14.sp,
-                            color = Gray700
-                        )
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // Decrement button
-                            Surface(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .clickable(enabled = uiState.targetCount > 1) {
-                                        onDecrementTarget()
-                                    },
-                                color = if (uiState.targetCount > 1) GreenPrimary.copy(alpha = 0.1f)
-                                else Gray100,
-                                shape = CircleShape
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Remove,
-                                        contentDescription = "Kurangi",
-                                        tint = if (uiState.targetCount > 1) GreenPrimary else Gray400,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-
-                            // Count display
-                            Text(
-                                text = "${uiState.targetCount}",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Gray900,
-                                modifier = Modifier.width(40.dp),
-                                textAlign = TextAlign.Center
-                            )
-
-                            // Increment button
-                            Surface(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .clickable(enabled = uiState.targetCount < 99) {
-                                        onIncrementTarget()
-                                    },
-                                color = if (uiState.targetCount < 99) GreenPrimary.copy(alpha = 0.1f)
-                                else Gray100,
-                                shape = CircleShape
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Tambah",
-                                        tint = if (uiState.targetCount < 99) GreenPrimary else Gray400,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                // ── Lainnya expandable section ──
+                AnimatedVisibility(visible = uiState.isLainnya) {
+                    LainnyaSection(
+                        uiState = uiState,
+                        onSelectExtra = onSelectExtraHabit,
+                        onEnableCustom = onEnableCustomInput,
+                        onCustomNameChange = onCustomHabitNameChange
+                    )
                 }
-            }
 
-            // ================================================================
-            // PENGINGAT
-            // ================================================================
-            FormSection(title = "Pengingat") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Toggle pengingat
+                // ── Jumlah Rakaat (Sholat only) ──
+                AnimatedVisibility(visible = uiState.showRakaat) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SectionHeading(stringResource(R.string.rakaat_heading))
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Notifications,
-                                    contentDescription = null,
-                                    tint = GreenPrimary
-                                )
-                                Text(
-                                    text = "Aktifkan Pengingat",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Gray700
-                                )
-                            }
-
-                            Switch(
-                                checked = uiState.isReminderEnabled,
-                                onCheckedChange = { onToggleReminder() },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = SurfaceWhite,
-                                    checkedTrackColor = GreenPrimary,
-                                    uncheckedThumbColor = SurfaceWhite,
-                                    uncheckedTrackColor = Gray300
-                                )
-                            )
-                        }
-
-                        // Time picker (jika pengingat aktif)
-                        AnimatedVisibility(visible = uiState.isReminderEnabled) {
-                            HorizontalDivider(color = Gray100)
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onShowTimePicker() }
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            RAKAAT_OPTIONS.forEach { rakaat ->
+                                val isSelected = uiState.selectedRakaat == rakaat
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .clickable { onSelectRakaat(rakaat) },
+                                    shape = CircleShape,
+                                    color = if (isSelected) Emerald else MaterialTheme.colorScheme.surface,
+                                    border = if (!isSelected) BorderStroke(1.dp, Emerald.copy(alpha = 0.4f)) else null
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.AccessTime,
-                                        contentDescription = null,
-                                        tint = Gray500
-                                    )
                                     Text(
-                                        text = "Waktu Pengingat",
-                                        fontSize = 14.sp,
-                                        color = Gray700
+                                        text = "$rakaat",
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Emerald
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
 
-                                Text(
-                                    text = formattedReminderTime,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = GreenPrimary
+                // ── Frekuensi ──
+                SectionHeading(stringResource(R.string.frequency_heading))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FrequencyType.entries.forEach { freq ->
+                            val isSelected = uiState.frequencyType == freq
+                            SelectableChip(
+                                text = freq.displayName,
+                                isSelected = isSelected,
+                                onClick = { onSelectFrequency(freq) }
+                            )
+                        }
+                    }
+
+                    AnimatedVisibility(visible = uiState.frequencyType == FrequencyType.SPECIFIC_DAYS) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            WEEK_DAYS.forEach { day ->
+                                DaySelectionChip(
+                                    title = day.shortName,
+                                    selected = uiState.selectedDays.contains(day.id),
+                                    onClick = { onToggleDay(day.id) }
                                 )
                             }
                         }
                     }
                 }
-            }
 
-            // Bottom spacing
-            Spacer(modifier = Modifier.height(8.dp))
+                // ── Pengingat ──
+                SectionHeading(stringResource(R.string.reminder_heading))
+                ReminderCard(
+                    isEnabled = uiState.isReminderEnabled,
+                    reminderTime = getFormattedReminderTime(),
+                    onToggle = onToggleReminder,
+                    onShowTimePicker = onShowTimePicker
+                )
+
+                // Bottom spacer so content isn't hidden behind save button
+                Spacer(modifier = Modifier.height(16.dp))
+            }
         }
     }
 
-    // Time Picker Dialog
+    // Time picker dialog
     if (uiState.showTimePicker) {
         TimePickerDialog(
             onDismiss = onHideTimePicker,
@@ -605,73 +317,304 @@ fun AddHabitScreenContent(
             TimePicker(
                 state = timePickerState,
                 colors = TimePickerDefaults.colors(
-                    clockDialColor = GreenPrimary.copy(alpha = 0.1f),
-                    selectorColor = GreenPrimary,
-                    containerColor = SurfaceWhite,
-                    periodSelectorBorderColor = GreenPrimary,
-                    periodSelectorSelectedContainerColor = GreenPrimary,
-                    periodSelectorSelectedContentColor = SurfaceWhite,
-                    timeSelectorSelectedContainerColor = GreenPrimary,
-                    timeSelectorSelectedContentColor = SurfaceWhite
+                    clockDialColor = EmeraldLight,
+                    selectorColor = Emerald,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    periodSelectorBorderColor = Emerald,
+                    periodSelectorSelectedContainerColor = Emerald,
+                    periodSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                    timeSelectorSelectedContainerColor = Emerald,
+                    timeSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         }
     }
 }
 
-/**
- * Section wrapper untuk form dengan judul.
- */
-@Composable
-fun FormSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = title,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Gray700,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        content()
-    }
-}
+// ─── Header ───
 
-/**
- * Chip untuk memilih hari.
- */
 @Composable
-fun DayChip(
-    day: DayOfWeek,
-    onClick: () -> Unit
-) {
-    Surface(
+private fun AddHabitHeader(onNavigateBack: () -> Unit) {
+    Box(
         modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .clickable { onClick() },
-        color = if (day.isSelected) GreenPrimary else SurfaceWhite,
-        shape = CircleShape,
-        border = if (!day.isSelected) {
-            androidx.compose.foundation.BorderStroke(1.dp, Gray200)
-        } else null
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = day.shortName.take(1),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (day.isSelected) SurfaceWhite else Gray600
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(colors = listOf(EmeraldDark, Emerald)),
+                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
             )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.add_sunnah_worship),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = stringResource(R.string.add_habit_screen_description),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                modifier = Modifier.padding(start = 8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
 
-/**
- * Dialog untuk Time Picker.
- */
+// ─── Lainnya Section ───
+
+@Composable
+private fun LainnyaSection(
+    uiState: AddHabitUiState,
+    onSelectExtra: (String) -> Unit,
+    onEnableCustom: () -> Unit,
+    onCustomNameChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.other_options_heading),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp
+            )
+
+            // Extra preset chips
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                uiState.extraHabits.forEach { extra ->
+                    val isSelected = !uiState.isCustomHabit && uiState.selectedExtraId == extra.id
+                    Surface(
+                        modifier = Modifier
+                            .clickable { onSelectExtra(extra.id) },
+                        shape = RoundedCornerShape(50),
+                        color = if (isSelected) Emerald else MaterialTheme.colorScheme.surfaceVariant,
+                        border = if (!isSelected) BorderStroke(1.dp, Emerald) else null
+                    ) {
+                        Text(
+                            text = extra.name,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = Gray300.copy(alpha = 0.5f))
+
+            // "Tulis sendiri" button + text field
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onEnableCustom() }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = null,
+                    tint = Emerald,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = stringResource(R.string.write_custom_label),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Emerald
+                )
+            }
+
+            AnimatedVisibility(visible = uiState.isCustomHabit) {
+                val label = if (uiState.selectedCategory == SunnahCategoryType.SHOLAT) {
+                    stringResource(R.string.custom_sholat_label)
+                } else {
+                    stringResource(R.string.custom_puasa_label)
+                }
+                OutlinedTextField(
+                    value = uiState.customHabitName,
+                    onValueChange = onCustomNameChange,
+                    label = { Text(label) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Emerald,
+                        focusedLabelColor = Emerald,
+                        cursorColor = Emerald
+                    )
+                )
+            }
+        }
+    }
+}
+
+// ─── Reusable components ───
+
+@Composable
+private fun SelectableChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(50),
+        color = if (isSelected) Emerald else MaterialTheme.colorScheme.surface,
+        border = if (!isSelected) BorderStroke(1.dp, Emerald) else null
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            fontWeight = FontWeight.Medium,
+            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Emerald
+        )
+    }
+}
+
+@Composable
+private fun SectionHeading(text: String) {
+    Text(text = text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+}
+
+@Composable
+private fun DaySelectionChip(title: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        shape = CircleShape,
+        color = if (selected) Emerald else MaterialTheme.colorScheme.surface,
+        border = if (!selected) BorderStroke(1.dp, Gray300) else null
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else Gray700
+        )
+    }
+}
+
+@Composable
+private fun ReminderCard(
+    isEnabled: Boolean,
+    reminderTime: String,
+    onToggle: () -> Unit,
+    onShowTimePicker: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (isEnabled) Icons.Outlined.NotificationsActive
+                        else Icons.Outlined.Notifications,
+                        contentDescription = null,
+                        tint = Emerald
+                    )
+                    Column {
+                        Text(
+                            text = stringResource(R.string.enable_reminder),
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = stringResource(R.string.reminder_for_sunnah_only),
+                            fontSize = 12.sp,
+                            color = Gray500
+                        )
+                    }
+                }
+                Switch(
+                    checked = isEnabled,
+                    onCheckedChange = { onToggle() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedTrackColor = Emerald
+                    )
+                )
+            }
+            AnimatedVisibility(visible = isEnabled) {
+                Column {
+                    HorizontalDivider()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onShowTimePicker)
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AccessTime,
+                                contentDescription = null,
+                                tint = Gray500
+                            )
+                            Text(
+                                text = stringResource(R.string.reminder_time),
+                                fontSize = 14.sp
+                            )
+                        }
+                        Text(
+                            text = reminderTime,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Emerald
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun TimePickerDialog(
     onDismiss: () -> Unit,
@@ -682,178 +625,68 @@ fun TimePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text(
-                    text = "OK",
-                    color = GreenPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Text(text = stringResource(R.string.ok), color = Emerald)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(
-                    text = "Batal",
-                    color = Gray500
-                )
+                Text(text = stringResource(R.string.cancel), color = Gray500)
             }
         },
         title = {
-            Text(
-                text = "Pilih Waktu",
-                fontWeight = FontWeight.SemiBold,
-                color = Gray900
-            )
+            Text(text = stringResource(R.string.select_time), fontWeight = FontWeight.SemiBold)
         },
         text = { content() },
-        containerColor = SurfaceWhite,
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp)
     )
 }
 
-// ============================================================================
-// PREVIEW SECTION
-// ============================================================================
-
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true, name = "Add Habit Light")
 @Composable
 fun AddHabitScreenPreview() {
     HabitIslamiTheme {
         AddHabitScreenContent(
-            uiState = AddHabitUiState(
-                name = "",
-                description = "",
-                selectedCategory = HabitCategory.SHOLAT_FARDHU,
-                selectedFrequency = HabitFrequency.DAILY,
-                targetCount = 5,
-                isReminderEnabled = true,
-                reminderHour = 5,
-                reminderMinute = 0
-            ),
-            formattedReminderTime = "05:00",
-            onNameChange = {},
-            onDescriptionChange = {},
-            onCategorySelected = {},
-            onToggleCategoryDropdown = {},
-            onDismissCategoryDropdown = {},
-            onFrequencySelected = {},
-            onToggleFrequencyDropdown = {},
-            onDismissFrequencyDropdown = {},
-            onIncrementTarget = {},
-            onDecrementTarget = {},
+            uiState = AddHabitUiState(),
+            onSelectCategory = {},
+            onSelectHabit = {},
+            onSelectExtraHabit = {},
+            onEnableCustomInput = {},
+            onCustomHabitNameChange = {},
+            onSelectRakaat = {},
+            onSelectFrequency = {},
+            onToggleDay = {},
             onToggleReminder = {},
             onShowTimePicker = {},
             onHideTimePicker = {},
             onReminderTimeChange = { _, _ -> },
-            onToggleDaySelection = {},
             onSaveClick = {},
+            getFormattedReminderTime = { "05:00" },
             onNavigateBack = {}
         )
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true, name = "Add Habit with Weekly")
+@Preview(showBackground = true, name = "Add Habit Dark")
 @Composable
-fun AddHabitScreenWeeklyPreview() {
-    HabitIslamiTheme {
+fun AddHabitScreenPreviewDark() {
+    HabitIslamiTheme(darkTheme = true) {
         AddHabitScreenContent(
-            uiState = AddHabitUiState(
-                name = "Sholat Tahajud",
-                description = "Bangun malam untuk sholat tahajud",
-                selectedCategory = HabitCategory.TAHAJUD,
-                selectedFrequency = HabitFrequency.WEEKLY,
-                targetCount = 1,
-                isReminderEnabled = true,
-                reminderHour = 3,
-                reminderMinute = 30,
-                selectedDays = listOf(
-                    DayOfWeek(1, "Sen", "Senin", true),
-                    DayOfWeek(2, "Sel", "Selasa", false),
-                    DayOfWeek(3, "Rab", "Rabu", true),
-                    DayOfWeek(4, "Kam", "Kamis", false),
-                    DayOfWeek(5, "Jum", "Jumat", true),
-                    DayOfWeek(6, "Sab", "Sabtu", false),
-                    DayOfWeek(7, "Min", "Minggu", true)
-                )
-            ),
-            formattedReminderTime = "03:30",
-            onNameChange = {},
-            onDescriptionChange = {},
-            onCategorySelected = {},
-            onToggleCategoryDropdown = {},
-            onDismissCategoryDropdown = {},
-            onFrequencySelected = {},
-            onToggleFrequencyDropdown = {},
-            onDismissFrequencyDropdown = {},
-            onIncrementTarget = {},
-            onDecrementTarget = {},
+            uiState = AddHabitUiState(),
+            onSelectCategory = {},
+            onSelectHabit = {},
+            onSelectExtraHabit = {},
+            onEnableCustomInput = {},
+            onCustomHabitNameChange = {},
+            onSelectRakaat = {},
+            onSelectFrequency = {},
+            onToggleDay = {},
             onToggleReminder = {},
             onShowTimePicker = {},
             onHideTimePicker = {},
             onReminderTimeChange = { _, _ -> },
-            onToggleDaySelection = {},
             onSaveClick = {},
-            onNavigateBack = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true, name = "Add Habit with Error")
-@Composable
-fun AddHabitScreenErrorPreview() {
-    HabitIslamiTheme {
-        AddHabitScreenContent(
-            uiState = AddHabitUiState(
-                name = "Ab",
-                nameError = "Nama minimal 3 karakter"
-            ),
-            formattedReminderTime = "05:00",
-            onNameChange = {},
-            onDescriptionChange = {},
-            onCategorySelected = {},
-            onToggleCategoryDropdown = {},
-            onDismissCategoryDropdown = {},
-            onFrequencySelected = {},
-            onToggleFrequencyDropdown = {},
-            onDismissFrequencyDropdown = {},
-            onIncrementTarget = {},
-            onDecrementTarget = {},
-            onToggleReminder = {},
-            onShowTimePicker = {},
-            onHideTimePicker = {},
-            onReminderTimeChange = { _, _ -> },
-            onToggleDaySelection = {},
-            onSaveClick = {},
-            onNavigateBack = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true, name = "Add Habit Loading")
-@Composable
-fun AddHabitScreenLoadingPreview() {
-    HabitIslamiTheme {
-        AddHabitScreenContent(
-            uiState = AddHabitUiState(
-                name = "Sholat Subuh Berjamaah",
-                isLoading = true
-            ),
-            formattedReminderTime = "05:00",
-            onNameChange = {},
-            onDescriptionChange = {},
-            onCategorySelected = {},
-            onToggleCategoryDropdown = {},
-            onDismissCategoryDropdown = {},
-            onFrequencySelected = {},
-            onToggleFrequencyDropdown = {},
-            onDismissFrequencyDropdown = {},
-            onIncrementTarget = {},
-            onDecrementTarget = {},
-            onToggleReminder = {},
-            onShowTimePicker = {},
-            onHideTimePicker = {},
-            onReminderTimeChange = { _, _ -> },
-            onToggleDaySelection = {},
-            onSaveClick = {},
+            getFormattedReminderTime = { "05:00" },
             onNavigateBack = {}
         )
     }

@@ -1,263 +1,166 @@
 package com.islami.Aha.ui.notification
 
+import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.model.Habit
+import com.islami.Aha.domain.model.SunnahHabit
+import com.islami.Aha.ui.shared.SunnahHabitSharedViewModel
+import com.islami.Aha.util.NotificationScheduler
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-/**
- * Data class untuk item pengingat/notifikasi.
- *
- * @property id ID unik pengingat
- * @property habitName Nama kebiasaan yang diingatkan
- * @property habitIcon Icon kebiasaan
- * @property time Waktu pengingat dalam format HH:mm
- * @property days Hari-hari pengingat aktif
- * @property isEnabled Apakah pengingat aktif
- * @property category Kategori kebiasaan
- */
-data class ReminderItem(
-    val id: String,
-    val habitName: String,
-    val habitIcon: String,
-    val time: String,
-    val days: String,
-    val isEnabled: Boolean,
-    val category: String
-)
-
-/**
- * UI State untuk Notification Screen.
- *
- * @property isLoading Menandakan data sedang dimuat
- * @property reminders Daftar pengingat
- * @property globalNotificationEnabled Apakah notifikasi global aktif
- * @property showDeleteConfirmation Menampilkan dialog konfirmasi hapus
- * @property reminderToDelete Pengingat yang akan dihapus
- */
 data class NotificationUiState(
     val isLoading: Boolean = true,
-    val reminders: List<ReminderItem> = emptyList(),
+    val habits: List<Habit> = emptyList(),
+    val sunnahHabits: List<SunnahHabit> = emptyList(),
     val globalNotificationEnabled: Boolean = true,
     val showDeleteConfirmation: Boolean = false,
-    val reminderToDelete: ReminderItem? = null
-)
+    val habitToDelete: Habit? = null,
+    val sunnahHabitToDelete: SunnahHabit? = null
+) {
+    val deleteTargetName: String
+        get() = habitToDelete?.name ?: sunnahHabitToDelete?.name ?: ""
+}
 
-/**
- * ViewModel untuk Notification Screen.
- *
- * Mengelola:
- * - Daftar pengingat ibadah
- * - Toggle aktif/nonaktif pengingat
- * - Hapus pengingat
- *
- * Catatan: Menggunakan data dummy untuk demo.
- * Di production, akan membaca dari database Room dan WorkManager.
- */
-class NotificationViewModel : ViewModel() {
+@HiltViewModel
+class NotificationViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val habitDao: HabitDao,
+    private val sharedPreferences: SharedPreferences,
+    private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(NotificationUiState())
     val uiState: StateFlow<NotificationUiState> = _uiState.asStateFlow()
 
     init {
-        loadReminders()
+        seedDataIfNeeded()
+        loadHabitsAsReminders()
+        observeSunnahHabits()
     }
 
-    /**
-     * Memuat daftar pengingat.
-     */
-    private fun loadReminders() {
+    private fun seedDataIfNeeded() {
+        viewModelScope.launch {
+            val hasSeeded = sharedPreferences.getBoolean("hasSeeded", false)
+            if (!hasSeeded) {
+                val count = habitDao.getHabitCount()
+                if (count == 0) {
+                    habitDao.insertAll(getDefaultHabits())
+                    sharedPreferences.edit().putBoolean("hasSeeded", true).apply()
+                }
+            }
+        }
+    }
+
+    private fun getDefaultHabits(): List<Habit> = listOf(
+        Habit(name = "Sholat Subuh", category = "Sholat Fardhu", icon = "sunrise", description = "", time = "04:30"),
+        Habit(name = "Sholat Dzuhur", category = "Sholat Fardhu", icon = "sun", description = "", time = "11:55"),
+        Habit(name = "Sholat Ashar", category = "Sholat Fardhu", icon = "cloud", description = "", time = "15:10"),
+        Habit(name = "Sholat Maghrib", category = "Sholat Fardhu", icon = "moon", description = "", time = "18:00"),
+        Habit(name = "Sholat Isya", category = "Sholat Fardhu", icon = "moon", description = "", time = "19:15"),
+        Habit(name = "Sholat Dhuha", category = "Sholat Sunnah", icon = "sun", description = "06:00 - 11:00", time = "06:00"),
+        Habit(name = "Qabliyah Dzuhur", category = "Sholat Sunnah", icon = "sun", description = "", time = "11:30"),
+        Habit(name = "Ba'diyah Dzuhur", category = "Sholat Sunnah", icon = "sun", description = "", time = "12:15"),
+        Habit(name = "Ba'diyah Maghrib", category = "Sholat Sunnah", icon = "moon", description = "", time = "18:20"),
+        Habit(name = "Ba'diyah Isya", category = "Sholat Sunnah", icon = "moon", description = "", time = "19:35"),
+        Habit(name = "Tahajud", category = "Sholat Sunnah", icon = "night", description = "", time = "03:00"),
+        Habit(name = "Witir", category = "Sholat Sunnah", icon = "night", description = "", time = "03:30"),
+        Habit(name = "Puasa Ramadan", category = "Puasa Wajib", icon = "plate", description = "Sahur - Maghrib", time = ""),
+        Habit(name = "Puasa Senin", category = "Puasa Sunnah", icon = "moon", description = "Setiap Senin", time = ""),
+        Habit(name = "Puasa Kamis", category = "Puasa Sunnah", icon = "moon", description = "Setiap Kamis", time = ""),
+        Habit(name = "Puasa Ayyamul Bidh", category = "Puasa Sunnah", icon = "moon", description = "13-15 Hijriah", time = ""),
+        Habit(name = "Puasa Daud", category = "Puasa Sunnah", icon = "moon", description = "Selang-seling", time = ""),
+        Habit(name = "Puasa Syawal", category = "Puasa Sunnah", icon = "moon", description = "6 hari di bulan Syawal", time = "")
+    )
+
+    private fun loadHabitsAsReminders() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-
-            // Simulasi loading
-            kotlinx.coroutines.delay(500)
-
-            val reminders = generateDummyReminders()
-
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    reminders = reminders
-                )
-            }
-        }
-    }
-
-    /**
-     * Refresh daftar pengingat.
-     */
-    fun refreshReminders() {
-        loadReminders()
-    }
-
-    /**
-     * Toggle notifikasi global.
-     */
-    fun toggleGlobalNotification() {
-        _uiState.update {
-            it.copy(globalNotificationEnabled = !it.globalNotificationEnabled)
-        }
-    }
-
-    /**
-     * Toggle status aktif pengingat individual.
-     */
-    fun toggleReminderEnabled(reminderId: String) {
-        _uiState.update { currentState ->
-            val updatedReminders = currentState.reminders.map { reminder ->
-                if (reminder.id == reminderId) {
-                    reminder.copy(isEnabled = !reminder.isEnabled)
-                } else {
-                    reminder
+            habitDao.getHabits().collect { habits ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        habits = habits
+                    )
                 }
             }
-            currentState.copy(reminders = updatedReminders)
         }
     }
 
-    /**
-     * Menampilkan dialog konfirmasi hapus.
-     */
-    fun showDeleteConfirmation(reminder: ReminderItem) {
-        _uiState.update {
-            it.copy(
-                showDeleteConfirmation = true,
-                reminderToDelete = reminder
-            )
+    private fun observeSunnahHabits() {
+        viewModelScope.launch {
+            sunnahHabitSharedViewModel.sunnahHabits.collect { sunnahHabits ->
+                _uiState.update { it.copy(sunnahHabits = sunnahHabits) }
+            }
         }
     }
 
-    /**
-     * Menyembunyikan dialog konfirmasi hapus.
-     */
+    fun toggleGlobalNotification() {
+        _uiState.update { it.copy(globalNotificationEnabled = !it.globalNotificationEnabled) }
+    }
+
+    fun toggleReminderEnabled(habit: Habit) {
+        viewModelScope.launch {
+            val updatedHabit = habit.copy(isReminderEnabled = !habit.isReminderEnabled)
+            habitDao.updateHabit(updatedHabit)
+        }
+    }
+
+    fun toggleSunnahReminder(sunnahHabit: SunnahHabit) {
+        val willEnable = !sunnahHabit.reminderEnabled
+        sunnahHabitSharedViewModel.toggleReminder(sunnahHabit.id)
+
+        if (willEnable && sunnahHabit.reminderTime != null) {
+            val parts = sunnahHabit.reminderTime.split(":")
+            if (parts.size == 2) {
+                val hour = parts[0].toIntOrNull() ?: return
+                val minute = parts[1].toIntOrNull() ?: return
+                Log.d("NotificationVM", "Scheduling alarm for ${sunnahHabit.name} at $hour:$minute")
+                NotificationScheduler.scheduleHabitReminder(context, sunnahHabit.id, sunnahHabit.name, hour, minute)
+            }
+        } else {
+            Log.d("NotificationVM", "Cancelling alarm for ${sunnahHabit.name}")
+            NotificationScheduler.cancelHabitReminder(context, sunnahHabit.id)
+        }
+    }
+
+    fun showDeleteConfirmation(habit: Habit) {
+        _uiState.update { it.copy(showDeleteConfirmation = true, habitToDelete = habit) }
+    }
+
+    fun showSunnahDeleteConfirmation(sunnahHabit: SunnahHabit) {
+        _uiState.update { it.copy(showDeleteConfirmation = true, sunnahHabitToDelete = sunnahHabit) }
+    }
+
     fun hideDeleteConfirmation() {
-        _uiState.update {
-            it.copy(
-                showDeleteConfirmation = false,
-                reminderToDelete = null
-            )
-        }
+        _uiState.update { it.copy(showDeleteConfirmation = false, habitToDelete = null, sunnahHabitToDelete = null) }
     }
 
-    /**
-     * Menghapus pengingat.
-     */
     fun deleteReminder() {
-        val reminderToDelete = _uiState.value.reminderToDelete ?: return
+        val habit = _uiState.value.habitToDelete
+        val sunnahHabit = _uiState.value.sunnahHabitToDelete
 
         viewModelScope.launch {
-            _uiState.update { currentState ->
-                val updatedReminders = currentState.reminders.filter {
-                    it.id != reminderToDelete.id
+            if (habit != null) {
+                habitDao.deleteHabit(habit)
+            } else if (sunnahHabit != null) {
+                if (sunnahHabit.reminderEnabled) {
+                    Log.d("NotificationVM", "Cancelling alarm before delete: ${sunnahHabit.name}")
+                    NotificationScheduler.cancelHabitReminder(context, sunnahHabit.id)
                 }
-                currentState.copy(
-                    reminders = updatedReminders,
-                    showDeleteConfirmation = false,
-                    reminderToDelete = null
-                )
+                sunnahHabitSharedViewModel.removeHabit(sunnahHabit.id)
             }
+            hideDeleteConfirmation()
         }
-    }
-
-    /**
-     * Generate data dummy untuk pengingat.
-     */
-    private fun generateDummyReminders(): List<ReminderItem> {
-        return listOf(
-            ReminderItem(
-                id = "1",
-                habitName = "Sholat Subuh",
-                habitIcon = "🕌",
-                time = "04:30",
-                days = "Setiap hari",
-                isEnabled = true,
-                category = "Sholat Fardhu"
-            ),
-            ReminderItem(
-                id = "2",
-                habitName = "Sholat Dzuhur",
-                habitIcon = "🕌",
-                time = "12:00",
-                days = "Setiap hari",
-                isEnabled = true,
-                category = "Sholat Fardhu"
-            ),
-            ReminderItem(
-                id = "3",
-                habitName = "Sholat Ashar",
-                habitIcon = "🕌",
-                time = "15:15",
-                days = "Setiap hari",
-                isEnabled = true,
-                category = "Sholat Fardhu"
-            ),
-            ReminderItem(
-                id = "4",
-                habitName = "Sholat Maghrib",
-                habitIcon = "🕌",
-                time = "18:00",
-                days = "Setiap hari",
-                isEnabled = true,
-                category = "Sholat Fardhu"
-            ),
-            ReminderItem(
-                id = "5",
-                habitName = "Sholat Isya",
-                habitIcon = "🕌",
-                time = "19:15",
-                days = "Setiap hari",
-                isEnabled = true,
-                category = "Sholat Fardhu"
-            ),
-            ReminderItem(
-                id = "6",
-                habitName = "Sholat Dhuha",
-                habitIcon = "☀️",
-                time = "08:00",
-                days = "Sen, Sel, Rab, Kam, Jum",
-                isEnabled = true,
-                category = "Sholat Sunnah"
-            ),
-            ReminderItem(
-                id = "7",
-                habitName = "Sholat Tahajud",
-                habitIcon = "🌃",
-                time = "03:00",
-                days = "Sen, Rab, Jum",
-                isEnabled = false,
-                category = "Sholat Sunnah"
-            ),
-            ReminderItem(
-                id = "8",
-                habitName = "Dzikir Pagi",
-                habitIcon = "📿",
-                time = "05:30",
-                days = "Setiap hari",
-                isEnabled = true,
-                category = "Dzikir"
-            ),
-            ReminderItem(
-                id = "9",
-                habitName = "Dzikir Petang",
-                habitIcon = "📿",
-                time = "17:00",
-                days = "Setiap hari",
-                isEnabled = true,
-                category = "Dzikir"
-            ),
-            ReminderItem(
-                id = "10",
-                habitName = "Tilawah Al-Quran",
-                habitIcon = "📖",
-                time = "20:00",
-                days = "Setiap hari",
-                isEnabled = true,
-                category = "Tilawah"
-            )
-        )
     }
 }

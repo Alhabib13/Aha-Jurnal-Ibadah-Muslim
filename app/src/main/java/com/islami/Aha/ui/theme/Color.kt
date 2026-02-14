@@ -55,39 +55,42 @@ val SurfaceDark = Color(0xFF1A2332)
 val CardDark = Color(0xFF1E2A3A)
 val ElevatedDark = Color(0xFF243447)
 
+// Dark Mode Text
+val TextPrimaryDark = Color(0xFFE8ECF0)
+val TextSecondaryDark = Color(0xFF8899AA)
+val TextTertiaryDark = Color(0xFF6B7B8D)
+
 // ============================================================================
 // SEMANTIC COLORS
 // ============================================================================
 val SuccessGreen = Color(0xFF10B981)
 val WarningAmber = Color(0xFFF59E0B)
+val WarningYellow = Color(0xFFF59E0B)      // Alias for WarningAmber
 val ErrorRed = Color(0xFFE74C3C)
 val InfoBlue = Color(0xFF3B82F6)
 
 // ============================================================================
 // CATEGORY GRADIENT COLORS
 // ============================================================================
-// Sholat - Emerald
+// Sholat Fardhu - Emerald (Primary Dark → Primary)
 val CategorySholatStart = Color(0xFF0D7C5F)
 val CategorySholatEnd = Color(0xFF14A87D)
 
-// Dzikir - Teal
-val CategoryDzikirStart = Color(0xFF0891B2)
-val CategoryDzikirEnd = Color(0xFF22D3EE)
+// Sholat Sunnah - Green
+val CategorySholatSunnahStart = Color(0xFF14A87D)
+val CategorySholatSunnahEnd = Color(0xFF2ECC9B)
 
-// Tilawah - Amber/Gold
+// Dzikir - Teal (Coming Soon)
+val CategoryDzikirStart = Color(0xFF6366F1)
+val CategoryDzikirEnd = Color(0xFF8B5CF6)
+
+// Tilawah - Amber/Gold (Coming Soon)
 val CategoryTilawahStart = Color(0xFFD97706)
 val CategoryTilawahEnd = Color(0xFFFBBF24)
 
-// Puasa - Purple/Indigo
-val CategoryPuasaStart = Color(0xFF6366F1)
-val CategoryPuasaEnd = Color(0xFF8B5CF6)
-
-// ============================================================================
-// DARK MODE TEXT COLORS
-// ============================================================================
-val TextPrimaryDark = Color(0xFFE8ECF0)
-val TextSecondaryDark = Color(0xFF8899AA)
-val TextTertiaryDark = Color(0xFF6B7B8D)
+// Puasa Sunnah - Gold
+val CategoryPuasaStart = Color(0xFFD4AF37)
+val CategoryPuasaEnd = Color(0xFFF0C75E)
 
 // ============================================================================
 // SPECIAL EFFECT COLORS
@@ -97,17 +100,3 @@ val Scrim = Color(0xB3000000)              // 70% black scrim
 val Shimmer = Color(0x33FFFFFF)            // Shimmer effect
 val Ripple = Color(0xFF14A87D)             // Ripple color
 
-// ============================================================================
-// LEGACY COMPATIBILITY (untuk komponen yang belum diupdate)
-// ============================================================================
-@Deprecated("Use Emerald instead", ReplaceWith("Emerald"))
-val GreenPrimary = Emerald
-
-@Deprecated("Use EmeraldLight instead", ReplaceWith("EmeraldLight"))
-val GreenLight = EmeraldLight
-
-@Deprecated("Use EmeraldDark instead", ReplaceWith("EmeraldDark"))
-val GreenDark = EmeraldDark
-
-@Deprecated("Use Gold instead", ReplaceWith("Gold"))
-val IslamicGold = Gold

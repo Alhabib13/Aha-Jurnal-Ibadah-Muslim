@@ -1,3 +1,28 @@
 <resources>
     <string name="app_name">Habit Traker Islami</string>
+
+    <!-- AddHabitScreen -->
+    <string name="save_sunnah_worship">Simpan Ibadah Sunnah</string>
+    <string name="category_heading">Kategori</string>
+    <string name="select_worship_heading">Pilih Ibadah</string>
+    <string name="rakaat_heading">Jumlah Rakaat</string>
+    <string name="frequency_heading">Frekuensi</string>
+    <string name="reminder_heading">Pengingat</string>
+    <string name="back">Kembali</string>
+    <string name="add_sunnah_worship">Tambah Ibadah Sunnah</string>
+    <string name="add_habit_screen_description">Pilih ibadah sunnah yang ingin kamu jadikan kebiasaan harian.</string>
+    <string name="other_options_heading">Pilihan Lainnya</string>
+    <string name="write_custom_label">Tulis sendiri</string>
+    <string name="custom_sholat_label">Nama sholat sunnah</string>
+    <string name="custom_puasa_label">Nama puasa sunnah</string>
+    <string name="enable_reminder">Aktifkan Pengingat</string>
+    <string name="reminder_for_sunnah_only">Pengingat untuk ibadah sunnah</string>
+    <string name="reminder_time">Waktu Pengingat</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Batal</string>
+    <string name="select_time">Pilih Waktu</string>
+
+    <!-- HomeScreen -->
+    <string name="additional_worship_heading">Ibadah Sunnah Tambahan</string>
+    <string name="no_sunnah_habit_added">Belum ada ibadah sunnah yang ditambahkan.</string>
 </resources>

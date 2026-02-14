@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Generated from AGP missing_rules.txt for release minification.
+-dontwarn coil.base.R$id
+-dontwarn com.islami.Aha.R$drawable

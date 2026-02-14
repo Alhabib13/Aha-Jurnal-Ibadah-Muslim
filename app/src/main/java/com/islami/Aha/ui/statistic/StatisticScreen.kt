@@ -1,328 +1,281 @@
 package com.islami.Aha.ui.statistic
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.outlined.LocalFireDepartment
-import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.islami.Aha.ui.components.AhaBottomNavBar
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
 
-/**
- * Statistic Screen - Layar untuk melihat statistik ibadah.
- *
- * Menampilkan:
- * - Ringkasan harian
- * - Progress mingguan
- * - Statistik per kategori
- * - Streak dan pencapaian
- *
- * @param viewModel ViewModel untuk mengelola state statistik
- * @param onNavigateBack Callback untuk kembali
- * @param onNavigateToHome Callback navigasi ke Home
- * @param onNavigateToAddHabit Callback navigasi ke Tambah Habit
- * @param onNavigateToNotification Callback navigasi ke Notifikasi
- * @param onNavigateToProfile Callback navigasi ke Profil
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun StatisticScreen(
-    viewModel: StatisticViewModel = viewModel(),
-    onNavigateBack: () -> Unit = {},
-    onNavigateToHome: () -> Unit = {},
-    onNavigateToAddHabit: () -> Unit = {},
-    onNavigateToNotification: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
-) {
-    val uiState by viewModel.uiState.collectAsState()
+// Category gradient pairs
+private val categoryGradients = listOf(
+    listOf(Color(0xFF0D7C5F), Color(0xFF14A87D)),  // Sholat Fardhu - green
+    listOf(Color(0xFF0D9488), Color(0xFF14B8A6)),  // Sholat Sunnah - teal
+    listOf(Color(0xFFD97706), Color(0xFFFBBF24)),  // Puasa Wajib - amber
+    listOf(Color(0xFFEA580C), Color(0xFFFB923C))   // Puasa Sunnah - orange
+)
 
-    StatisticScreenContent(
-        uiState = uiState,
-        onNavigateBack = onNavigateBack,
-        onNavigateToHome = onNavigateToHome,
-        onNavigateToAddHabit = onNavigateToAddHabit,
-        onNavigateToNotification = onNavigateToNotification,
-        onNavigateToProfile = onNavigateToProfile
-    )
+@Composable
+fun StatisticScreen(viewModel: StatisticViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    StatisticScreenContent(uiState = uiState)
 }
 
-/**
- * Konten Statistic Screen - Stateless composable.
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatisticScreenContent(
-    uiState: StatisticUiState,
-    onNavigateBack: () -> Unit,
-    onNavigateToHome: () -> Unit,
-    onNavigateToAddHabit: () -> Unit,
-    onNavigateToNotification: () -> Unit,
-    onNavigateToProfile: () -> Unit
-) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Statistik",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Gray900
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Kembali",
-                            tint = Gray900
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = SurfaceWhite
-                )
-            )
-        },
-        bottomBar = {
-            AhaBottomNavBar(
-                currentRoute = "statistic",
-                onItemSelected = { route ->
-                    when (route) {
-                        "home" -> onNavigateToHome()
-                        "statistic" -> { /* Already here */ }
-                        "add_habit" -> onNavigateToAddHabit()
-                        "notification" -> onNavigateToNotification()
-                        "profile" -> onNavigateToProfile()
-                    }
-                }
-            )
-        },
-        containerColor = BackgroundLight
-    ) { paddingValues ->
-        if (uiState.isLoading) {
-            // Loading state
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = GreenPrimary)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Header dengan tanggal
-                item {
-                    Text(
-                        text = uiState.currentDate,
-                        fontSize = 14.sp,
-                        color = Gray500
-                    )
-                }
-
-                // Card Progress Hari Ini
-                item {
-                    TodayProgressCard(
-                        completed = uiState.todayCompleted,
-                        total = uiState.todayTotal,
-                        percentage = uiState.todayPercentage
-                    )
-                }
-
-                // Statistik Mingguan
-                item {
-                    if (uiState.weeklyStats.isEmpty()) {
-                        EmptyStatisticCard(
-                            title = "Progress Minggu Ini",
-                            message = "Belum ada data statistik mingguan"
-                        )
-                    } else {
-                        WeeklyStatsCard(weeklyStats = uiState.weeklyStats)
-                    }
-                }
-
-                // Streak Cards
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        StreakCard(
-                            title = "Streak Saat Ini",
-                            value = uiState.currentStreak,
-                            icon = Icons.Outlined.LocalFireDepartment,
-                            modifier = Modifier.weight(1f)
-                        )
-                        StreakCard(
-                            title = "Streak Terpanjang",
-                            value = uiState.longestStreak,
-                            icon = Icons.Outlined.TrendingUp,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                // Judul Kategori
-                item {
-                    Text(
-                        text = "Statistik per Kategori",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Gray900,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-
-                // Kategori Cards
-                if (uiState.categoryStats.isEmpty()) {
-                    item {
-                        EmptyStatisticCard(
-                            title = "Statistik Kategori",
-                            message = "Belum ada data kategori"
-                        )
-                    }
-                } else {
-                    items(uiState.categoryStats) { category ->
-                        CategoryStatCard(category = category)
-                    }
-                }
-
-                // Bottom spacing
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-            }
+fun StatisticScreenContent(uiState: StatisticUiState) {
+    if (uiState.isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Emerald)
         }
-    }
-}
-
-/**
- * Card progress hari ini dengan circular progress indicator.
- */
-@Composable
-fun TodayProgressCard(
-    completed: Int,
-    total: Int,
-    percentage: Int
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = GreenPrimary)
-    ) {
-        Row(
+    } else {
+        LazyColumn(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column {
-                Text(
-                    text = "Progress Hari Ini",
-                    fontSize = 14.sp,
-                    color = SurfaceWhite.copy(alpha = 0.8f)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "$completed dari $total",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SurfaceWhite
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "ibadah selesai",
-                    fontSize = 14.sp,
-                    color = SurfaceWhite.copy(alpha = 0.8f)
+            // 1. Header
+            item { StatisticHeader(currentDate = uiState.currentDate) }
+
+            // 2. Progress Card
+            item {
+                ProgressCard(
+                    completed = uiState.todayCompleted,
+                    total = uiState.todayTotal,
+                    percentage = uiState.todayPercentage
                 )
             }
 
-            // Circular Progress
-            Box(contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(
-                    progress = { percentage / 100f },
-                    modifier = Modifier.size(80.dp),
-                    color = SurfaceWhite,
-                    trackColor = SurfaceWhite.copy(alpha = 0.3f),
-                    strokeWidth = 8.dp
+            // 3. Summary Cards
+            item {
+                SummaryCardsRow(
+                    totalCompleted = uiState.totalCompleted,
+                    longestStreak = uiState.longestStreak,
+                    averagePerDay = uiState.averagePerDay
                 )
+            }
+
+            // 4. Weekly Heatmap
+            item { WeeklyHeatmap(weeklyStats = uiState.weeklyStats) }
+
+            // 5. Streak Cards
+            item {
+                StreakCards(
+                    currentStreak = uiState.currentStreak,
+                    longestStreak = uiState.longestStreak
+                )
+            }
+
+            // 6. Category Stats
+            item {
                 Text(
-                    text = "$percentage%",
+                    text = "Statistik per Kategori",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SurfaceWhite
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(horizontal = 20.dp)
                 )
             }
+
+            items(uiState.categoryStats) { category ->
+                CategoryStatCard(
+                    category = category,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+            }
+
+            // 7. Coming Soon
+            item { ComingSoonCard() }
         }
     }
 }
 
-/**
- * Card statistik mingguan dengan bar chart sederhana.
- */
 @Composable
-fun WeeklyStatsCard(weeklyStats: List<DailyStatistic>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
+fun StatisticHeader(currentDate: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(colors = listOf(EmeraldDark, Emerald)),
+                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
+            )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 18.dp)
         ) {
-            Text(
-                text = "Progress Minggu Ini",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Gray900
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Bar chart sederhana
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
             ) {
-                weeklyStats.forEachIndexed { index, stat ->
-                    val isToday = index == weeklyStats.size - 1
+                Text(
+                    text = "Statistik",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
 
-                    DayBar(
-                        dayName = stat.dayName,
-                        percentage = stat.percentage,
-                        isToday = isToday,
-                        modifier = Modifier.weight(1f)
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.16f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "Tanggal Aktif",
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = if (currentDate.isNotEmpty()) currentDate else "Tanggal aktif tidak tersedia",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Ringkasan progres ibadah Anda",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f),
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun ProgressCard(completed: Int, total: Int, percentage: Int) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(EmeraldDark, Emerald)
+                    )
+                )
+                .padding(24.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = "Progress Hari Ini",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "$completed dari $total",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Text(
+                        text = "ibadah selesai",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    )
+                }
+
+                // Circular progress ring
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(90.dp)
+                ) {
+                    val progress = percentage / 100f
+                    val onPrimary = MaterialTheme.colorScheme.onPrimary
+                    androidx.compose.foundation.Canvas(modifier = Modifier.size(80.dp)) {
+                        val strokeWidth = 8.dp.toPx()
+                        val diameter = size.minDimension
+                        val radius = (diameter - strokeWidth) / 2
+                        val topLeft = Offset(
+                            (size.width - diameter + strokeWidth) / 2,
+                            (size.height - diameter + strokeWidth) / 2
+                        )
+                        val arcSize = Size(diameter - strokeWidth, diameter - strokeWidth)
+
+                        // Track
+                        drawArc(
+                            color = onPrimary.copy(alpha = 0.3f),
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                        )
+                        // Progress
+                        drawArc(
+                            color = onPrimary,
+                            startAngle = -90f,
+                            sweepAngle = 360f * progress,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                        )
+                    }
+                    Text(
+                        text = "$percentage%",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }
@@ -330,305 +283,395 @@ fun WeeklyStatsCard(weeklyStats: List<DailyStatistic>) {
     }
 }
 
-/**
- * Bar untuk satu hari dalam chart mingguan.
- */
 @Composable
-fun DayBar(
-    dayName: String,
-    percentage: Int,
-    isToday: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val animatedHeight by animateFloatAsState(
-        targetValue = percentage / 100f,
-        animationSpec = tween(durationMillis = 500),
-        label = "barHeight"
-    )
-
-    Column(
-        modifier = modifier.padding(horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+fun SummaryCardsRow(totalCompleted: Int, longestStreak: Int, averagePerDay: Float) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Bar
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            // Background bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                    .background(Gray100)
-            )
-            // Progress bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(animatedHeight)
-                    .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                    .background(if (isToday) GreenPrimary else GreenPrimary.copy(alpha = 0.6f))
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Day label
-        Text(
-            text = dayName,
-            fontSize = 11.sp,
-            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-            color = if (isToday) GreenPrimary else Gray500
+        SummaryCard(
+            icon = Icons.Filled.CheckCircle,
+            value = "$totalCompleted",
+            label = "Total\nSelesai",
+            backgroundColor = Emerald
+        )
+        SummaryCard(
+            icon = Icons.Filled.LocalFireDepartment,
+            value = "$longestStreak",
+            label = "Streak\nTerpjg",
+            backgroundColor = Gold
+        )
+        SummaryCard(
+            icon = Icons.Filled.BarChart,
+            value = String.format("%.1f", averagePerDay),
+            label = "Rata-\nrata/hr",
+            backgroundColor = Color(0xFF17A2B8)
         )
     }
 }
 
-/**
- * Card untuk menampilkan streak.
- */
 @Composable
-fun StreakCard(
-    title: String,
-    value: Int,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier
-) {
+fun SummaryCard(icon: ImageVector, value: String, label: String, backgroundColor: Color) {
     Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
+        modifier = Modifier.width(110.dp),
+        shape = RoundedCornerShape(16.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(backgroundColor)
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (title.contains("Saat Ini")) WarningYellow else GreenPrimary,
-                modifier = Modifier.size(32.dp)
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(24.dp)
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = value,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                textAlign = TextAlign.Center,
+                lineHeight = 14.sp
+            )
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.width(12.dp))
+@Composable
+fun WeeklyHeatmap(weeklyStats: List<DailyStatistic>) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Progress Minggu Ini",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                weeklyStats.forEach { day ->
+                    HeatmapCell(day = day)
+                }
+            }
+        }
+    }
+}
 
-            Column {
+@Composable
+fun HeatmapCell(day: DailyStatistic) {
+    val bgColor = when {
+        day.completedCount >= 8 -> EmeraldDark
+        day.completedCount in 4..7 -> Emerald
+        day.completedCount in 1..3 -> EmeraldLight
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val textColor = when {
+        day.completedCount >= 4 -> MaterialTheme.colorScheme.onPrimary
+        day.completedCount in 1..3 -> EmeraldDark
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(bgColor)
+                .then(
+                    if (day.isToday) Modifier.border(
+                        2.dp,
+                        Emerald,
+                        RoundedCornerShape(8.dp)
+                    ) else Modifier
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "${day.completedCount}",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = textColor
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = day.dayName,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun StreakCards(currentStreak: Int, longestStreak: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Card(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = GoldLight)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = Gray700,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(text = "Streak", fontSize = 13.sp, color = Gray700)
+                }
                 Text(
-                    text = title,
+                    text = "Saat Ini",
                     fontSize = 12.sp,
                     color = Gray500
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "$currentStreak hari",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+        Card(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Row(
-                    verticalAlignment = Alignment.Bottom
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = "$value",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Gray900
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ShowChart,
+                        contentDescription = null,
+                        tint = Gray700,
+                        modifier = Modifier.size(14.dp)
                     )
-                    Text(
-                        text = " hari",
-                        fontSize = 14.sp,
-                        color = Gray500,
-                        modifier = Modifier.padding(bottom = 2.dp)
-                    )
+                    Text(text = "Streak", fontSize = 13.sp, color = Gray700)
                 }
+                Text(
+                    text = "Terpanjang",
+                    fontSize = 12.sp,
+                    color = Gray500
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "$longestStreak hari",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }
 }
 
-/**
- * Card untuk statistik per kategori.
- */
 @Composable
-fun CategoryStatCard(category: CategoryStatistic) {
+fun CategoryStatCard(category: CategoryStatistic, modifier: Modifier = Modifier) {
+    val gradientColors = categoryGradients.getOrElse(category.gradientIndex) {
+        listOf(Emerald, EmeraldDark)
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Title row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    CategoryStatIcon(iconKey = category.icon)
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = category.icon,
-                        fontSize = 24.sp
+                        text = category.name,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = category.name,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Gray900
-                        )
-                        Text(
-                            text = "${category.completedCount}/${category.totalCount} minggu ini",
-                            fontSize = 12.sp,
-                            color = Gray500
-                        )
-                    }
                 }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "${category.percentage}%",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GreenPrimary
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.LocalFireDepartment,
-                            contentDescription = null,
-                            tint = WarningYellow,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = " ${category.streak} hari",
-                            fontSize = 11.sp,
-                            color = Gray500
-                        )
-                    }
-                }
+                Text(
+                    text = "${category.percentage}%",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Emerald
+                )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Progress bar
-            LinearProgressIndicator(
-                progress = { category.percentage / 100f },
+            // Info row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "${category.completedCount}/${category.totalCount} minggu ini",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${category.streak} hari",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Gradient progress bar
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                color = GreenPrimary,
-                trackColor = Gray100
-            )
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                val fraction = (category.percentage / 100f).coerceIn(0f, 1f)
+                if (fraction > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(fraction)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                brush = Brush.horizontalGradient(gradientColors)
+                            )
+                    )
+                }
+            }
         }
     }
 }
 
-/**
- * Empty state card untuk statistik kosong.
- */
 @Composable
-fun EmptyStatisticCard(
-    title: String,
-    message: String
-) {
+fun ComingSoonCard() {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.HourglassTop,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Statistik Dzikir & Tilawah",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Text(
-                text = title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Gray900
-            )
-            Text(
-                text = message,
+                text = "akan tersedia segera!",
                 fontSize = 13.sp,
-                color = Gray400,
-                textAlign = TextAlign.Center
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
     }
 }
 
-// ============================================================================
-// PREVIEW SECTION
-// ============================================================================
-
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true)
 @Composable
 fun StatisticScreenPreview() {
     HabitIslamiTheme {
         StatisticScreenContent(
             uiState = StatisticUiState(
                 isLoading = false,
-                currentDate = "Rabu, 05 Februari 2025",
-                todayCompleted = 7,
-                todayTotal = 10,
-                todayPercentage = 70,
+                currentDate = "Minggu, 08 Februari 2026",
+                todayCompleted = 3,
+                todayTotal = 18,
+                todayPercentage = 17,
+                totalCompleted = 3,
+                currentStreak = 0,
+                longestStreak = 0,
+                averagePerDay = 3f,
                 weeklyStats = listOf(
-                    DailyStatistic("Sen", "30", 8, 10, 80),
-                    DailyStatistic("Sel", "31", 7, 10, 70),
-                    DailyStatistic("Rab", "01", 9, 10, 90),
-                    DailyStatistic("Kam", "02", 6, 10, 60),
-                    DailyStatistic("Jum", "03", 10, 10, 100),
-                    DailyStatistic("Sab", "04", 8, 10, 80),
-                    DailyStatistic("Min", "05", 7, 10, 70)
+                    DailyStatistic("Min", 3, true),
+                    DailyStatistic("Sen", 0, false),
+                    DailyStatistic("Sel", 0, false),
+                    DailyStatistic("Rab", 0, false),
+                    DailyStatistic("Kam", 0, false),
+                    DailyStatistic("Jum", 0, false),
+                    DailyStatistic("Sab", 0, false)
                 ),
                 categoryStats = listOf(
-                    CategoryStatistic("Sholat Fardhu", "🕌", 32, 35, 91, 7),
-                    CategoryStatistic("Sholat Sunnah", "🤲", 18, 28, 64, 3),
-                    CategoryStatistic("Dzikir", "📿", 5, 7, 71, 5),
-                    CategoryStatistic("Tilawah", "📖", 4, 7, 57, 2)
-                ),
-                currentStreak = 7,
-                longestStreak = 14,
-                totalCompleted = 156
-            ),
-            onNavigateBack = {},
-            onNavigateToHome = {},
-            onNavigateToAddHabit = {},
-            onNavigateToNotification = {},
-            onNavigateToProfile = {}
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun TodayProgressCardPreview() {
-    HabitIslamiTheme {
-        TodayProgressCard(
-            completed = 7,
-            total = 10,
-            percentage = 70
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun CategoryStatCardPreview() {
-    HabitIslamiTheme {
-        CategoryStatCard(
-            category = CategoryStatistic(
-                name = "Sholat Fardhu",
-                icon = "🕌",
-                completedCount = 32,
-                totalCount = 35,
-                percentage = 91,
-                streak = 7
+                    CategoryStatistic("Sholat Fardhu", "masjid", 2, 5, 40, 0, 0),
+                    CategoryStatistic("Sholat Sunnah", "sun", 1, 7, 14, 0, 1),
+                    CategoryStatistic("Puasa Wajib", "plate", 0, 1, 0, 0, 2),
+                    CategoryStatistic("Puasa Sunnah", "moon", 0, 5, 0, 0, 3)
+                )
             )
         )
+    }
+}
+
+@Composable
+private fun CategoryStatIcon(iconKey: String) {
+    when (iconKey) {
+        "masjid", "\uD83D\uDD4C" -> {
+            Icon(
+                painter = painterResource(id = R.drawable.masjid),
+                contentDescription = "Masjid",
+                tint = Color.Black,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        "sun", "\u2600\uFE0F" -> Icon(Icons.Filled.WbSunny, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
+        "plate", "\uD83C\uDF7D\uFE0F" -> Icon(Icons.Filled.Restaurant, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
+        "moon", "\uD83C\uDF19" -> Icon(Icons.Filled.DarkMode, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
+        else -> Icon(Icons.Filled.BarChart, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
     }
 }

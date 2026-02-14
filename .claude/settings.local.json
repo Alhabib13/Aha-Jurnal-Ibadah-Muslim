@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.gradlew assembleDebug:*)",
+      "Bash(cmd /c:*)",
+      "Bash(ls:*)",
+      "Bash(bash gradlew:*)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")",
+      "Bash(.gradlew.bat compileDebugKotlin:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(powershell -Command \"Set-Location ''D:\\\\Projeck APK''; & ''.\\\\gradlew.bat'' compileDebugKotlin 2>&1\")",
+      "Bash(\"D:\\\\Projeck APK\\\\gradlew.bat\" --project-dir \"D:\\\\Projeck APK\" assembleDebug)",
+      "Bash(\"D:\\\\Projeck APK\\\\gradlew.bat\" -p \"D:\\\\Projeck APK\" assembleDebug)",
+      "Bash(powershell.exe:*)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\" PATH=\"$JAVA_HOME/bin:$PATH\" cmd.exe:*)",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
+      "Bash(./gradlew.bat assembleDebug:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(./gradlew.bat:*)",
+      "Bash(.gradlew.bat assembleDebug:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\" cmd.exe /c \"cd /d \"\"D:\\\\Projeck APK\"\" && gradlew.bat assembleDebug\")",
+      "Bash(\"D:/Projeck APK/gradlew.bat\" --project-dir \"D:/Projeck APK\" assembleDebug)",
+      "Bash(cd:*)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew.bat:*)"
+    ]
+  }
+}

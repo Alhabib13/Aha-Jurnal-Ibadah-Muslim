@@ -11,25 +11,24 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val LightColorScheme = lightColorScheme(
-    primary = GreenPrimary,
+    primary = Emerald,
     onPrimary = Color.White,
-    primaryContainer = GreenLight,
+    primaryContainer = EmeraldLight,
     onPrimaryContainer = Gray900,
 
-    secondary = Gray600,
+    secondary = Gold,
     onSecondary = Color.White,
-    secondaryContainer = Gray100,
+    secondaryContainer = GoldLight,
     onSecondaryContainer = Gray900,
 
-    tertiary = IslamicGold,
+    tertiary = Gold,
     onTertiary = Gray900,
-    tertiaryContainer = IslamicGold.copy(alpha = 0.2f),
+    tertiaryContainer = GoldLight,
     onTertiaryContainer = Gray900,
 
     background = BackgroundLight,
@@ -52,31 +51,31 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = GreenPrimary,
-    onPrimary = Gray900,
-    primaryContainer = GreenDark,
-    onPrimaryContainer = GreenLight,
+    primary = EmeraldMuted,
+    onPrimary = Color.White,
+    primaryContainer = EmeraldDark,
+    onPrimaryContainer = EmeraldLight,
 
-    secondary = Gray400,
-    onSecondary = Gray900,
-    secondaryContainer = Gray700,
-    onSecondaryContainer = Gray100,
+    secondary = GoldMuted,
+    onSecondary = Color.White,
+    secondaryContainer = Gold.copy(alpha = 0.3f),
+    onSecondaryContainer = GoldMuted,
 
-    tertiary = IslamicGold,
-    onTertiary = Gray900,
-    tertiaryContainer = IslamicGold.copy(alpha = 0.3f),
-    onTertiaryContainer = IslamicGold,
+    tertiary = GoldMuted,
+    onTertiary = Color.White,
+    tertiaryContainer = Gold.copy(alpha = 0.3f),
+    onTertiaryContainer = GoldMuted,
 
-    background = Gray900,
-    onBackground = Gray100,
+    background = BackgroundDark,
+    onBackground = TextPrimaryDark,
 
-    surface = Gray900,
-    onSurface = Gray100,
-    surfaceVariant = Gray700,
-    onSurfaceVariant = Gray300,
+    surface = SurfaceDark,
+    onSurface = TextPrimaryDark,
+    surfaceVariant = CardDark,
+    onSurfaceVariant = TextSecondaryDark,
 
     error = ErrorRed,
-    onError = Gray900,
+    onError = Color.White,
     errorContainer = ErrorRed.copy(alpha = 0.2f),
     onErrorContainer = ErrorRed,
 
@@ -89,7 +88,6 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun HabitIslamiTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
@@ -106,8 +104,10 @@ fun HabitIslamiTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = GreenPrimary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
         }
     }
 

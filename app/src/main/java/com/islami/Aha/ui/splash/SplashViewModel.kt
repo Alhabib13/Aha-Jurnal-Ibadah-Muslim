@@ -18,7 +18,6 @@ import kotlinx.coroutines.launch
  */
 data class SplashUiState(
     val isLoading: Boolean = true,
-    val isUserLoggedIn: Boolean = false,
     val shouldNavigate: Boolean = false
 )
 
@@ -27,8 +26,7 @@ data class SplashUiState(
  *
  * Bertanggung jawab untuk:
  * 1. Menampilkan splash selama 2 detik
- * 2. Mengecek status login user (dari local storage)
- * 3. Menentukan navigasi berikutnya (Login atau Home)
+ * 2. Menentukan navigasi berikutnya (Home guest mode)
  *
  * Untuk saat ini, logic login menggunakan dummy data.
  * Di production, akan membaca dari SharedPreferences atau DataStore.
@@ -56,38 +54,14 @@ class SplashViewModel : ViewModel() {
             // Tampilkan splash selama durasi yang ditentukan
             delay(SPLASH_DURATION)
 
-            // Cek status login
-            val isLoggedIn = checkUserLoginStatus()
-
             // Update state untuk trigger navigasi
             _uiState.update { currentState ->
                 currentState.copy(
                     isLoading = false,
-                    isUserLoggedIn = isLoggedIn,
                     shouldNavigate = true
                 )
             }
         }
-    }
-
-    /**
-     * Mengecek apakah user sudah login sebelumnya.
-     *
-     * TODO: Implementasi sebenarnya menggunakan SharedPreferences atau DataStore
-     * untuk menyimpan dan membaca status login.
-     *
-     * @return true jika user sudah login, false jika belum
-     */
-    private suspend fun checkUserLoginStatus(): Boolean {
-        // Simulasi pengecekan login (delay kecil untuk realistis)
-        delay(100)
-
-        // TODO: Ganti dengan logic sebenarnya
-        // Contoh implementasi dengan SharedPreferences:
-        // return sharedPreferences.getBoolean("is_logged_in", false)
-
-        // Untuk sementara, selalu return false (selalu ke Login)
-        return false
     }
 
     /**

@@ -1,130 +1,193 @@
 package com.islami.Aha.ui.components
 
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
 
-/**
- * Data class yang merepresentasikan item dalam Bottom Navigation.
- *
- * @property route Rute navigasi yang terkait dengan item ini
- * @property title Label yang ditampilkan di bawah ikon
- * @property icon Ikon yang ditampilkan untuk item ini
- * @property contentDescription Deskripsi untuk aksesibilitas
- */
 data class BottomNavItem(
     val route: String,
     val title: String,
-    val icon: ImageVector,
+    val iconRes: Int,
     val contentDescription: String = title
 )
 
-/**
- * Daftar item untuk Bottom Navigation.
- * Urutan: Beranda, Statistik, Tambah, Notifikasi, Profil
- */
 object BottomNavItems {
     val items = listOf(
-        BottomNavItem(
-            route = "home",
-            title = "Beranda",
-            icon = Icons.Outlined.Home
-        ),
-        BottomNavItem(
-            route = "statistic",
-            title = "Statistik",
-            icon = Icons.Outlined.BarChart
-        ),
-        BottomNavItem(
-            route = "add_habit",
-            title = "Tambah",
-            icon = Icons.Default.Add
-        ),
-        BottomNavItem(
-            route = "notification",
-            title = "Notifikasi",
-            icon = Icons.Outlined.Notifications
-        ),
-        BottomNavItem(
-            route = "profile",
-            title = "Profil",
-            icon = Icons.Outlined.Person
-        )
+        BottomNavItem("home", "Beranda", R.drawable.ic_nav_home),
+        BottomNavItem("statistic", "Statistik", R.drawable.ic_nav_statistic),
+        BottomNavItem("add_habit", "Tambah", R.drawable.ic_nav_add),
+        BottomNavItem("notification", "Notifikasi", R.drawable.ic_nav_notification),
+        BottomNavItem("profile", "Profil", R.drawable.ic_nav_profile)
     )
 }
 
-/**
- * Komponen Bottom Navigation Bar yang dapat digunakan kembali.
- * Mengikuti design system aplikasi dengan warna tema.
- *
- * @param currentRoute Rute layar yang sedang aktif
- * @param onItemSelected Callback ketika item dipilih, mengembalikan route
- * @param modifier Modifier untuk kustomisasi
- */
 @Composable
 fun AhaBottomNavBar(
     currentRoute: String,
     onItemSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    NavigationBar(
-        containerColor = SurfaceWhite,
-        tonalElevation = 0.dp,
-        modifier = modifier
-            .height(70.dp)
-            .shadow(
-                elevation = 8.dp,
-                spotColor = Color.Black.copy(alpha = 0.08f),
-                ambientColor = Color.Black.copy(alpha = 0.04f)
-            )
+    // Outer Box: wraps nav bar, FAB floats above via negative offset
+    Box(
+        modifier = modifier.fillMaxWidth()
     ) {
-        BottomNavItems.items.forEach { item ->
-            val isSelected = currentRoute == item.route
-
-            NavigationBarItem(
-                icon = {
-                    Icon(
-                        imageVector = item.icon,
-                        contentDescription = item.contentDescription,
-                        modifier = Modifier.size(26.dp)
-                    )
-                },
-                label = {
-                    Text(
-                        text = item.title,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                },
-                selected = isSelected,
-                onClick = { onItemSelected(item.route) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = GreenPrimary,
-                    selectedTextColor = GreenPrimary,
-                    indicatorColor = Color.Transparent,
-                    unselectedIconColor = Gray400,
-                    unselectedTextColor = Gray400
+        // ── Nav bar background with top divider ──
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(
+                    WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
                 )
+        ) {
+            // Top separator line
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+            // Nav bar surface
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .shadow(
+                        elevation = 12.dp,
+                        spotColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.1f),
+                        ambientColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.05f)
+                    )
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left: Beranda, Statistik
+                    BottomNavItems.items.take(2).forEach { item ->
+                        NavBarItem(
+                            item = item,
+                            isSelected = currentRoute == item.route,
+                            onClick = { onItemSelected(item.route) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Center: empty space for FAB
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // Right: Notifikasi, Profil
+                    BottomNavItems.items.takeLast(2).forEach { item ->
+                        NavBarItem(
+                            item = item,
+                            isSelected = currentRoute == item.route,
+                            onClick = { onItemSelected(item.route) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Floating Center FAB ──
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-16).dp)
+                .size(56.dp)
+                .shadow(elevation = 8.dp, shape = CircleShape)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(EmeraldDark, Emerald)
+                    ),
+                    shape = CircleShape
+                )
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onItemSelected("add_habit") },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = "Tambah",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(28.dp)
             )
         }
     }
 }
 
+// ────────────────────────────────────────────────────────────────
+// Single nav bar item: icon + label (always visible)
+// ────────────────────────────────────────────────────────────────
+
+@Composable
+private fun NavBarItem(
+    item: BottomNavItem,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val iconColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "navIcon"
+    )
+    val labelColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "navLabel"
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            painter = painterResource(id = item.iconRes),
+            contentDescription = item.contentDescription,
+            tint = iconColor,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = item.title,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+            color = labelColor,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 // ============================================================================
-// PREVIEW
+// PREVIEWS
 // ============================================================================
 
 @Preview(showBackground = true)

@@ -1,72 +1,91 @@
 package com.islami.Aha.ui.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.islami.Aha.ui.components.AhaBottomNavBar
-import com.islami.Aha.ui.theme.*
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.islami.Aha.ui.theme.Emerald
+import com.islami.Aha.ui.theme.EmeraldDark
+import com.islami.Aha.ui.theme.ErrorRed
+import com.islami.Aha.ui.theme.Gray500
+import com.islami.Aha.ui.theme.HabitIslamiTheme
 
-/**
- * Profile Screen - Layar untuk melihat profil dan pengaturan.
- *
- * Fitur:
- * - Informasi pengguna dan statistik ringkas
- * - Pengaturan notifikasi
- * - Pengaturan tema (mode gelap)
- * - Pengaturan format waktu
- * - Reset data
- * - Logout
- *
- * @param viewModel ViewModel untuk mengelola state profil
- * @param onNavigateBack Callback untuk kembali ke layar sebelumnya
- * @param onNavigateToHome Callback navigasi ke Home
- * @param onNavigateToStatistic Callback navigasi ke Statistik
- * @param onNavigateToAddHabit Callback navigasi ke Tambah Habit
- * @param onNavigateToNotification Callback navigasi ke Notifikasi
- * @param onLogout Callback untuk logout
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    viewModel: ProfileViewModel = viewModel(),
-    onNavigateBack: () -> Unit = {},
-    onNavigateToHome: () -> Unit = {},
-    onNavigateToStatistic: () -> Unit = {},
-    onNavigateToAddHabit: () -> Unit = {},
-    onNavigateToNotification: () -> Unit = {},
-    onLogout: () -> Unit = {}
+    viewModel: ProfileViewModel = hiltViewModel(),
+    onNavigateToSettings: () -> Unit,
+    onNavigateToLogin: () -> Unit,
+    onLogout: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.snackbarMessage) {
+        uiState.snackbarMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearSnackbar()
+        }
+    }
 
     ProfileScreenContent(
         uiState = uiState,
-        onToggleNotification = viewModel::toggleNotification,
-        onToggleDarkMode = viewModel::toggleDarkMode,
-        onShowTimeFormatDialog = viewModel::showTimeFormatDialog,
-        onHideTimeFormatDialog = viewModel::hideTimeFormatDialog,
-        onSetTimeFormat = viewModel::setTimeFormat,
-        onShowResetConfirmation = viewModel::showResetConfirmation,
-        onHideResetConfirmation = viewModel::hideResetConfirmation,
-        onConfirmReset = viewModel::resetAllData,
+        snackbarHostState = snackbarHostState,
+        onNavigateToSettings = onNavigateToSettings,
+        onNavigateToLogin = onNavigateToLogin,
         onShowLogoutConfirmation = viewModel::showLogoutConfirmation,
         onHideLogoutConfirmation = viewModel::hideLogoutConfirmation,
         onConfirmLogout = {
@@ -74,692 +93,493 @@ fun ProfileScreen(
                 onLogout()
             }
         },
-        onNavigateBack = onNavigateBack,
-        onNavigateToHome = onNavigateToHome,
-        onNavigateToStatistic = onNavigateToStatistic,
-        onNavigateToAddHabit = onNavigateToAddHabit,
-        onNavigateToNotification = onNavigateToNotification
+        onAvatarEditClick = onNavigateToSettings
     )
 }
 
-/**
- * Konten Profile Screen - Stateless composable.
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreenContent(
     uiState: ProfileUiState,
-    onToggleNotification: () -> Unit,
-    onToggleDarkMode: () -> Unit,
-    onShowTimeFormatDialog: () -> Unit,
-    onHideTimeFormatDialog: () -> Unit,
-    onSetTimeFormat: (TimeFormat) -> Unit,
-    onShowResetConfirmation: () -> Unit,
-    onHideResetConfirmation: () -> Unit,
-    onConfirmReset: () -> Unit,
+    snackbarHostState: SnackbarHostState,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToLogin: () -> Unit,
     onShowLogoutConfirmation: () -> Unit,
     onHideLogoutConfirmation: () -> Unit,
     onConfirmLogout: () -> Unit,
-    onNavigateBack: () -> Unit,
-    onNavigateToHome: () -> Unit,
-    onNavigateToStatistic: () -> Unit,
-    onNavigateToAddHabit: () -> Unit,
-    onNavigateToNotification: () -> Unit
+    onAvatarEditClick: () -> Unit
 ) {
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Profil",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Gray900
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Kembali",
-                            tint = Gray900
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = SurfaceWhite
-                )
-            )
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Snackbar(snackbarData = data)
+            }
         },
-        bottomBar = {
-            AhaBottomNavBar(
-                currentRoute = "profile",
-                onItemSelected = { route ->
-                    when (route) {
-                        "home" -> onNavigateToHome()
-                        "statistic" -> onNavigateToStatistic()
-                        "add_habit" -> onNavigateToAddHabit()
-                        "notification" -> onNavigateToNotification()
-                        "profile" -> { /* Already here */ }
-                    }
-                }
-            )
-        },
-        containerColor = BackgroundLight
-    ) { paddingValues ->
+        containerColor = MaterialTheme.colorScheme.background
+    ) { _: PaddingValues ->
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = GreenPrimary)
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Emerald)
             }
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .background(MaterialTheme.colorScheme.background),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
             ) {
-                // Profile Header
+                if (uiState.isSaving) {
+                    item {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Emerald,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
+                }
+
                 item {
-                    ProfileHeaderCard(
+                    ProfileHeader(
                         userInfo = uiState.userInfo,
                         totalHabits = uiState.totalHabits,
                         totalCompleted = uiState.totalCompleted,
-                        currentStreak = uiState.currentStreak
+                        currentStreak = uiState.currentStreak,
+                        onSettingsClick = onNavigateToSettings,
+                        onLoginClick = onNavigateToLogin,
+                        onAvatarEditClick = onAvatarEditClick
                     )
                 }
 
-                // Settings Section
-                item {
-                    SettingsSectionTitle(title = "Pengaturan")
-                }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
 
-                // Notification Setting
                 item {
-                    SettingsToggleItem(
-                        icon = Icons.Outlined.Notifications,
-                        title = "Notifikasi",
-                        subtitle = "Terima pengingat ibadah",
-                        isChecked = uiState.notificationEnabled,
-                        onToggle = onToggleNotification
+                    Text(
+                        text = "\uD83C\uDFC6 Pencapaian Saya",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(horizontal = 20.dp)
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                // Dark Mode Setting
                 item {
-                    SettingsToggleItem(
-                        icon = Icons.Outlined.DarkMode,
-                        title = "Mode Gelap",
-                        subtitle = "Gunakan tema gelap",
-                        isChecked = uiState.darkModeEnabled,
-                        onToggle = onToggleDarkMode
-                    )
+                    AchievementsGrid(achievements = uiState.achievements)
                 }
 
-                // Time Format Setting
+                item { Spacer(modifier = Modifier.height(20.dp)) }
+
                 item {
-                    SettingsClickItem(
-                        icon = Icons.Outlined.Schedule,
-                        title = "Format Waktu",
-                        subtitle = uiState.timeFormat.displayName,
-                        onClick = onShowTimeFormatDialog
-                    )
+                    WeeklySummaryCard(summary = uiState.weeklySummary)
                 }
 
-                // Data Section
-                item {
-                    SettingsSectionTitle(title = "Data")
-                }
-
-                // Reset Data
-                item {
-                    SettingsClickItem(
-                        icon = Icons.Outlined.RestartAlt,
-                        title = "Reset Data",
-                        subtitle = "Hapus semua data kebiasaan",
-                        onClick = onShowResetConfirmation,
-                        isDestructive = true
-                    )
-                }
-
-                // Account Section (hanya jika sudah login)
                 if (uiState.userInfo.isLoggedIn) {
                     item {
-                        SettingsSectionTitle(title = "Akun")
-                    }
-
-                    item {
-                        SettingsClickItem(
-                            icon = Icons.Outlined.Logout,
-                            title = "Keluar",
-                            subtitle = "Keluar dari akun Anda",
+                        Spacer(modifier = Modifier.height(24.dp))
+                        OutlinedButton(
                             onClick = onShowLogoutConfirmation,
-                            isDestructive = true
-                        )
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
+                            border = BorderStroke(1.dp, ErrorRed)
+                        ) {
+                            Icon(Icons.AutoMirrored.Outlined.Logout, null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Keluar", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
-                }
-
-                // About Section
-                item {
-                    SettingsSectionTitle(title = "Tentang")
-                }
-
-                item {
-                    SettingsInfoItem(
-                        icon = Icons.Outlined.Info,
-                        title = "Versi Aplikasi",
-                        value = uiState.appVersion
-                    )
-                }
-
-                item {
-                    SettingsClickItem(
-                        icon = Icons.Outlined.PrivacyTip,
-                        title = "Kebijakan Privasi",
-                        subtitle = "Baca kebijakan privasi kami",
-                        onClick = { /* TODO: Open privacy policy */ }
-                    )
-                }
-
-                item {
-                    SettingsClickItem(
-                        icon = Icons.Outlined.Description,
-                        title = "Syarat & Ketentuan",
-                        subtitle = "Baca syarat penggunaan",
-                        onClick = { /* TODO: Open terms */ }
-                    )
-                }
-
-                // Footer
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Aha - Aplikasi Ibadah Harian\nDibuat dengan penuh cinta",
-                            fontSize = 12.sp,
-                            color = Gray400,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                // Bottom spacing
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
-    }
 
-    // Time Format Dialog
-    if (uiState.showTimeFormatDialog) {
-        TimeFormatDialog(
-            currentFormat = uiState.timeFormat,
-            onSelect = onSetTimeFormat,
-            onDismiss = onHideTimeFormatDialog
-        )
-    }
-
-    // Reset Confirmation Dialog
-    if (uiState.showResetConfirmation) {
-        ConfirmationDialog(
-            title = "Reset Data",
-            message = "Apakah Anda yakin ingin menghapus semua data kebiasaan? Tindakan ini tidak dapat dibatalkan.",
-            confirmText = "Reset",
-            onConfirm = onConfirmReset,
-            onDismiss = onHideResetConfirmation
-        )
-    }
-
-    // Logout Confirmation Dialog
-    if (uiState.showLogoutConfirmation) {
-        ConfirmationDialog(
-            title = "Keluar",
-            message = "Apakah Anda yakin ingin keluar dari akun?",
-            confirmText = "Keluar",
-            onConfirm = onConfirmLogout,
-            onDismiss = onHideLogoutConfirmation
-        )
+        if (uiState.showLogoutConfirmation) {
+            AlertDialog(
+                onDismissRequest = onHideLogoutConfirmation,
+                title = { Text("Keluar", fontWeight = FontWeight.SemiBold) },
+                text = { Text("Yakin ingin keluar?") },
+                confirmButton = { TextButton(onClick = onConfirmLogout) { Text("Keluar", color = ErrorRed) } },
+                dismissButton = { TextButton(onClick = onHideLogoutConfirmation) { Text("Batal") } }
+            )
+        }
     }
 }
 
-/**
- * Card header profil dengan info pengguna dan statistik.
- */
 @Composable
-fun ProfileHeaderCard(
+fun ProfileHeader(
     userInfo: UserInfo,
     totalHabits: Int,
     totalCompleted: Int,
-    currentStreak: Int
+    currentStreak: Int,
+    onSettingsClick: () -> Unit,
+    onLoginClick: () -> Unit,
+    onAvatarEditClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = GreenPrimary)
-    ) {
-        Column(
+    val avatarSize = 88.dp
+    val displayName = if (userInfo.isLoggedIn) userInfo.name else "Tamu"
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .heightIn(min = 320.dp)
+                .background(
+                    brush = Brush.verticalGradient(colors = listOf(EmeraldDark, Emerald)),
+                    shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
+                )
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // Avatar
             Box(
                 modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceWhite),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .align(Alignment.TopCenter)
             ) {
+                if (!userInfo.isLoggedIn) {
+                    OutlinedButton(
+                        onClick = onLoginClick,
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.08f)
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary),
+                        modifier = Modifier.align(Alignment.CenterStart)
+                    ) {
+                        Text(
+                            text = "Login",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+
                 Text(
-                    text = userInfo.avatarInitial,
-                    fontSize = 28.sp,
+                    text = "Profil",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+
+                IconButton(
+                    onClick = onSettingsClick,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Icon(Icons.Outlined.Settings, "Pengaturan", tint = MaterialTheme.colorScheme.onPrimary)
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(top = 40.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(avatarSize),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onPrimary)
+                            .border(3.dp, MaterialTheme.colorScheme.onPrimary, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (userInfo.isLoggedIn && userInfo.avatarUri != null) {
+                            coil.compose.AsyncImage(
+                                model = userInfo.avatarUri,
+                                contentDescription = "Foto Profil",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = if (userInfo.isLoggedIn) userInfo.avatarInitial else "Tamu",
+                                fontSize = if (userInfo.isLoggedIn) 28.sp else 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Emerald
+                            )
+                        }
+                    }
+
+                    if (userInfo.isLoggedIn) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(1.dp, MaterialTheme.colorScheme.onPrimary, CircleShape)
+                                .clickable { onAvatarEditClick() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Ubah Foto Profil",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = displayName,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = GreenPrimary
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
+
+                if (userInfo.isLoggedIn && userInfo.email.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = userInfo.email,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    )
+                }
             }
+        }
 
-            Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            // Name
-            Text(
-                text = userInfo.name,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = SurfaceWhite
-            )
-
-            // Email
-            if (userInfo.email.isNotEmpty()) {
-                Text(
-                    text = userInfo.email,
-                    fontSize = 14.sp,
-                    color = SurfaceWhite.copy(alpha = 0.8f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Stats Row
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 20.dp, horizontal = 16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                ProfileStat(
-                    value = "$totalHabits",
-                    label = "Kebiasaan"
-                )
-                ProfileStat(
-                    value = "$totalCompleted",
-                    label = "Selesai"
-                )
-                ProfileStat(
-                    value = "$currentStreak",
-                    label = "Hari Streak"
-                )
+                ProfileStat(value = "$totalHabits", label = "Kebiasaan")
+                ProfileStat(value = "$totalCompleted", label = "Selesai")
+                ProfileStat(value = "$currentStreak", label = "Streak")
             }
         }
     }
 }
 
-/**
- * Statistik profil.
- */
 @Composable
-fun ProfileStat(
-    value: String,
-    label: String
-) {
+fun ProfileStat(value: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            color = SurfaceWhite
+            color = Emerald
         )
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
             fontSize = 12.sp,
-            color = SurfaceWhite.copy(alpha = 0.8f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
-/**
- * Judul section pengaturan.
- */
 @Composable
-fun SettingsSectionTitle(title: String) {
-    Text(
-        text = title,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = Gray500,
-        modifier = Modifier.padding(vertical = 4.dp)
-    )
-}
-
-/**
- * Item pengaturan dengan toggle.
- */
-@Composable
-fun SettingsToggleItem(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    isChecked: Boolean,
-    onToggle: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
+fun AchievementsGrid(achievements: List<Achievement>) {
+    Column(
+        modifier = Modifier.padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icon
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(GreenPrimary.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
+        achievements.chunked(2).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = GreenPrimary,
-                    modifier = Modifier.size(24.dp)
-                )
+                rowItems.forEach { achievement ->
+                    AchievementCard(
+                        achievement = achievement,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Text
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Gray900
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = Gray500
-                )
-            }
-
-            // Switch
-            Switch(
-                checked = isChecked,
-                onCheckedChange = { onToggle() },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = SurfaceWhite,
-                    checkedTrackColor = GreenPrimary,
-                    uncheckedThumbColor = SurfaceWhite,
-                    uncheckedTrackColor = Gray300
-                )
-            )
         }
     }
 }
 
-/**
- * Item pengaturan yang bisa diklik.
- */
 @Composable
-fun SettingsClickItem(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-    isDestructive: Boolean = false
-) {
-    val contentColor = if (isDestructive) ErrorRed else Gray900
-    val iconBackgroundColor = if (isDestructive) ErrorRed.copy(alpha = 0.1f) else GreenPrimary.copy(alpha = 0.1f)
-    val iconTint = if (isDestructive) ErrorRed else GreenPrimary
+fun AchievementCard(achievement: Achievement, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (achievement.isUnlocked) {
+                MaterialTheme.colorScheme.surface
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (achievement.isUnlocked) 2.dp else 0.dp
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = achievement.emoji,
+                fontSize = 32.sp,
+                modifier = Modifier.alpha(if (achievement.isUnlocked) 1f else 0.3f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = achievement.name,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = achievement.description,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                lineHeight = 14.sp,
+                maxLines = 2
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            if (achievement.isUnlocked) {
+                Text(
+                    text = "\u2705 Tercapai!",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Emerald
+                )
+            } else {
+                Text(
+                    text = "\uD83D\uDD12 Belum",
+                    fontSize = 11.sp,
+                    color = Gray500
+                )
+            }
+        }
+    }
+}
 
+@Composable
+fun WeeklySummaryCard(summary: WeeklySummary) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .padding(horizontal = 20.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icon
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(iconBackgroundColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Text
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = contentColor
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = Gray500
-                )
-            }
-
-            // Chevron
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = Gray400,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-    }
-}
-
-/**
- * Item pengaturan untuk menampilkan info.
- */
-@Composable
-fun SettingsInfoItem(
-    icon: ImageVector,
-    title: String,
-    value: String
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icon
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(GreenPrimary.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = GreenPrimary,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Text
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = title,
+                text = "\uD83D\uDCCA Ringkasan Minggu Ini",
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = Gray900,
-                modifier = Modifier.weight(1f)
-            )
-
-            // Value
-            Text(
-                text = value,
-                fontSize = 14.sp,
-                color = Gray500
-            )
-        }
-    }
-}
-
-/**
- * Dialog untuk memilih format waktu.
- */
-@Composable
-fun TimeFormatDialog(
-    currentFormat: TimeFormat,
-    onSelect: (TimeFormat) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Format Waktu",
                 fontWeight = FontWeight.SemiBold,
-                color = Gray900
+                color = MaterialTheme.colorScheme.onSurface
             )
-        },
-        text = {
-            Column {
-                TimeFormat.entries.forEach { format ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(format) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = format == currentFormat,
-                            onClick = { onSelect(format) },
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = GreenPrimary
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = format.displayName,
-                            fontSize = 14.sp,
-                            color = Gray900
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Ibadah Selesai",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .width(100.dp)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    val fraction = (summary.completionPercentage / 100f).coerceIn(0f, 1f)
+                    if (fraction > 0f) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .fillMaxWidth(fraction)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Emerald)
                         )
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Batal",
-                    color = Gray500
+                    text = "${summary.completionPercentage.toInt()}%",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Emerald
                 )
             }
-        },
-        containerColor = SurfaceWhite,
-        shape = RoundedCornerShape(20.dp)
-    )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Hari Aktif",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${summary.activeDays}/${summary.totalDays} hari",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Kategori Terbaik",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = summary.bestCategory,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
 }
 
-/**
- * Dialog konfirmasi generik.
- */
-@Composable
-fun ConfirmationDialog(
-    title: String,
-    message: String,
-    confirmText: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = title,
-                fontWeight = FontWeight.SemiBold,
-                color = Gray900
-            )
-        },
-        text = {
-            Text(
-                text = message,
-                fontSize = 14.sp,
-                color = Gray700
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(
-                    text = confirmText,
-                    color = ErrorRed,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = "Batal",
-                    color = Gray500
-                )
-            }
-        },
-        containerColor = SurfaceWhite,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-// ============================================================================
-// PREVIEW SECTION
-// ============================================================================
-
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true)
 @Composable
 fun ProfileScreenPreview() {
     HabitIslamiTheme {
@@ -768,101 +588,36 @@ fun ProfileScreenPreview() {
                 isLoading = false,
                 userInfo = UserInfo(
                     name = "Ahmad Fauzi",
-                    email = "ahmad.fauzi@example.com",
+                    email = "ahmad@fauzi.com",
                     avatarInitial = "AF",
+                    avatarUri = null,
                     isLoggedIn = true
                 ),
-                notificationEnabled = true,
-                darkModeEnabled = false,
-                timeFormat = TimeFormat.HOUR_24,
-                totalHabits = 10,
-                totalCompleted = 156,
-                currentStreak = 7,
-                appVersion = "1.0.0"
-            ),
-            onToggleNotification = {},
-            onToggleDarkMode = {},
-            onShowTimeFormatDialog = {},
-            onHideTimeFormatDialog = {},
-            onSetTimeFormat = {},
-            onShowResetConfirmation = {},
-            onHideResetConfirmation = {},
-            onConfirmReset = {},
-            onShowLogoutConfirmation = {},
-            onHideLogoutConfirmation = {},
-            onConfirmLogout = {},
-            onNavigateBack = {},
-            onNavigateToHome = {},
-            onNavigateToStatistic = {},
-            onNavigateToAddHabit = {},
-            onNavigateToNotification = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true, name = "Profile Guest")
-@Composable
-fun ProfileScreenGuestPreview() {
-    HabitIslamiTheme {
-        ProfileScreenContent(
-            uiState = ProfileUiState(
-                isLoading = false,
-                userInfo = UserInfo(
-                    name = "Pengguna Lokal",
-                    email = "",
-                    avatarInitial = "P",
-                    isLoggedIn = false
+                totalHabits = 18,
+                totalCompleted = 3,
+                currentStreak = 0,
+                achievements = listOf(
+                    Achievement("first_step", "\uD83C\uDF1F", "Langkah Pertama", "Selesaikan ibadah pertama", true, 1f),
+                    Achievement("burning", "\uD83D\uDD25", "Semangat Membara", "Streak 7 hari berturut", false, 0f),
+                    Achievement("consistent", "\u2B50", "Bintang Konsisten", "Streak 14 hari berturut", false, 0f),
+                    Achievement("champion", "\uD83C\uDFC6", "Juara Istiqomah", "Streak 30 hari berturut", false, 0f),
+                    Achievement("hundred", "\uD83D\uDCAF", "Seratus Ibadah", "100 ibadah total selesai", false, 0.03f),
+                    Achievement("sharpshooter", "\uD83C\uDFAF", "Penembak Jitu", "Semua habit selesai 1 hari", false, 0f)
                 ),
-                notificationEnabled = true,
-                darkModeEnabled = true,
-                timeFormat = TimeFormat.HOUR_12,
-                totalHabits = 5,
-                totalCompleted = 42,
-                currentStreak = 3,
-                appVersion = "1.0.0"
+                weeklySummary = WeeklySummary(
+                    completionPercentage = 17f,
+                    activeDays = 1,
+                    totalDays = 7,
+                    bestCategory = "Sholat Fardhu"
+                )
             ),
-            onToggleNotification = {},
-            onToggleDarkMode = {},
-            onShowTimeFormatDialog = {},
-            onHideTimeFormatDialog = {},
-            onSetTimeFormat = {},
-            onShowResetConfirmation = {},
-            onHideResetConfirmation = {},
-            onConfirmReset = {},
+            snackbarHostState = remember { SnackbarHostState() },
+            onNavigateToSettings = {},
+            onNavigateToLogin = {},
             onShowLogoutConfirmation = {},
             onHideLogoutConfirmation = {},
             onConfirmLogout = {},
-            onNavigateBack = {},
-            onNavigateToHome = {},
-            onNavigateToStatistic = {},
-            onNavigateToAddHabit = {},
-            onNavigateToNotification = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true, name = "Profile Loading")
-@Composable
-fun ProfileScreenLoadingPreview() {
-    HabitIslamiTheme {
-        ProfileScreenContent(
-            uiState = ProfileUiState(isLoading = true),
-            onToggleNotification = {},
-            onToggleDarkMode = {},
-            onShowTimeFormatDialog = {},
-            onHideTimeFormatDialog = {},
-            onSetTimeFormat = {},
-            onShowResetConfirmation = {},
-            onHideResetConfirmation = {},
-            onConfirmReset = {},
-            onShowLogoutConfirmation = {},
-            onHideLogoutConfirmation = {},
-            onConfirmLogout = {},
-            onNavigateBack = {},
-            onNavigateToHome = {},
-            onNavigateToStatistic = {},
-            onNavigateToAddHabit = {},
-            onNavigateToNotification = {}
+            onAvatarEditClick = {}
         )
     }
 }

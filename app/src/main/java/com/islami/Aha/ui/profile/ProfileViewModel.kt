@@ -1,248 +1,297 @@
+
 package com.islami.Aha.ui.profile
 
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.repository.AuthRepository
+import com.islami.Aha.data.repository.UserHabitRepository
+import com.islami.Aha.domain.model.SunnahHabit
+import com.islami.Aha.ui.addhabit.SunnahCategoryType
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-/**
- * Data class untuk informasi pengguna.
- *
- * @property name Nama pengguna
- * @property email Email pengguna
- * @property avatarInitial Inisial untuk avatar
- * @property isLoggedIn Apakah pengguna sudah login
- */
 data class UserInfo(
-    val name: String = "Pengguna Lokal",
+    val name: String = "Tamu",
     val email: String = "",
-    val avatarInitial: String = "P",
+    val avatarInitial: String = "Tamu",
+    val avatarUri: String? = null,
     val isLoggedIn: Boolean = false
 )
 
-/**
- * Enum untuk format waktu.
- */
-enum class TimeFormat(val displayName: String) {
-    HOUR_24("24 Jam"),
-    HOUR_12("12 Jam (AM/PM)")
-}
+data class Achievement(
+    val id: String,
+    val emoji: String,
+    val name: String,
+    val description: String,
+    val isUnlocked: Boolean,
+    val progress: Float
+)
 
-/**
- * UI State untuk Profile Screen.
- *
- * @property isLoading Menandakan data sedang dimuat
- * @property userInfo Informasi pengguna
- * @property notificationEnabled Apakah notifikasi aktif
- * @property darkModeEnabled Apakah mode gelap aktif
- * @property timeFormat Format waktu yang dipilih
- * @property showResetConfirmation Menampilkan dialog konfirmasi reset
- * @property showLogoutConfirmation Menampilkan dialog konfirmasi logout
- * @property showTimeFormatDialog Menampilkan dialog pilih format waktu
- * @property totalHabits Total kebiasaan
- * @property totalCompleted Total selesai
- * @property currentStreak Streak saat ini
- * @property appVersion Versi aplikasi
- */
+data class WeeklySummary(
+    val completionPercentage: Float = 0f,
+    val activeDays: Int = 0,
+    val totalDays: Int = 7,
+    val bestCategory: String = "-"
+)
+
 data class ProfileUiState(
     val isLoading: Boolean = true,
+    val isSaving: Boolean = false,
     val userInfo: UserInfo = UserInfo(),
-    val notificationEnabled: Boolean = true,
-    val darkModeEnabled: Boolean = false,
-    val timeFormat: TimeFormat = TimeFormat.HOUR_24,
-    val showResetConfirmation: Boolean = false,
-    val showLogoutConfirmation: Boolean = false,
-    val showTimeFormatDialog: Boolean = false,
     val totalHabits: Int = 0,
     val totalCompleted: Int = 0,
     val currentStreak: Int = 0,
-    val appVersion: String = "1.0.0"
+    val sholatCount: Int = 0,
+    val puasaCount: Int = 0,
+    val reminderCount: Int = 0,
+    val achievements: List<Achievement> = emptyList(),
+    val weeklySummary: WeeklySummary = WeeklySummary(),
+    val showLogoutConfirmation: Boolean = false,
+    val snackbarMessage: String? = null
 )
 
-/**
- * ViewModel untuk Profile Screen.
- *
- * Mengelola:
- * - Informasi pengguna
- * - Pengaturan aplikasi (notifikasi, tema, format waktu)
- * - Reset data
- * - Logout
- *
- * Catatan: Menggunakan data dummy untuk demo.
- * Di production, akan membaca dari SharedPreferences/DataStore dan Room.
- */
-class ProfileViewModel : ViewModel() {
+@HiltViewModel
+class ProfileViewModel @Inject constructor(
+    private val habitDao: HabitDao,
+    private val sharedPreferences: SharedPreferences,
+    private val userHabitRepository: UserHabitRepository,
+    private val authRepository: AuthRepository
+) : ViewModel() {
+
+    companion object {
+        private const val KEY_IS_LOGGED_IN = "is_logged_in"
+        private const val KEY_USER_NAME = "user_name"
+        private const val KEY_USER_EMAIL = "user_email"
+        private const val KEY_USER_AVATAR_URI = "user_avatar_uri"
+    }
 
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
+    private val authPrefsListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_IS_LOGGED_IN || key == KEY_USER_NAME || key == KEY_USER_EMAIL || key == KEY_USER_AVATAR_URI) {
+                _uiState.update { current ->
+                    current.copy(userInfo = getCurrentUserInfo())
+                }
+            }
+        }
 
     init {
-        loadProfile()
+        sharedPreferences.registerOnSharedPreferenceChangeListener(authPrefsListener)
+        loadProfileData()
     }
 
-    /**
-     * Memuat data profil.
-     */
-    private fun loadProfile() {
+    override fun onCleared() {
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(authPrefsListener)
+        super.onCleared()
+    }
+
+    private fun loadProfileData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
 
-            // Simulasi loading
-            kotlinx.coroutines.delay(500)
+            combine(
+                habitDao.getHabits(),
+                userHabitRepository.getAllHabits()
+            ) { habits, sunnahHabits ->
+                Pair(habits, sunnahHabits)
+            }.collect { (habits, sunnahHabits) ->
+                val totalHabits = habits.size + sunnahHabits.size
+                val totalCompletedToday = habits.count { it.isCompleted }
+                val allCompleteToday = totalHabits > 0 && totalCompletedToday == totalHabits
 
-            // Dummy data - di production akan dari DataStore/Room
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    userInfo = UserInfo(
-                        name = "Ahmad Fauzi",
-                        email = "ahmad.fauzi@example.com",
-                        avatarInitial = "AF",
-                        isLoggedIn = true
-                    ),
-                    notificationEnabled = true,
-                    darkModeEnabled = false,
-                    timeFormat = TimeFormat.HOUR_24,
-                    totalHabits = 10,
-                    totalCompleted = 156,
-                    currentStreak = 7,
-                    appVersion = "1.0.0"
-                )
+                val sholatCount = sunnahHabits.count { it.category == SunnahCategoryType.SHOLAT }
+                val puasaCount = sunnahHabits.count { it.category == SunnahCategoryType.PUASA }
+                val reminderCount = sunnahHabits.count { it.reminderEnabled }
+
+                val categoryCompletions = habits.groupBy { it.category }
+                    .mapValues { (_, categoryHabits) ->
+                        val completed = categoryHabits.count { it.isCompleted }
+                        val total = categoryHabits.size
+                        if (total > 0) (completed * 100f) / total else 0f
+                    }
+                val bestCategory = categoryCompletions.maxByOrNull { it.value }
+                val bestCategoryName = if ((bestCategory?.value ?: 0f) > 0f) {
+                    bestCategory?.key ?: "-"
+                } else "-"
+
+                val weeklyPercentage = if (totalHabits > 0) {
+                    (totalCompletedToday * 100f) / totalHabits
+                } else 0f
+
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        userInfo = getCurrentUserInfo(),
+                        totalHabits = totalHabits,
+                        totalCompleted = totalCompletedToday,
+                        currentStreak = 0,
+                        sholatCount = sholatCount,
+                        puasaCount = puasaCount,
+                        reminderCount = reminderCount,
+                        achievements = generateAchievements(
+                            totalCompleted = totalCompletedToday,
+                            currentStreak = 0,
+                            allCompleteToday = allCompleteToday
+                        ),
+                        weeklySummary = WeeklySummary(
+                            completionPercentage = weeklyPercentage,
+                            activeDays = if (totalCompletedToday > 0) 1 else 0,
+                            totalDays = 7,
+                            bestCategory = bestCategoryName
+                        )
+                    )
+                }
             }
         }
     }
 
-    /**
-     * Refresh data profil.
-     */
-    fun refreshProfile() {
-        loadProfile()
-    }
-
-    // ========================================================================
-    // SETTINGS HANDLERS
-    // ========================================================================
-
-    /**
-     * Toggle notifikasi.
-     */
-    fun toggleNotification() {
-        _uiState.update {
-            it.copy(notificationEnabled = !it.notificationEnabled)
+    private fun getCurrentUserInfo(): UserInfo {
+        val isLoggedIn = authRepository.isLoggedIn ||
+            sharedPreferences.getBoolean(KEY_IS_LOGGED_IN, false)
+        if (!isLoggedIn) {
+            return UserInfo()
         }
-        // Di production: simpan ke SharedPreferences/DataStore
+
+        val name = sharedPreferences.getString(KEY_USER_NAME, "Pengguna") ?: "Pengguna"
+        val email = sharedPreferences.getString(KEY_USER_EMAIL, "") ?: ""
+        val avatarUri = sharedPreferences.getString(KEY_USER_AVATAR_URI, null)
+        val avatarInitial = name.trim()
+            .split(" ")
+            .filter { it.isNotBlank() }
+            .take(2)
+            .joinToString("") { it.first().uppercase() }
+            .ifBlank { "U" }
+
+        return UserInfo(
+            name = name,
+            email = email,
+            avatarInitial = avatarInitial,
+            avatarUri = avatarUri,
+            isLoggedIn = true
+        )
     }
 
-    /**
-     * Toggle mode gelap.
-     */
-    fun toggleDarkMode() {
-        _uiState.update {
-            it.copy(darkModeEnabled = !it.darkModeEnabled)
-        }
-        // Di production: simpan ke SharedPreferences/DataStore dan update theme
-    }
-
-    /**
-     * Menampilkan dialog pilih format waktu.
-     */
-    fun showTimeFormatDialog() {
-        _uiState.update { it.copy(showTimeFormatDialog = true) }
-    }
-
-    /**
-     * Menyembunyikan dialog pilih format waktu.
-     */
-    fun hideTimeFormatDialog() {
-        _uiState.update { it.copy(showTimeFormatDialog = false) }
-    }
-
-    /**
-     * Mengubah format waktu.
-     */
-    fun setTimeFormat(format: TimeFormat) {
-        _uiState.update {
-            it.copy(
-                timeFormat = format,
-                showTimeFormatDialog = false
+    private fun generateAchievements(
+        totalCompleted: Int,
+        currentStreak: Int,
+        allCompleteToday: Boolean
+    ): List<Achievement> {
+        return listOf(
+            Achievement(
+                id = "first_step",
+                emoji = "\uD83C\uDF1F",
+                name = "Langkah Pertama",
+                description = "Selesaikan ibadah pertama",
+                isUnlocked = totalCompleted >= 1,
+                progress = if (totalCompleted >= 1) 1f else 0f
+            ),
+            Achievement(
+                id = "burning",
+                emoji = "\uD83D\uDD25",
+                name = "Semangat Membara",
+                description = "Streak 7 hari berturut",
+                isUnlocked = currentStreak >= 7,
+                progress = (currentStreak / 7f).coerceAtMost(1f)
+            ),
+            Achievement(
+                id = "consistent",
+                emoji = "\u2B50",
+                name = "Bintang Konsisten",
+                description = "Streak 14 hari berturut",
+                isUnlocked = currentStreak >= 14,
+                progress = (currentStreak / 14f).coerceAtMost(1f)
+            ),
+            Achievement(
+                id = "champion",
+                emoji = "\uD83C\uDFC6",
+                name = "Juara Istiqomah",
+                description = "Streak 30 hari berturut",
+                isUnlocked = currentStreak >= 30,
+                progress = (currentStreak / 30f).coerceAtMost(1f)
+            ),
+            Achievement(
+                id = "hundred",
+                emoji = "\uD83D\uDCAF",
+                name = "Seratus Ibadah",
+                description = "100 ibadah total selesai",
+                isUnlocked = totalCompleted >= 100,
+                progress = (totalCompleted / 100f).coerceAtMost(1f)
+            ),
+            Achievement(
+                id = "sharpshooter",
+                emoji = "\uD83C\uDFAF",
+                name = "Penembak Jitu",
+                description = "Semua habit selesai 1 hari",
+                isUnlocked = allCompleteToday,
+                progress = if (allCompleteToday) 1f else 0f
             )
-        }
-        // Di production: simpan ke SharedPreferences/DataStore
+        )
     }
 
-    // ========================================================================
-    // RESET DATA HANDLERS
-    // ========================================================================
-
-    /**
-     * Menampilkan dialog konfirmasi reset.
-     */
-    fun showResetConfirmation() {
-        _uiState.update { it.copy(showResetConfirmation = true) }
-    }
-
-    /**
-     * Menyembunyikan dialog konfirmasi reset.
-     */
-    fun hideResetConfirmation() {
-        _uiState.update { it.copy(showResetConfirmation = false) }
-    }
-
-    /**
-     * Reset semua data.
-     */
-    fun resetAllData() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, showResetConfirmation = false) }
-
-            // Simulasi proses reset
-            kotlinx.coroutines.delay(1000)
-
-            // Di production: hapus data dari Room database
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    totalHabits = 0,
-                    totalCompleted = 0,
-                    currentStreak = 0
-                )
-            }
-        }
-    }
-
-    // ========================================================================
-    // LOGOUT HANDLERS
-    // ========================================================================
-
-    /**
-     * Menampilkan dialog konfirmasi logout.
-     */
     fun showLogoutConfirmation() {
         _uiState.update { it.copy(showLogoutConfirmation = true) }
     }
 
-    /**
-     * Menyembunyikan dialog konfirmasi logout.
-     */
     fun hideLogoutConfirmation() {
         _uiState.update { it.copy(showLogoutConfirmation = false) }
     }
 
-    /**
-     * Logout pengguna.
-     * @return true jika berhasil logout
-     */
     fun logout(): Boolean {
-        // Di production: clear session, tokens, etc.
+        authRepository.logout()
+
         _uiState.update {
             it.copy(
                 showLogoutConfirmation = false,
-                userInfo = UserInfo() // Reset ke default
+                userInfo = UserInfo(),
+                snackbarMessage = "Anda masuk sebagai tamu"
             )
         }
         return true
+    }
+
+    fun updateUsername(newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true) }
+            sharedPreferences.edit().putString(KEY_USER_NAME, trimmed).apply()
+            _uiState.update {
+                it.copy(
+                    isSaving = false,
+                    userInfo = getCurrentUserInfo(),
+                    snackbarMessage = "Username diperbarui"
+                )
+            }
+        }
+    }
+
+    fun updateAvatar(uri: String) {
+        if (uri.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true) }
+            sharedPreferences.edit().putString(KEY_USER_AVATAR_URI, uri).apply()
+            _uiState.update {
+                it.copy(
+                    isSaving = false,
+                    userInfo = getCurrentUserInfo(),
+                    snackbarMessage = "Foto profil diperbarui"
+                )
+            }
+        }
+    }
+
+    fun clearSnackbar() {
+        _uiState.update { it.copy(snackbarMessage = null) }
     }
 }

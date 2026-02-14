@@ -1,20 +1,28 @@
 package com.islami.Aha.ui.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -24,32 +32,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
 
-/**
- * Register Screen - Layar untuk mendaftar akun baru.
- *
- * Fitur:
- * - Input nama, email, password, dan konfirmasi password
- * - Validasi input
- * - Link ke halaman Login
- *
- * @param viewModel ViewModel untuk mengelola state register
- * @param onNavigateToLogin Callback navigasi kembali ke Login
- * @param onNavigateToHome Callback navigasi ke Home setelah registrasi berhasil
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
-    viewModel: AuthViewModel = viewModel(),
+    viewModel: AuthViewModel = hiltViewModel(),
     onNavigateToLogin: () -> Unit = {},
     onNavigateToHome: () -> Unit = {}
 ) {
-    val uiState by viewModel.registerState.collectAsState()
+    val uiState by viewModel.registerState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
 
-    // Handle register success
     LaunchedEffect(uiState.registerSuccess) {
         if (uiState.registerSuccess) {
             onNavigateToHome()
@@ -73,10 +69,6 @@ fun RegisterScreen(
     )
 }
 
-/**
- * Konten Register Screen - Stateless composable.
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreenContent(
     uiState: RegisterUiState,
@@ -92,26 +84,7 @@ fun RegisterScreenContent(
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { },
-                navigationIcon = {
-                    IconButton(onClick = onLoginClick) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Kembali",
-                            tint = Gray900
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = SurfaceWhite
-                )
-            )
-        },
-        containerColor = SurfaceWhite
-    ) { paddingValues ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -120,167 +93,249 @@ fun RegisterScreenContent(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start
+            ) {
+                IconButton(onClick = onLoginClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Kembali",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
 
-            // ================================================================
-            // HEADER SECTION
-            // ================================================================
+            Surface(
+                modifier = Modifier.size(72.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = Color.White,
+                shadowElevation = 4.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Image(
+                        painter = painterResource(id = R.drawable.logo),
+                        contentDescription = "Aha Logo",
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
 
-            // Judul
+            Spacer(modifier = Modifier.height(20.dp))
+
             Text(
-                text = "Buat Akun Baru",
+                text = "Daftar dulu yuk!",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = Gray900
+                color = MaterialTheme.colorScheme.onBackground
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Subtitle
             Text(
-                text = "Daftar untuk menyimpan dan sinkronkan data ibadah Anda",
+                text = "Buat akun untuk menyimpan dan sinkronkan data ibadah Anda",
                 fontSize = 14.sp,
                 color = Gray500,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // ================================================================
-            // FORM SECTION
+            // FORM CARD
             // ================================================================
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Name
+                    AuthTextField(
+                        value = uiState.name,
+                        onValueChange = onNameChange,
+                        label = "Nama Lengkap",
+                        placeholder = "Masukkan nama lengkap Anda",
+                        leadingIcon = Icons.Default.Person,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                        ),
+                        isError = uiState.nameError != null,
+                        errorMessage = uiState.nameError
+                    )
 
-            // Name Field
-            AuthTextField(
-                value = uiState.name,
-                onValueChange = onNameChange,
-                label = "Nama Lengkap",
-                placeholder = "Masukkan nama lengkap Anda",
-                leadingIcon = Icons.Default.Person,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                ),
-                isError = uiState.nameError != null,
-                errorMessage = uiState.nameError
-            )
+                    // Email
+                    AuthTextField(
+                        value = uiState.email,
+                        onValueChange = onEmailChange,
+                        label = "Email",
+                        placeholder = "Masukkan email Anda",
+                        leadingIcon = Icons.Default.Email,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                        ),
+                        isError = uiState.emailError != null,
+                        errorMessage = uiState.emailError
+                    )
+
+                    // Password
+                    AuthTextField(
+                        value = uiState.password,
+                        onValueChange = onPasswordChange,
+                        label = "Password",
+                        placeholder = "Minimal 6 karakter",
+                        leadingIcon = Icons.Default.Lock,
+                        trailingIcon = if (uiState.isPasswordVisible)
+                            Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        onTrailingIconClick = onTogglePasswordVisibility,
+                        visualTransformation = if (uiState.isPasswordVisible)
+                            VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                        ),
+                        isError = uiState.passwordError != null,
+                        errorMessage = uiState.passwordError
+                    )
+
+                    // Confirm Password
+                    AuthTextField(
+                        value = uiState.confirmPassword,
+                        onValueChange = onConfirmPasswordChange,
+                        label = "Konfirmasi Password",
+                        placeholder = "Ulangi password Anda",
+                        leadingIcon = Icons.Default.Lock,
+                        trailingIcon = if (uiState.isConfirmPasswordVisible)
+                            Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        onTrailingIconClick = onToggleConfirmPasswordVisibility,
+                        visualTransformation = if (uiState.isConfirmPasswordVisible)
+                            VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                focusManager.clearFocus()
+                                onRegisterClick()
+                            }
+                        ),
+                        isError = uiState.confirmPasswordError != null,
+                        errorMessage = uiState.confirmPasswordError
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Email Field
-            AuthTextField(
-                value = uiState.email,
-                onValueChange = onEmailChange,
-                label = "Email",
-                placeholder = "Masukkan email Anda",
-                leadingIcon = Icons.Default.Email,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                ),
-                isError = uiState.emailError != null,
-                errorMessage = uiState.emailError
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Password Field
-            AuthTextField(
-                value = uiState.password,
-                onValueChange = onPasswordChange,
-                label = "Password",
-                placeholder = "Minimal 6 karakter",
-                leadingIcon = Icons.Default.Lock,
-                trailingIcon = if (uiState.isPasswordVisible)
-                    Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                onTrailingIconClick = onTogglePasswordVisibility,
-                visualTransformation = if (uiState.isPasswordVisible)
-                    VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                ),
-                isError = uiState.passwordError != null,
-                errorMessage = uiState.passwordError
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Confirm Password Field
-            AuthTextField(
-                value = uiState.confirmPassword,
-                onValueChange = onConfirmPasswordChange,
-                label = "Konfirmasi Password",
-                placeholder = "Ulangi password Anda",
-                leadingIcon = Icons.Default.Lock,
-                trailingIcon = if (uiState.isConfirmPasswordVisible)
-                    Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                onTrailingIconClick = onToggleConfirmPasswordVisibility,
-                visualTransformation = if (uiState.isConfirmPasswordVisible)
-                    VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        focusManager.clearFocus()
-                        onRegisterClick()
-                    }
-                ),
-                isError = uiState.confirmPasswordError != null,
-                errorMessage = uiState.confirmPasswordError
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
+            // Error message from Firebase
+            if (uiState.errorMessage != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
+                ) {
+                    Text(
+                        text = uiState.errorMessage!!,
+                        fontSize = 13.sp,
+                        color = ErrorRed,
+                        modifier = Modifier.padding(12.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // ================================================================
-            // BUTTON SECTION
+            // REGISTER BUTTON with gradient
             // ================================================================
-
-            // Tombol Register
             Button(
                 onClick = onRegisterClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = GreenPrimary,
-                    disabledContainerColor = GreenPrimary.copy(alpha = 0.5f)
-                ),
+                shape = RoundedCornerShape(28.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                contentPadding = PaddingValues(),
                 enabled = !uiState.isLoading
             ) {
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = SurfaceWhite,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        text = "Daftar",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(EmeraldDark, Emerald)
+                            ),
+                            shape = RoundedCornerShape(28.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "Daftar",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
+                Text(text = "  atau  ", fontSize = 14.sp, color = Gray400)
+                HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            RegisterSocialLoginButton(
+                text = "Login Google",
+                iconText = "G",
+                onClick = {}
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            RegisterSocialLoginButton(
+                text = "Login Facebook",
+                iconText = "f",
+                onClick = {}
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
 
             // ================================================================
-            // TERMS SECTION
+            // TERMS
             // ================================================================
-
             Text(
                 text = "Dengan mendaftar, Anda menyetujui",
                 fontSize = 12.sp,
@@ -293,30 +348,26 @@ fun RegisterScreenContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(
-                    onClick = { /* TODO: Open Terms */ },
+                    onClick = { },
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                 ) {
                     Text(
                         text = "Syarat & Ketentuan",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = GreenPrimary
+                        color = Emerald
                     )
                 }
-                Text(
-                    text = " dan ",
-                    fontSize = 12.sp,
-                    color = Gray500
-                )
+                Text(text = " dan ", fontSize = 12.sp, color = Gray500)
                 TextButton(
-                    onClick = { /* TODO: Open Privacy Policy */ },
+                    onClick = { },
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                 ) {
                     Text(
                         text = "Kebijakan Privasi",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = GreenPrimary
+                        color = Emerald
                     )
                 }
             }
@@ -324,19 +375,13 @@ fun RegisterScreenContent(
             Spacer(modifier = Modifier.weight(1f))
 
             // ================================================================
-            // FOOTER SECTION
+            // FOOTER
             // ================================================================
-
-            // Link ke Login
             Row(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Sudah punya akun? ",
-                    fontSize = 14.sp,
-                    color = Gray500
-                )
+                Text(text = "Sudah punya akun? ", fontSize = 14.sp, color = Gray500)
                 TextButton(
                     onClick = onLoginClick,
                     contentPadding = PaddingValues(0.dp)
@@ -344,14 +389,53 @@ fun RegisterScreenContent(
                     Text(
                         text = "Masuk",
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = GreenPrimary
+                        fontWeight = FontWeight.Bold,
+                        color = Emerald
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun RegisterSocialLoginButton(
+    text: String,
+    iconText: String,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        shape = RoundedCornerShape(28.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = iconText,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
