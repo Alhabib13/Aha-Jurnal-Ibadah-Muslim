@@ -4,11 +4,14 @@ package com.islami.Aha.ui.profile
 import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.repository.AdminConfigRepository
 import com.islami.Aha.data.repository.AuthRepository
 import com.islami.Aha.data.repository.UserHabitRepository
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
+import com.islami.Aha.util.DateUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,6 +55,7 @@ data class ProfileUiState(
     val sholatCount: Int = 0,
     val puasaCount: Int = 0,
     val reminderCount: Int = 0,
+    val isAdmin: Boolean = false,
     val achievements: List<Achievement> = emptyList(),
     val weeklySummary: WeeklySummary = WeeklySummary(),
     val showLogoutConfirmation: Boolean = false,
@@ -61,9 +65,11 @@ data class ProfileUiState(
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val habitDao: HabitDao,
+    private val habitCompletionDao: HabitCompletionDao,
     private val sharedPreferences: SharedPreferences,
     private val userHabitRepository: UserHabitRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val adminConfigRepository: AdminConfigRepository
 ) : ViewModel() {
 
     companion object {
@@ -81,12 +87,14 @@ class ProfileViewModel @Inject constructor(
                 _uiState.update { current ->
                     current.copy(userInfo = getCurrentUserInfo())
                 }
+                refreshAdminStatus()
             }
         }
 
     init {
         sharedPreferences.registerOnSharedPreferenceChangeListener(authPrefsListener)
         loadProfileData()
+        refreshAdminStatus()
     }
 
     override fun onCleared() {
@@ -100,19 +108,37 @@ class ProfileViewModel @Inject constructor(
 
             combine(
                 habitDao.getHabits(),
-                userHabitRepository.getAllHabits()
-            ) { habits, sunnahHabits ->
-                Pair(habits, sunnahHabits)
-            }.collect { (habits, sunnahHabits) ->
-                val totalHabits = habits.size + sunnahHabits.size
-                val totalCompletedToday = habits.count { it.isCompleted }
+                userHabitRepository.getAllHabits(),
+                adminConfigRepository.featureConfig
+            ) { habits, sunnahHabits, config ->
+                Triple(habits, sunnahHabits, config)
+            }.collect { (habits, sunnahHabits, config) ->
+                val visibleHabits = habits.filter {
+                    !(it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled))
+                }
+                val totalHabits = visibleHabits.size + sunnahHabits.size
+                val totalCompletedToday = visibleHabits.count { it.isCompleted } + sunnahHabits.count { it.isCompletedToday }
                 val allCompleteToday = totalHabits > 0 && totalCompletedToday == totalHabits
 
                 val sholatCount = sunnahHabits.count { it.category == SunnahCategoryType.SHOLAT }
                 val puasaCount = sunnahHabits.count { it.category == SunnahCategoryType.PUASA }
                 val reminderCount = sunnahHabits.count { it.reminderEnabled }
 
-                val categoryCompletions = habits.groupBy { it.category }
+                // Real historical data from completion records
+                val completionDates = habitCompletionDao.getDistinctCompletionDatesDesc()
+                val historicalTotal = habitCompletionDao.getTotalCompletionCount()
+                val currentStreak = calculateCurrentStreak(completionDates)
+
+                // Weekly active days (last 7 days)
+                val last7DateKeys = DateUtils.getDateKeysLastDays(7)
+                val weeklyDailyCounts = if (last7DateKeys.isNotEmpty()) {
+                    habitCompletionDao.getDailyCountsBetween(last7DateKeys.first(), last7DateKeys.last())
+                } else {
+                    emptyList()
+                }
+                val weeklyActiveDays = weeklyDailyCounts.count { it.count > 0 }
+
+                val categoryCompletions = visibleHabits.groupBy { it.category }
                     .mapValues { (_, categoryHabits) ->
                         val completed = categoryHabits.count { it.isCompleted }
                         val total = categoryHabits.size
@@ -124,7 +150,8 @@ class ProfileViewModel @Inject constructor(
                 } else "-"
 
                 val weeklyPercentage = if (totalHabits > 0) {
-                    (totalCompletedToday * 100f) / totalHabits
+                    val weeklyTotalCompleted = weeklyDailyCounts.sumOf { it.count }
+                    (weeklyTotalCompleted * 100f) / (totalHabits * 7f)
                 } else 0f
 
                 _uiState.update {
@@ -132,19 +159,19 @@ class ProfileViewModel @Inject constructor(
                         isLoading = false,
                         userInfo = getCurrentUserInfo(),
                         totalHabits = totalHabits,
-                        totalCompleted = totalCompletedToday,
-                        currentStreak = 0,
+                        totalCompleted = historicalTotal,
+                        currentStreak = currentStreak,
                         sholatCount = sholatCount,
                         puasaCount = puasaCount,
                         reminderCount = reminderCount,
                         achievements = generateAchievements(
-                            totalCompleted = totalCompletedToday,
-                            currentStreak = 0,
+                            totalCompleted = historicalTotal,
+                            currentStreak = currentStreak,
                             allCompleteToday = allCompleteToday
                         ),
                         weeklySummary = WeeklySummary(
                             completionPercentage = weeklyPercentage,
-                            activeDays = if (totalCompletedToday > 0) 1 else 0,
+                            activeDays = weeklyActiveDays,
                             totalDays = 7,
                             bestCategory = bestCategoryName
                         )
@@ -152,6 +179,18 @@ class ProfileViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun calculateCurrentStreak(distinctDatesDesc: List<String>): Int {
+        if (distinctDatesDesc.isEmpty()) return 0
+        val dateSet = distinctDatesDesc.toSet()
+        var cursor = java.time.LocalDate.now()
+        var streak = 0
+        while (dateSet.contains(cursor.toString())) {
+            streak++
+            cursor = cursor.minusDays(1)
+        }
+        return streak
     }
 
     private fun getCurrentUserInfo(): UserInfo {
@@ -252,6 +291,7 @@ class ProfileViewModel @Inject constructor(
             it.copy(
                 showLogoutConfirmation = false,
                 userInfo = UserInfo(),
+                isAdmin = false,
                 snackbarMessage = "Anda masuk sebagai tamu"
             )
         }
@@ -293,5 +333,12 @@ class ProfileViewModel @Inject constructor(
 
     fun clearSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
+    }
+
+    private fun refreshAdminStatus() {
+        viewModelScope.launch {
+            val admin = adminConfigRepository.isCurrentUserAdmin()
+            _uiState.update { it.copy(isAdmin = admin) }
+        }
     }
 }

@@ -10,7 +10,9 @@ data class UserHabitEntity(
     val name: String,
     val category: String,
     val frequencyLabel: String = "",
+    val rakaat: Int? = null,
     val reminderEnabled: Boolean = false,
     val reminderTime: String? = null,
+    val completedDateKey: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 )

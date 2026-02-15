@@ -14,3 +14,6 @@
 .cxx
 local.properties
 hs_err_pid*.log
+google-services.json
+app/google-services.json
+app/schemas/

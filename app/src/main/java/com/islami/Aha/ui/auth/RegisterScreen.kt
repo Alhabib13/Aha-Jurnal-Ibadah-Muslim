@@ -41,7 +41,9 @@ import com.islami.Aha.ui.theme.*
 fun RegisterScreen(
     viewModel: AuthViewModel = hiltViewModel(),
     onNavigateToLogin: () -> Unit = {},
-    onNavigateToHome: () -> Unit = {}
+    onNavigateToHome: () -> Unit = {},
+    onPrivacyPolicyClick: () -> Unit = {},
+    onTermsClick: () -> Unit = {}
 ) {
     val uiState by viewModel.registerState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
@@ -65,7 +67,9 @@ fun RegisterScreen(
             focusManager.clearFocus()
             viewModel.register()
         },
-        onLoginClick = onNavigateToLogin
+        onLoginClick = onNavigateToLogin,
+        onPrivacyPolicyClick = onPrivacyPolicyClick,
+        onTermsClick = onTermsClick
     )
 }
 
@@ -79,7 +83,9 @@ fun RegisterScreenContent(
     onTogglePasswordVisibility: () -> Unit,
     onToggleConfirmPasswordVisibility: () -> Unit,
     onRegisterClick: () -> Unit,
-    onLoginClick: () -> Unit
+    onLoginClick: () -> Unit,
+    onPrivacyPolicyClick: () -> Unit,
+    onTermsClick: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
@@ -320,7 +326,8 @@ fun RegisterScreenContent(
             RegisterSocialLoginButton(
                 text = "Login Google",
                 iconText = "G",
-                onClick = {}
+                onClick = {},
+                enabled = false
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -328,7 +335,15 @@ fun RegisterScreenContent(
             RegisterSocialLoginButton(
                 text = "Login Facebook",
                 iconText = "f",
-                onClick = {}
+                onClick = {},
+                enabled = false
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Login sosial segera hadir",
+                fontSize = 12.sp,
+                color = Gray500
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -348,7 +363,7 @@ fun RegisterScreenContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(
-                    onClick = { },
+                    onClick = onTermsClick,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                 ) {
                     Text(
@@ -360,7 +375,7 @@ fun RegisterScreenContent(
                 }
                 Text(text = " dan ", fontSize = 12.sp, color = Gray500)
                 TextButton(
-                    onClick = { },
+                    onClick = onPrivacyPolicyClick,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                 ) {
                     Text(
@@ -404,13 +419,15 @@ fun RegisterScreenContent(
 private fun RegisterSocialLoginButton(
     text: String,
     iconText: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     OutlinedButton(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp),
+        enabled = enabled,
         shape = RoundedCornerShape(28.dp),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -432,7 +449,7 @@ private fun RegisterSocialLoginButton(
         }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = text,
+            text = if (enabled) text else "$text (Segera)",
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -456,7 +473,9 @@ fun RegisterScreenPreview() {
             onTogglePasswordVisibility = {},
             onToggleConfirmPasswordVisibility = {},
             onRegisterClick = {},
-            onLoginClick = {}
+            onLoginClick = {},
+            onPrivacyPolicyClick = {},
+            onTermsClick = {}
         )
     }
 }
@@ -483,7 +502,9 @@ fun RegisterScreenErrorPreview() {
             onTogglePasswordVisibility = {},
             onToggleConfirmPasswordVisibility = {},
             onRegisterClick = {},
-            onLoginClick = {}
+            onLoginClick = {},
+            onPrivacyPolicyClick = {},
+            onTermsClick = {}
         )
     }
 }
@@ -507,7 +528,9 @@ fun RegisterScreenLoadingPreview() {
             onTogglePasswordVisibility = {},
             onToggleConfirmPasswordVisibility = {},
             onRegisterClick = {},
-            onLoginClick = {}
+            onLoginClick = {},
+            onPrivacyPolicyClick = {},
+            onTermsClick = {}
         )
     }
 }

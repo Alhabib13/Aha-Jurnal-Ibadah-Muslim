@@ -20,7 +20,8 @@ data class LoginUiState(
     val emailError: String? = null,
     val passwordError: String? = null,
     val loginSuccess: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val infoMessage: String? = null
 )
 
 data class RegisterUiState(
@@ -63,11 +64,11 @@ class AuthViewModel @Inject constructor(
     // ========================================================================
 
     fun onLoginEmailChange(email: String) {
-        _loginState.update { it.copy(email = email, emailError = null, errorMessage = null) }
+        _loginState.update { it.copy(email = email, emailError = null, errorMessage = null, infoMessage = null) }
     }
 
     fun onLoginPasswordChange(password: String) {
-        _loginState.update { it.copy(password = password, passwordError = null, errorMessage = null) }
+        _loginState.update { it.copy(password = password, passwordError = null, errorMessage = null, infoMessage = null) }
     }
 
     fun toggleLoginPasswordVisibility() {
@@ -88,7 +89,7 @@ class AuthViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            _loginState.update { it.copy(isLoading = true, errorMessage = null) }
+            _loginState.update { it.copy(isLoading = true, errorMessage = null, infoMessage = null) }
 
             when (val result = authRepository.login(currentState.email, currentState.password)) {
                 is AuthResult.Success -> {
@@ -100,6 +101,35 @@ class AuthViewModel @Inject constructor(
                     _loginState.update {
                         it.copy(isLoading = false, errorMessage = result.message)
                     }
+                }
+            }
+        }
+    }
+
+    fun requestPasswordReset() {
+        val currentState = _loginState.value
+        val emailError = validateEmail(currentState.email)
+        if (emailError != null) {
+            _loginState.update { it.copy(emailError = emailError, errorMessage = null, infoMessage = null) }
+            return
+        }
+
+        viewModelScope.launch {
+            _loginState.update { it.copy(isLoading = true, errorMessage = null, infoMessage = null) }
+            val result = authRepository.sendPasswordReset(currentState.email)
+            if (result.isSuccess) {
+                _loginState.update {
+                    it.copy(
+                        isLoading = false,
+                        infoMessage = "Email reset password telah dikirim"
+                    )
+                }
+            } else {
+                _loginState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Gagal mengirim email reset password"
+                    )
                 }
             }
         }

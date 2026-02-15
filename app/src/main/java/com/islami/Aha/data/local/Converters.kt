@@ -9,5 +9,9 @@ class Converters {
     fun fromCategory(value: SunnahCategoryType): String = value.name
 
     @TypeConverter
-    fun toCategory(value: String): SunnahCategoryType = SunnahCategoryType.valueOf(value)
+    fun toCategory(value: String): SunnahCategoryType = try {
+        SunnahCategoryType.valueOf(value)
+    } catch (_: IllegalArgumentException) {
+        SunnahCategoryType.SHOLAT
+    }
 }

@@ -1,5 +1,6 @@
 package com.islami.Aha.ui.settings
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,8 +37,10 @@ import com.islami.Aha.ui.theme.*
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
+    onNavigateToLogin: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -51,9 +55,6 @@ fun SettingsScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onNavigateBack = onNavigateBack,
-        onShowLanguageDialog = viewModel::showLanguageDialog,
-        onHideLanguageDialog = viewModel::hideLanguageDialog,
-        onSetLanguage = viewModel::setLanguage,
         onShowLocationDialog = viewModel::showLocationDialog,
         onHideLocationDialog = viewModel::hideLocationDialog,
         onSetLocation = viewModel::setLocation,
@@ -65,12 +66,42 @@ fun SettingsScreen(
         onNotificationSoundClick = viewModel::onNotificationSoundClick,
         onChangePasswordClick = viewModel::onChangePasswordClick,
         onAccountSecurityClick = viewModel::onAccountSecurityClick,
+        onShowDeleteAccountConfirmation = viewModel::showDeleteAccountConfirmation,
+        onHideDeleteAccountConfirmation = viewModel::hideDeleteAccountConfirmation,
+        onConfirmDeleteAccount = {
+            viewModel.confirmDeleteAccount {
+                onNavigateToLogin()
+            }
+        },
         onExportDataClick = viewModel::onExportDataClick,
         onShowResetConfirmation = viewModel::showResetConfirmation,
         onHideResetConfirmation = viewModel::hideResetConfirmation,
         onConfirmReset = viewModel::confirmResetData,
-        onPrivacyPolicyClick = viewModel::onPrivacyPolicyClick,
-        onTermsClick = viewModel::onTermsClick
+        onPrivacyPolicyClick = {
+            context.startActivity(
+                Intent(context, LegalDocumentActivity::class.java).apply {
+                    putExtra(LegalDocumentActivity.EXTRA_DOCUMENT_TYPE, LegalDocumentActivity.DOC_PRIVACY)
+                }
+            )
+        },
+        onTermsClick = {
+            context.startActivity(
+                Intent(context, LegalDocumentActivity::class.java).apply {
+                    putExtra(LegalDocumentActivity.EXTRA_DOCUMENT_TYPE, LegalDocumentActivity.DOC_TERMS)
+                }
+            )
+        },
+        onLoginClick = onNavigateToLogin,
+        onLogoutClick = {
+            viewModel.logout()
+            onNavigateToLogin()
+        },
+        onHideReAuthDialog = viewModel::hideReAuthDialog,
+        onConfirmReAuthDelete = { password ->
+            viewModel.confirmReAuthDelete(password) {
+                onNavigateToLogin()
+            }
+        }
     )
 }
 
@@ -80,9 +111,6 @@ fun SettingsScreenContent(
     uiState: SettingsUiState,
     snackbarHostState: SnackbarHostState,
     onNavigateBack: () -> Unit,
-    onShowLanguageDialog: () -> Unit,
-    onHideLanguageDialog: () -> Unit,
-    onSetLanguage: (LanguageOption) -> Unit,
     onShowLocationDialog: () -> Unit,
     onHideLocationDialog: () -> Unit,
     onSetLocation: (String) -> Unit,
@@ -94,12 +122,19 @@ fun SettingsScreenContent(
     onNotificationSoundClick: () -> Unit,
     onChangePasswordClick: () -> Unit,
     onAccountSecurityClick: () -> Unit,
+    onShowDeleteAccountConfirmation: () -> Unit,
+    onHideDeleteAccountConfirmation: () -> Unit,
+    onConfirmDeleteAccount: () -> Unit,
     onExportDataClick: () -> Unit,
     onShowResetConfirmation: () -> Unit,
     onHideResetConfirmation: () -> Unit,
     onConfirmReset: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
-    onTermsClick: () -> Unit
+    onTermsClick: () -> Unit,
+    onLoginClick: () -> Unit,
+    onLogoutClick: () -> Unit,
+    onHideReAuthDialog: () -> Unit = {},
+    onConfirmReAuthDelete: (String) -> Unit = {}
 ) {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
@@ -133,22 +168,8 @@ fun SettingsScreenContent(
                 SettingsSectionHeader(title = "Umum")
             }
 
-            // Bahasa
-            item {
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Language,
-                    iconBackground = InfoBlue.copy(alpha = 0.1f),
-
-                    iconTint = InfoBlue,
-                    title = "Bahasa",
-                    subtitle = uiState.selectedLanguage.displayName,
-                    onClick = onShowLanguageDialog
-                )
-            }
-
             // Format Waktu
             item {
-                Spacer(modifier = Modifier.height(8.dp))
                 SettingsClickableItem(
                     icon = Icons.Outlined.Schedule,
                     iconBackground = WarningAmber.copy(alpha = 0.1f),
@@ -208,36 +229,77 @@ fun SettingsScreenContent(
             }
 
             // =============================================================
-            // SECTION: PRIVASI & KEAMANAN
+            // SECTION: AKUN
             // =============================================================
             item {
                 Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = "Privasi & Keamanan")
+                SettingsSectionHeader(title = "Akun")
             }
 
-            // Ubah Password
-            item {
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Lock,
-                    iconBackground = WarningAmber.copy(alpha = 0.1f),
-                    iconTint = WarningAmber,
-                    title = "Ubah Password",
-                    subtitle = "Ganti password akun",
-                    onClick = onChangePasswordClick
-                )
-            }
+            if (uiState.isLoggedIn) {
+                item {
+                    SettingsInfoItem(
+                        icon = Icons.Outlined.Person,
+                        iconBackground = EmeraldLight,
+                        iconTint = Emerald,
+                        title = "Akun Aktif",
+                        value = uiState.userEmail.ifBlank { "Pengguna" }
+                    )
+                }
 
-            // Keamanan Akun
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Shield,
-                    iconBackground = EmeraldLight,
-                    iconTint = Emerald,
-                    title = "Keamanan Akun",
-                    subtitle = "Verifikasi 2 langkah",
-                    onClick = onAccountSecurityClick
-                )
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Lock,
+                        iconBackground = WarningAmber.copy(alpha = 0.1f),
+                        iconTint = WarningAmber,
+                        title = "Ubah Password",
+                        subtitle = "Ganti password akun",
+                        onClick = onChangePasswordClick
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Shield,
+                        iconBackground = EmeraldLight,
+                        iconTint = Emerald,
+                        title = "Keamanan Akun",
+                        subtitle = "Kelola keamanan login",
+                        onClick = onAccountSecurityClick
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.PersonRemove,
+                        iconBackground = ErrorRed.copy(alpha = 0.1f),
+                        iconTint = ErrorRed,
+                        title = "Hapus Akun",
+                        subtitle = "Hapus akun dan data cloud",
+                        titleColor = ErrorRed,
+                        onClick = onShowDeleteAccountConfirmation
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Logout,
+                        iconBackground = ErrorRed.copy(alpha = 0.1f),
+                        iconTint = ErrorRed,
+                        title = "Logout",
+                        subtitle = "Keluar dari akun ini",
+                        titleColor = ErrorRed,
+                        onClick = onLogoutClick
+                    )
+                }
+            } else {
+                item {
+                    GuestLoginCard(onLoginClick = onLoginClick)
+                }
             }
 
             // =============================================================
@@ -248,16 +310,17 @@ fun SettingsScreenContent(
                 SettingsSectionHeader(title = "Data")
             }
 
-            // Ekspor Data
-            item {
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Upload,
-                    iconBackground = InfoBlue.copy(alpha = 0.1f),
-                    iconTint = InfoBlue,
-                    title = "Ekspor Data",
-                    subtitle = "Backup data kebiasaan",
-                    onClick = onExportDataClick
-                )
+            if (uiState.isLoggedIn) {
+                item {
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Upload,
+                        iconBackground = InfoBlue.copy(alpha = 0.1f),
+                        iconTint = InfoBlue,
+                        title = "Ekspor Data",
+                        subtitle = "Backup data kebiasaan",
+                        onClick = onExportDataClick
+                    )
+                }
             }
 
             // Reset Data
@@ -268,7 +331,7 @@ fun SettingsScreenContent(
                     iconBackground = ErrorRed.copy(alpha = 0.1f),
                     iconTint = ErrorRed,
                     title = "Reset Data",
-                    subtitle = "Hapus semua data",
+                    subtitle = if (uiState.isLoggedIn) "Hapus semua data lokal" else "Hapus data lokal di perangkat",
                     titleColor = ErrorRed,
                     onClick = onShowResetConfirmation
                 )
@@ -328,14 +391,6 @@ fun SettingsScreenContent(
 
     // === DIALOGS ===
 
-    if (uiState.showLanguageDialog) {
-        LanguageSelectionDialog(
-            currentLanguage = uiState.selectedLanguage,
-            onSelect = onSetLanguage,
-            onDismiss = onHideLanguageDialog
-        )
-    }
-
     if (uiState.showLocationDialog) {
         LocationInputDialog(
             currentLocation = uiState.location,
@@ -356,6 +411,22 @@ fun SettingsScreenContent(
         ResetConfirmationDialog(
             onConfirm = onConfirmReset,
             onDismiss = onHideResetConfirmation
+        )
+    }
+
+    if (uiState.showDeleteAccountConfirmation) {
+        DeleteAccountConfirmationDialog(
+            isDeleting = uiState.isDeletingAccount,
+            onConfirm = onConfirmDeleteAccount,
+            onDismiss = onHideDeleteAccountConfirmation
+        )
+    }
+
+    if (uiState.showReAuthDialog) {
+        ReAuthDialog(
+            isDeleting = uiState.isDeletingAccount,
+            onConfirm = onConfirmReAuthDelete,
+            onDismiss = onHideReAuthDialog
         )
     }
 }
@@ -415,9 +486,49 @@ fun SettingsSectionHeader(title: String) {
         text = title,
         fontSize = 14.sp,
         fontWeight = FontWeight.SemiBold,
-        color = Gray500,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        letterSpacing = 0.3.sp,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
     )
+}
+
+@Composable
+fun GuestLoginCard(onLoginClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Login untuk fitur akun",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Sinkronisasi, keamanan akun, dan ekspor data tersedia setelah login.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextButton(
+                onClick = onLoginClick,
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text(
+                    text = "Login Sekarang",
+                    color = Emerald,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -436,7 +547,7 @@ fun SettingsToggleItem(
             .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -471,7 +582,7 @@ fun SettingsToggleItem(
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = Gray500
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -506,7 +617,7 @@ fun SettingsClickableItem(
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -541,7 +652,7 @@ fun SettingsClickableItem(
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = Gray500
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -569,7 +680,7 @@ fun SettingsInfoItem(
             .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -614,58 +725,6 @@ fun SettingsInfoItem(
 // ============================================================================
 // DIALOGS
 // ============================================================================
-
-@Composable
-fun LanguageSelectionDialog(
-    currentLanguage: LanguageOption,
-    onSelect: (LanguageOption) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Pilih Bahasa",
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            Column {
-                LanguageOption.entries.forEach { language ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(language) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = language == currentLanguage,
-                            onClick = { onSelect(language) },
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = Emerald
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = language.displayName,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = "Batal", color = Gray500)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
 
 @Composable
 fun LocationInputDialog(
@@ -828,6 +887,124 @@ fun ResetConfirmationDialog(
     )
 }
 
+@Composable
+fun DeleteAccountConfirmationDialog(
+    isDeleting: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { if (!isDeleting) onDismiss() },
+        title = {
+            Text(
+                text = "Hapus Akun",
+                fontWeight = FontWeight.SemiBold,
+                color = ErrorRed
+            )
+        },
+        text = {
+            Text(
+                text = "Akun dan semua data terkait akan dihapus permanen. Lanjutkan?",
+                fontSize = 14.sp,
+                color = Gray700
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = !isDeleting) {
+                if (isDeleting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Menghapus...")
+                } else {
+                    Text(
+                        text = "Hapus",
+                        color = ErrorRed,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isDeleting) {
+                Text(text = "Batal", color = Gray500)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp)
+    )
+}
+
+@Composable
+fun ReAuthDialog(
+    isDeleting: Boolean,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = { if (!isDeleting) onDismiss() },
+        title = {
+            Text(
+                text = "Konfirmasi Password",
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Masukkan password untuk mengonfirmasi penghapusan akun.",
+                    fontSize = 14.sp,
+                    color = Gray700
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { if (password.isNotBlank() && !isDeleting) onConfirm(password) }
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isDeleting
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(password) },
+                enabled = password.isNotBlank() && !isDeleting
+            ) {
+                if (isDeleting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Menghapus...")
+                } else {
+                    Text(
+                        text = "Hapus Akun",
+                        color = ErrorRed,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isDeleting) {
+                Text(text = "Batal", color = Gray500)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp)
+    )
+}
+
 // ============================================================================
 // PREVIEW
 // ============================================================================
@@ -840,9 +1017,6 @@ fun SettingsScreenPreview() {
             uiState = SettingsUiState(),
             snackbarHostState = remember { SnackbarHostState() },
             onNavigateBack = {},
-            onShowLanguageDialog = {},
-            onHideLanguageDialog = {},
-            onSetLanguage = {},
             onShowLocationDialog = {},
             onHideLocationDialog = {},
             onSetLocation = {},
@@ -854,12 +1028,17 @@ fun SettingsScreenPreview() {
             onNotificationSoundClick = {},
             onChangePasswordClick = {},
             onAccountSecurityClick = {},
+            onShowDeleteAccountConfirmation = {},
+            onHideDeleteAccountConfirmation = {},
+            onConfirmDeleteAccount = {},
             onExportDataClick = {},
             onShowResetConfirmation = {},
             onHideResetConfirmation = {},
             onConfirmReset = {},
             onPrivacyPolicyClick = {},
-            onTermsClick = {}
+            onTermsClick = {},
+            onLoginClick = {},
+            onLogoutClick = {}
         )
     }
 }

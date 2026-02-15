@@ -33,6 +33,18 @@ interface HabitDao {
     @Query("SELECT COUNT(*) FROM habits")
     suspend fun getHabitCount(): Int
 
+    @Query("UPDATE habits SET isCompleted = 0")
+    suspend fun resetAllCompletions()
+
+    @Query("SELECT * FROM habits WHERE isReminderEnabled = 1 AND time != ''")
+    suspend fun getActiveReminderHabits(): List<Habit>
+
+    @Query("SELECT * FROM habits WHERE category = 'Sholat Fardhu' ORDER BY id ASC")
+    suspend fun getFardhuHabits(): List<Habit>
+
+    @Query("UPDATE habits SET time = :time WHERE name = :name AND category = 'Sholat Fardhu'")
+    suspend fun updateFardhuTimeByName(name: String, time: String)
+
     @Query("DELETE FROM habits")
     suspend fun deleteAllHabits()
 }

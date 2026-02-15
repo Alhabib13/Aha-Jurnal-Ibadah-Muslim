@@ -66,6 +66,10 @@ fun LoginScreen(
             focusManager.clearFocus()
             viewModel.login()
         },
+        onForgotPasswordClick = {
+            focusManager.clearFocus()
+            viewModel.requestPasswordReset()
+        },
         onGoogleLoginClick = {},
         onFacebookLoginClick = {},
         onRegisterClick = onNavigateToRegister
@@ -79,6 +83,7 @@ fun LoginScreenContent(
     onPasswordChange: (String) -> Unit,
     onTogglePasswordVisibility: () -> Unit,
     onLoginClick: () -> Unit,
+    onForgotPasswordClick: () -> Unit,
     onGoogleLoginClick: () -> Unit,
     onFacebookLoginClick: () -> Unit,
     onRegisterClick: () -> Unit
@@ -190,6 +195,23 @@ fun LoginScreenContent(
                     isError = uiState.passwordError != null,
                     errorMessage = uiState.passwordError
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = onForgotPasswordClick,
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            text = "Lupa password?",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Emerald
+                        )
+                    }
+                }
             }
         }
 
@@ -206,6 +228,21 @@ fun LoginScreenContent(
                     text = uiState.errorMessage!!,
                     fontSize = 13.sp,
                     color = ErrorRed,
+                    modifier = Modifier.padding(12.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        } else if (uiState.infoMessage != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Emerald.copy(alpha = 0.1f))
+            ) {
+                Text(
+                    text = uiState.infoMessage,
+                    fontSize = 13.sp,
+                    color = EmeraldDark,
                     modifier = Modifier.padding(12.dp),
                     textAlign = TextAlign.Center
                 )
@@ -275,7 +312,8 @@ fun LoginScreenContent(
         SocialLoginButton(
             text = "Login Google",
             iconText = "G",
-            onClick = onGoogleLoginClick
+            onClick = onGoogleLoginClick,
+            enabled = false
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -283,7 +321,15 @@ fun LoginScreenContent(
         SocialLoginButton(
             text = "Login Facebook",
             iconText = "f",
-            onClick = onFacebookLoginClick
+            onClick = onFacebookLoginClick,
+            enabled = false
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Login sosial segera hadir",
+            fontSize = 12.sp,
+            color = Gray500
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -317,13 +363,15 @@ fun LoginScreenContent(
 private fun SocialLoginButton(
     text: String,
     iconText: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     OutlinedButton(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp),
+        enabled = enabled,
         shape = RoundedCornerShape(28.dp),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -345,7 +393,7 @@ private fun SocialLoginButton(
         }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = text,
+            text = if (enabled) text else "$text (Segera)",
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -442,6 +490,7 @@ fun LoginScreenPreview() {
             onPasswordChange = {},
             onTogglePasswordVisibility = {},
             onLoginClick = {},
+            onForgotPasswordClick = {},
             onGoogleLoginClick = {},
             onFacebookLoginClick = {},
             onRegisterClick = {}
@@ -464,6 +513,7 @@ fun LoginScreenErrorPreview() {
             onPasswordChange = {},
             onTogglePasswordVisibility = {},
             onLoginClick = {},
+            onForgotPasswordClick = {},
             onGoogleLoginClick = {},
             onFacebookLoginClick = {},
             onRegisterClick = {}
@@ -485,6 +535,7 @@ fun LoginScreenLoadingPreview() {
             onPasswordChange = {},
             onTogglePasswordVisibility = {},
             onLoginClick = {},
+            onForgotPasswordClick = {},
             onGoogleLoginClick = {},
             onFacebookLoginClick = {},
             onRegisterClick = {}

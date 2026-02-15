@@ -16,6 +16,19 @@ object NotificationScheduler {
     private const val CHANNEL_NAME = "Pengingat Ibadah"
     private const val TAG = "NotificationScheduler"
 
+    /**
+     * Generate a stable, positive request code from a habit ID string.
+     * Uses a simple FNV-1a-inspired hash for better distribution than String.hashCode().
+     */
+    fun stableRequestCode(habitId: String): Int {
+        var hash = 0x811c9dc5.toInt()
+        for (c in habitId) {
+            hash = hash xor c.code
+            hash = hash * 0x01000193
+        }
+        return hash and 0x7FFFFFFF
+    }
+
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -48,7 +61,7 @@ object NotificationScheduler {
             putExtra("minute", minute)
         }
 
-        val requestCode = habitId.hashCode()
+        val requestCode = stableRequestCode(habitId)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -97,7 +110,7 @@ object NotificationScheduler {
     fun cancelHabitReminder(context: Context, habitId: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, NotificationReceiver::class.java)
-        val requestCode = habitId.hashCode()
+        val requestCode = stableRequestCode(habitId)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,

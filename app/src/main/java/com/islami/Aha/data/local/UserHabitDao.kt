@@ -17,6 +17,9 @@ interface UserHabitDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHabit(habit: UserHabitEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllHabits(habits: List<UserHabitEntity>)
+
     @Update
     suspend fun updateHabit(habit: UserHabitEntity)
 
@@ -34,4 +37,7 @@ interface UserHabitDao {
 
     @Query("SELECT * FROM user_habits WHERE reminderEnabled = 1 AND reminderTime IS NOT NULL")
     suspend fun getActiveReminderHabits(): List<UserHabitEntity>
+
+    @Query("DELETE FROM user_habits")
+    suspend fun deleteAll()
 }

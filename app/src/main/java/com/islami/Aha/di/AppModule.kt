@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.room.Room
 import com.islami.Aha.data.local.AppDatabase
+import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
 import com.islami.Aha.data.local.UserHabitDao
 import com.islami.Aha.data.repository.AuthRepository
@@ -28,7 +29,12 @@ object AppModule {
             AppDatabase::class.java,
             "aha_db"
         )
-        .fallbackToDestructiveMigration(dropAllTables = true)
+        .addMigrations(
+            AppDatabase.MIGRATION_5_6,
+            AppDatabase.MIGRATION_6_7,
+            AppDatabase.MIGRATION_7_8,
+            AppDatabase.MIGRATION_8_9
+        )
         .build()
     }
 
@@ -36,6 +42,12 @@ object AppModule {
     @Singleton
     fun provideHabitDao(appDatabase: AppDatabase): HabitDao {
         return appDatabase.habitDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideHabitCompletionDao(appDatabase: AppDatabase): HabitCompletionDao {
+        return appDatabase.habitCompletionDao()
     }
 
     @Provides

@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.*
@@ -46,7 +47,10 @@ fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
         onConfirmDelete = viewModel::deleteReminder,
         onDismissDelete = viewModel::hideDeleteConfirmation,
         onToggleSunnahReminder = viewModel::toggleSunnahReminder,
-        onDeleteSunnahClick = viewModel::showSunnahDeleteConfirmation
+        onDeleteSunnahClick = viewModel::showSunnahDeleteConfirmation,
+        onEditSunnahClick = viewModel::showEditSunnahDialog,
+        onDismissEditSunnah = viewModel::hideEditSunnahDialog,
+        onSaveEditSunnah = viewModel::updateSunnahHabit
     )
 }
 
@@ -59,12 +63,15 @@ fun NotificationScreenContent(
     onConfirmDelete: () -> Unit,
     onDismissDelete: () -> Unit,
     onToggleSunnahReminder: (SunnahHabit) -> Unit,
-    onDeleteSunnahClick: (SunnahHabit) -> Unit
+    onDeleteSunnahClick: (SunnahHabit) -> Unit,
+    onEditSunnahClick: (SunnahHabit) -> Unit,
+    onDismissEditSunnah: () -> Unit,
+    onSaveEditSunnah: (String, String?, String, Int?) -> Unit
 ) {
     val sholatFardhu = uiState.habits.filter { it.category == "Sholat Fardhu" }
     val sholatSunnah = uiState.habits.filter { it.category == "Sholat Sunnah" }
     val sunnahSholat = uiState.sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
-    val puasaWajib = uiState.habits.filter { it.category == "Puasa Wajib" }
+    val puasaWajib = uiState.habits.filter { it.category == "Puasa Wajib" && uiState.isRamadanMonth }
     val puasaSunnah = uiState.habits.filter { it.category == "Puasa Sunnah" }
     val sunnahPuasa = uiState.sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
     val isEmpty = uiState.habits.isEmpty() && uiState.sunnahHabits.isEmpty()
@@ -136,7 +143,8 @@ fun NotificationScreenContent(
                                     sunnahHabit = sunnahHabit,
                                     globalEnabled = uiState.globalNotificationEnabled,
                                     onToggleReminder = { onToggleSunnahReminder(sunnahHabit) },
-                                    onDelete = { onDeleteSunnahClick(sunnahHabit) }
+                                    onDelete = { onDeleteSunnahClick(sunnahHabit) },
+                                    onEdit = { onEditSunnahClick(sunnahHabit) }
                                 )
                             }
                         }
@@ -178,7 +186,8 @@ fun NotificationScreenContent(
                                     sunnahHabit = sunnahHabit,
                                     globalEnabled = uiState.globalNotificationEnabled,
                                     onToggleReminder = { onToggleSunnahReminder(sunnahHabit) },
-                                    onDelete = { onDeleteSunnahClick(sunnahHabit) }
+                                    onDelete = { onDeleteSunnahClick(sunnahHabit) },
+                                    onEdit = { onEditSunnahClick(sunnahHabit) }
                                 )
                             }
                         }
@@ -193,6 +202,16 @@ fun NotificationScreenContent(
             habitName = uiState.deleteTargetName,
             onConfirm = onConfirmDelete,
             onDismiss = onDismissDelete
+        )
+    }
+
+    if (uiState.showEditSunnahDialog && uiState.sunnahHabitToEdit != null) {
+        EditSunnahHabitDialog(
+            habit = uiState.sunnahHabitToEdit,
+            onDismiss = onDismissEditSunnah,
+            onSave = { reminderTime, frequency, rakaat ->
+                onSaveEditSunnah(uiState.sunnahHabitToEdit.id, reminderTime, frequency, rakaat)
+            }
         )
     }
 }
@@ -418,7 +437,8 @@ fun SunnahHabitReminderCard(
     sunnahHabit: SunnahHabit,
     globalEnabled: Boolean,
     onToggleReminder: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEdit: () -> Unit
 ) {
     val isEffectivelyEnabled = globalEnabled && sunnahHabit.reminderEnabled
     val cardAlpha by animateFloatAsState(targetValue = if (globalEnabled) 1f else 0.6f, label = "")
@@ -489,6 +509,25 @@ fun SunnahHabitReminderCard(
                         color = Gray500
                     )
                 }
+                sunnahHabit.rakaat?.let { rakaat ->
+                    Text(
+                        text = "$rakaat rakaat",
+                        fontSize = 12.sp,
+                        color = Gray500
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = "Edit",
+                    tint = Gray500,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
             // Delete button
@@ -520,6 +559,63 @@ fun SunnahHabitReminderCard(
             )
         }
     }
+}
+
+@Composable
+fun EditSunnahHabitDialog(
+    habit: SunnahHabit,
+    onDismiss: () -> Unit,
+    onSave: (String?, String, Int?) -> Unit
+) {
+    var frequency by remember(habit.id) { mutableStateOf(habit.frequencyLabel.ifBlank { "Setiap hari" }) }
+    var reminderTime by remember(habit.id) { mutableStateOf(habit.reminderTime.orEmpty()) }
+    var rakaatText by remember(habit.id) { mutableStateOf(habit.rakaat?.toString().orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Habit Sunnah", fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = frequency,
+                    onValueChange = { frequency = it },
+                    label = { Text("Frekuensi") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = reminderTime,
+                    onValueChange = { reminderTime = it },
+                    label = { Text("Jam Pengingat (HH:mm)") },
+                    placeholder = { Text("05:30") },
+                    singleLine = true
+                )
+                if (habit.category == SunnahCategoryType.SHOLAT) {
+                    OutlinedTextField(
+                        value = rakaatText,
+                        onValueChange = { rakaatText = it.filter(Char::isDigit) },
+                        label = { Text("Rakaat") },
+                        singleLine = true
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val normalizedTime = reminderTime.trim().ifBlank { null }
+                    val rakaat = rakaatText.toIntOrNull()
+                    onSave(normalizedTime, frequency.trim().ifBlank { "Setiap hari" }, rakaat)
+                }
+            ) {
+                Text("Simpan", color = Emerald, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
 }
 
 // ── Dialogs & Empty State ──
@@ -603,7 +699,10 @@ fun NotificationScreenPreview() {
             onConfirmDelete = {},
             onDismissDelete = {},
             onToggleSunnahReminder = {},
-            onDeleteSunnahClick = {}
+            onDeleteSunnahClick = {},
+            onEditSunnahClick = {},
+            onDismissEditSunnah = {},
+            onSaveEditSunnah = { _, _, _, _ -> }
         )
     }
 }

@@ -1,8 +1,13 @@
 package com.islami.Aha.ui.settings
 
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.local.UserHabitDao
+import com.islami.Aha.data.repository.AuthRepository
+import com.islami.Aha.data.repository.ReAuthRequiredException
 import com.islami.Aha.ui.theme.ThemeManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,27 +22,25 @@ enum class TimeFormatOption(val displayName: String, val description: String) {
     HOUR_12("12 Jam", "Contoh: 2:30 PM")
 }
 
-enum class LanguageOption(val displayName: String) {
-    INDONESIA("Indonesia"),
-    ENGLISH("English")
-}
-
 data class SettingsUiState(
     // Umum
-    val selectedLanguage: LanguageOption = LanguageOption.INDONESIA,
     val location: String = "Jakarta",
     val selectedTimeFormat: TimeFormatOption = TimeFormatOption.HOUR_24,
     val darkModeEnabled: Boolean = false,
+    val isLoggedIn: Boolean = false,
+    val userEmail: String = "",
 
     // Notifikasi
     val notificationEnabled: Boolean = true,
     val notificationSound: String = "Default",
 
     // Dialog states
-    val showLanguageDialog: Boolean = false,
     val showLocationDialog: Boolean = false,
     val showTimeFormatDialog: Boolean = false,
     val showResetConfirmation: Boolean = false,
+    val showDeleteAccountConfirmation: Boolean = false,
+    val isDeletingAccount: Boolean = false,
+    val showReAuthDialog: Boolean = false,
 
     // Snackbar
     val snackbarMessage: String? = null
@@ -45,29 +48,23 @@ data class SettingsUiState(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val habitDao: HabitDao
+    private val habitDao: HabitDao,
+    private val userHabitDao: UserHabitDao,
+    private val habitCompletionDao: HabitCompletionDao,
+    private val sharedPreferences: SharedPreferences,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        SettingsUiState(darkModeEnabled = ThemeManager.isDarkMode.value)
+        SettingsUiState(
+            darkModeEnabled = ThemeManager.isDarkMode.value,
+            isLoggedIn = authRepository.isLoggedIn,
+            userEmail = authRepository.currentUser?.email.orEmpty()
+        )
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     // === Umum ===
-
-    fun showLanguageDialog() {
-        _uiState.update { it.copy(showLanguageDialog = true) }
-    }
-
-    fun hideLanguageDialog() {
-        _uiState.update { it.copy(showLanguageDialog = false) }
-    }
-
-    fun setLanguage(language: LanguageOption) {
-        _uiState.update {
-            it.copy(selectedLanguage = language, showLanguageDialog = false)
-        }
-    }
 
     fun showLocationDialog() {
         _uiState.update { it.copy(showLocationDialog = true) }
@@ -124,6 +121,97 @@ class SettingsViewModel @Inject constructor(
         showSnackbar("Segera hadir")
     }
 
+    fun showDeleteAccountConfirmation() {
+        _uiState.update { it.copy(showDeleteAccountConfirmation = true) }
+    }
+
+    fun hideDeleteAccountConfirmation() {
+        _uiState.update { it.copy(showDeleteAccountConfirmation = false) }
+    }
+
+    fun logout() {
+        authRepository.logout()
+        _uiState.update {
+            it.copy(
+                isLoggedIn = false,
+                userEmail = ""
+            )
+        }
+        showSnackbar("Anda telah keluar dari akun")
+    }
+
+    fun confirmDeleteAccount(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeletingAccount = true) }
+
+            val result = authRepository.deleteAccount()
+            if (result.isSuccess) {
+                clearLocalData()
+                _uiState.update {
+                    it.copy(
+                        isDeletingAccount = false,
+                        showDeleteAccountConfirmation = false,
+                        isLoggedIn = false,
+                        userEmail = ""
+                    )
+                }
+                onSuccess()
+            } else {
+                val error = result.exceptionOrNull()
+                _uiState.update {
+                    it.copy(
+                        isDeletingAccount = false,
+                        showDeleteAccountConfirmation = false
+                    )
+                }
+                if (error is ReAuthRequiredException) {
+                    _uiState.update { it.copy(showReAuthDialog = true) }
+                } else {
+                    showSnackbar(error?.message ?: "Gagal menghapus akun")
+                }
+            }
+        }
+    }
+
+    fun hideReAuthDialog() {
+        _uiState.update { it.copy(showReAuthDialog = false) }
+    }
+
+    fun confirmReAuthDelete(password: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeletingAccount = true) }
+
+            val result = authRepository.reAuthenticateAndDelete(password)
+            if (result.isSuccess) {
+                clearLocalData()
+                _uiState.update {
+                    it.copy(
+                        isDeletingAccount = false,
+                        showReAuthDialog = false,
+                        isLoggedIn = false,
+                        userEmail = ""
+                    )
+                }
+                onSuccess()
+            } else {
+                _uiState.update {
+                    it.copy(isDeletingAccount = false, showReAuthDialog = false)
+                }
+                showSnackbar("Password salah atau gagal menghapus akun")
+            }
+        }
+    }
+
+    private suspend fun clearLocalData() {
+        habitDao.deleteAllHabits()
+        userHabitDao.deleteAll()
+        habitCompletionDao.deleteAll()
+        sharedPreferences.edit()
+            .remove("hasSeeded")
+            .remove("dark_mode_enabled")
+            .apply()
+    }
+
     // === Data ===
 
     fun onExportDataClick() {
@@ -141,19 +229,12 @@ class SettingsViewModel @Inject constructor(
     fun confirmResetData() {
         viewModelScope.launch {
             habitDao.deleteAllHabits()
+            userHabitDao.deleteAll()
+            habitCompletionDao.deleteAll()
+            sharedPreferences.edit().remove("hasSeeded").apply()
             _uiState.update { it.copy(showResetConfirmation = false) }
             showSnackbar("Semua data telah direset")
         }
-    }
-
-    // === Tentang ===
-
-    fun onPrivacyPolicyClick() {
-        showSnackbar("Segera hadir")
-    }
-
-    fun onTermsClick() {
-        showSnackbar("Segera hadir")
     }
 
     // === Snackbar ===

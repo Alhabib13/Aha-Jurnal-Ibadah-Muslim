@@ -1,13 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
--->
+<?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Prevent restoring stale DB snapshots across schema versions. -->
+    <exclude domain="database" path="aha_db"/>
+    <exclude domain="database" path="aha_db-wal"/>
+    <exclude domain="database" path="aha_db-shm"/>
+
+    <!-- Keep auth/session/user preference data out of backup payload. -->
+    <exclude domain="sharedpref" path="aha_prefs.xml"/>
 </full-backup-content>

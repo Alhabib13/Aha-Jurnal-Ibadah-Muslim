@@ -36,7 +36,10 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -92,6 +95,7 @@ fun HomeScreen(
     onNavigateToAddHabit: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showLocationPermissionBanner by rememberSaveable { mutableStateOf(false) }
 
     val locationPermission = rememberLocationPermissionState(
         onPermissionResult = { granted ->
@@ -104,11 +108,19 @@ fun HomeScreen(
     HomeScreenContent(
         uiState = uiState,
         locationPermissionGranted = locationPermission.isGranted,
+        showLocationPermissionBanner = showLocationPermissionBanner && !locationPermission.isGranted,
         notificationPermissionGranted = notificationPermission.isGranted,
         onRequestLocationPermission = locationPermission.requestPermission,
         onRequestNotificationPermission = notificationPermission.requestPermission,
         onRefresh = { viewModel.refreshData() },
-        onRefreshLocation = { viewModel.refreshLocation() },
+        onRefreshLocation = {
+            if (locationPermission.isGranted) {
+                viewModel.refreshLocation()
+            } else {
+                showLocationPermissionBanner = true
+                locationPermission.requestPermission()
+            }
+        },
         onToggleHabitCompletion = viewModel::toggleHabitCompletion,
         onToggleHabitReminder = viewModel::toggleReminderEnabled,
         onNavigateToAddHabit = onNavigateToAddHabit,
@@ -125,6 +137,7 @@ fun HomeScreen(
 fun HomeScreenContent(
     uiState: HomeUiState,
     locationPermissionGranted: Boolean = true,
+    showLocationPermissionBanner: Boolean = false,
     notificationPermissionGranted: Boolean = true,
     onRequestLocationPermission: () -> Unit = {},
     onRequestNotificationPermission: () -> Unit = {},
@@ -175,7 +188,7 @@ fun HomeScreenContent(
             }
 
             // Permission banners
-            if (!locationPermissionGranted) {
+            if (showLocationPermissionBanner && !locationPermissionGranted) {
                 item {
                     PermissionBanner(
                         icon = Icons.Filled.LocationOn,
@@ -340,6 +353,13 @@ fun SunnahHabitCard(
                     fontSize = 12.sp,
                     color = Gray500
                 )
+                sunnahHabit.rakaat?.let { rakaat ->
+                    Text(
+                        text = "$rakaat rakaat",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (sunnahHabit.reminderEnabled && sunnahHabit.reminderTime != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -626,7 +646,7 @@ fun CategoryCardsRow(
                             when {
                                 isSelected -> 1f
                                 isComingSoon -> 0.65f
-                                else -> 0.7f
+                                else -> 0.82f
                             }
                         )
                         .background(
@@ -656,20 +676,13 @@ fun CategoryCardsRow(
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onPrimary
                         )
-                        if (isComingSoon) {
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
-                            ) {
-                            }
-                        }
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f)
                         ) {
                             Text(
                                 text = getBadge(card.name),
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -841,13 +854,13 @@ fun HomeHabitItem(
                         Text(
                             text = habit.time,
                             fontSize = 12.sp,
-                            color = Gray500
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else if (habit.description.isNotEmpty()) {
                         Text(
                             text = habit.description,
                             fontSize = 12.sp,
-                            color = Gray500
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -981,7 +994,7 @@ fun ComingSoonState(categoryName: String) {
             Text(
                 text = "Fitur $categoryName sedang dalam pengembangan.",
                 fontSize = 14.sp,
-                color = Gray500,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
         }
@@ -1020,7 +1033,7 @@ fun EmptyHabitState(onAddHabitClick: () -> Unit) {
             Text(
                 text = "Mulai lacak ibadah harian Anda dengan menambahkan kebiasaan baru.",
                 fontSize = 14.sp,
-                color = Gray500,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -1056,7 +1069,7 @@ fun IslamicMotivationCard(quote: String, source: String) {
             Text(
                 text = source,
                 fontSize = 12.sp,
-                color = Gray500,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.End,
                 modifier = Modifier.fillMaxWidth()
