@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Habit Traker Islami</string>
+    <string name="app_name">Habit Tracker Islami</string>
 
     <!-- AddHabitScreen -->
     <string name="save_sunnah_worship">Simpan Ibadah Sunnah</string>
@@ -25,4 +25,6 @@
     <!-- HomeScreen -->
     <string name="additional_worship_heading">Ibadah Sunnah Tambahan</string>
     <string name="no_sunnah_habit_added">Belum ada ibadah sunnah yang ditambahkan.</string>
+    <string name="privacy_policy_url">https://aha-islamic-tracker.github.io/privacy-policy.html</string>
+    <string name="terms_of_service_url">https://aha-islamic-tracker.github.io/terms-of-service.html</string>
 </resources>

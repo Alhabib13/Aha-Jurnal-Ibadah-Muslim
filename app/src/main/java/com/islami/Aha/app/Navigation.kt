@@ -1,5 +1,7 @@
 package com.islami.Aha.app
 
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -11,6 +13,8 @@ import com.islami.Aha.ui.auth.RegisterScreen
 import com.islami.Aha.ui.home.HomeScreen
 import com.islami.Aha.ui.notification.NotificationScreen
 import com.islami.Aha.ui.profile.ProfileScreen
+import com.islami.Aha.ui.settings.AdminScreen
+import com.islami.Aha.ui.settings.LegalDocumentActivity
 import com.islami.Aha.ui.settings.SettingsScreen
 import com.islami.Aha.ui.splash.SplashScreen
 import com.islami.Aha.ui.statistic.StatisticScreen
@@ -25,6 +29,7 @@ sealed class Screen(val route: String) {
     object Notification : Screen("notification")
     object Profile : Screen("profile")
     object Settings : Screen("settings")
+    object Admin : Screen("admin")
 }
 
 @Composable
@@ -60,12 +65,27 @@ fun AhaNavHost(
         }
 
         composable(Screen.Register.route) {
+            val context = LocalContext.current
             RegisterScreen(
                 onNavigateToLogin = { navController.popBackStack() },
                 onNavigateToHome = {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
+                },
+                onPrivacyPolicyClick = {
+                    context.startActivity(
+                        Intent(context, LegalDocumentActivity::class.java).apply {
+                            putExtra(LegalDocumentActivity.EXTRA_DOCUMENT_TYPE, LegalDocumentActivity.DOC_PRIVACY)
+                        }
+                    )
+                },
+                onTermsClick = {
+                    context.startActivity(
+                        Intent(context, LegalDocumentActivity::class.java).apply {
+                            putExtra(LegalDocumentActivity.EXTRA_DOCUMENT_TYPE, LegalDocumentActivity.DOC_TERMS)
+                        }
+                    )
                 }
             )
         }
@@ -94,13 +114,31 @@ fun AhaNavHost(
         composable(Screen.Profile.route) {
             ProfileScreen(
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToAdmin = { navController.navigate(Screen.Admin.route) },
                 onNavigateToLogin = { navController.navigate(Screen.Login.route) },
-                onLogout = {}
+                onLogout = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
 
         composable(Screen.Settings.route) {
             SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Admin.route) {
+            AdminScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

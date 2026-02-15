@@ -8,6 +8,7 @@ data class SunnahHabit(
     val name: String,
     val category: SunnahCategoryType,
     val frequencyLabel: String = "",
+    val rakaat: Int? = null,
     val reminderEnabled: Boolean = false,
     val reminderTime: String? = null,
     val isCompletedToday: Boolean = false

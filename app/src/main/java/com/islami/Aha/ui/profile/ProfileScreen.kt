@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
@@ -68,6 +70,7 @@ import com.islami.Aha.ui.theme.HabitIslamiTheme
 fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
     onNavigateToSettings: () -> Unit,
+    onNavigateToAdmin: () -> Unit,
     onNavigateToLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -85,6 +88,7 @@ fun ProfileScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onNavigateToSettings = onNavigateToSettings,
+        onNavigateToAdmin = onNavigateToAdmin,
         onNavigateToLogin = onNavigateToLogin,
         onShowLogoutConfirmation = viewModel::showLogoutConfirmation,
         onHideLogoutConfirmation = viewModel::hideLogoutConfirmation,
@@ -102,6 +106,7 @@ fun ProfileScreenContent(
     uiState: ProfileUiState,
     snackbarHostState: SnackbarHostState,
     onNavigateToSettings: () -> Unit,
+    onNavigateToAdmin: () -> Unit,
     onNavigateToLogin: () -> Unit,
     onShowLogoutConfirmation: () -> Unit,
     onHideLogoutConfirmation: () -> Unit,
@@ -149,7 +154,7 @@ fun ProfileScreenContent(
                     )
                 }
 
-                item { Spacer(modifier = Modifier.height(16.dp)) }
+                item { Spacer(modifier = Modifier.height(20.dp)) }
 
                 item {
                     Text(
@@ -159,20 +164,42 @@ fun ProfileScreenContent(
                         color = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.padding(horizontal = 20.dp)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                 }
 
                 item {
                     AchievementsGrid(achievements = uiState.achievements)
                 }
 
-                item { Spacer(modifier = Modifier.height(20.dp)) }
+                item { Spacer(modifier = Modifier.height(24.dp)) }
 
                 item {
                     WeeklySummaryCard(summary = uiState.weeklySummary)
                 }
 
                 if (uiState.userInfo.isLoggedIn) {
+                    if (uiState.isAdmin) {
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            OutlinedButton(
+                                onClick = onNavigateToAdmin,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp)
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AdminPanelSettings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Panel Admin", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+
                     item {
                         Spacer(modifier = Modifier.height(24.dp))
                         OutlinedButton(
@@ -385,11 +412,11 @@ fun ProfileStat(value: String, label: String) {
             color = Emerald
         )
         Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+            Text(
+                text = label,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
     }
 }
 
@@ -457,7 +484,7 @@ fun AchievementCard(achievement: Achievement, modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = achievement.description,
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 lineHeight = 14.sp,
@@ -467,15 +494,15 @@ fun AchievementCard(achievement: Achievement, modifier: Modifier = Modifier) {
             if (achievement.isUnlocked) {
                 Text(
                     text = "\u2705 Tercapai!",
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Emerald
                 )
             } else {
                 Text(
                     text = "\uD83D\uDD12 Belum",
-                    fontSize = 11.sp,
-                    color = Gray500
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -522,7 +549,7 @@ fun WeeklySummaryCard(summary: WeeklySummary) {
                     if (fraction > 0f) {
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxHeight()
                                 .fillMaxWidth(fraction)
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(Emerald)
@@ -613,6 +640,7 @@ fun ProfileScreenPreview() {
             ),
             snackbarHostState = remember { SnackbarHostState() },
             onNavigateToSettings = {},
+            onNavigateToAdmin = {},
             onNavigateToLogin = {},
             onShowLogoutConfirmation = {},
             onHideLogoutConfirmation = {},

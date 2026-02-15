@@ -5,14 +5,20 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.model.HabitCompletionRecord
 import com.islami.Aha.data.model.Habit
+import com.islami.Aha.data.repository.AdminConfigRepository
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import com.islami.Aha.ui.shared.SunnahHabitSharedViewModel
 import com.islami.Aha.util.LocationHelper
 import com.islami.Aha.util.DateUtils
 import com.islami.Aha.util.NotificationScheduler
+import com.islami.Aha.util.PrayerTimeApiService
+import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -37,12 +44,14 @@ data class HomeUiState(
     val nextPrayerName: String = "",
     val nextPrayerTimeRemaining: String = "",
     val nextPrayerProgress: Float = 0f,
+    val puasaWajibRamadanEnabled: Boolean = true,
     val selectedMainCategory: String = "Sholat",
     val selectedSubTabIndex: Int = 0,
     val allHabits: List<Habit> = emptyList(),
     val motivationalQuote: String = "",
     val quoteSource: String = "",
-    val sunnahHabits: List<SunnahHabit> = emptyList()
+    val sunnahHabits: List<SunnahHabit> = emptyList(),
+    val isRamadanMonth: Boolean = DateUtils.isRamadanMonth()
 ) {
     val subTabCategories: List<String>
         get() = when (selectedMainCategory) {
@@ -67,7 +76,11 @@ data class HomeUiState(
         get() {
             if (isComingSoon) return emptyList()
             val subCategory = subTabCategories.getOrNull(selectedSubTabIndex) ?: return emptyList()
-            return allHabits.filter { it.category == subCategory }
+            return allHabits.filter {
+                if (it.category != subCategory) return@filter false
+                if (it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled)) return@filter false
+                true
+            }
         }
 
     val filteredSunnahHabits: List<SunnahHabit>
@@ -98,7 +111,10 @@ data class HomeUiState(
                 "$completed/$total"
             }
             "Puasa" -> {
-                val habits = allHabits.filter { it.category.startsWith("Puasa") }
+                val habits = allHabits.filter {
+                    it.category.startsWith("Puasa") &&
+                        !(it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled))
+                }
                 val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
                 val completed = habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }
                 val total = habits.size + sunnah.size
@@ -118,13 +134,16 @@ data class PrayerTimeInfo(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val habitCompletionDao: HabitCompletionDao,
     private val habitDao: HabitDao,
     private val sharedPreferences: SharedPreferences,
-    private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel
+    private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
+    private val adminConfigRepository: AdminConfigRepository
 ) : ViewModel() {
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
         private const val KEY_USER_NAME = "user_name"
+        private const val KEY_LAST_DAILY_RESET = "last_daily_reset"
     }
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -136,27 +155,29 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-    private val prayerTimes = listOf(
-        PrayerTimeInfo("Subuh", 4, 30),
-        PrayerTimeInfo("Dzuhur", 11, 55),
-        PrayerTimeInfo("Ashar", 15, 10),
-        PrayerTimeInfo("Maghrib", 18, 0),
-        PrayerTimeInfo("Isya", 19, 15)
-    )
-
     init {
         refreshAuthState()
         sharedPreferences.registerOnSharedPreferenceChangeListener(authPrefsListener)
+        resetDefaultHabitsIfNewDay()
         seedDataIfNeeded()
+        sunnahHabitSharedViewModel.syncFromCloudIfLoggedIn()
         loadHabits()
         startTimeUpdates()
         loadQuote()
         refreshLocation()
 
         // Observe changes from SunnahHabitSharedViewModel
-        viewModelScope.launch {
+        launchSafely("observeSunnahHabits") {
             sunnahHabitSharedViewModel.sunnahHabits.collect { newSunnahHabits ->
                 _uiState.update { it.copy(sunnahHabits = newSunnahHabits) }
+            }
+        }
+
+        launchSafely("observeFeatureConfig") {
+            adminConfigRepository.featureConfig.collect { config ->
+                _uiState.update {
+                    it.copy(puasaWajibRamadanEnabled = config.puasaWajibRamadanEnabled)
+                }
             }
         }
     }
@@ -167,45 +188,70 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun seedDataIfNeeded() {
-        viewModelScope.launch {
-            val hasSeeded = sharedPreferences.getBoolean("hasSeeded", false)
-            if (!hasSeeded) {
-                val count = habitDao.getHabitCount()
-                if (count == 0) {
-                    habitDao.insertAll(getDefaultHabits())
-                    sharedPreferences.edit().putBoolean("hasSeeded", true).apply()
-                }
+        launchSafely("seedDataIfNeeded") {
+            val count = habitDao.getHabitCount()
+            if (count == 0) {
+                habitDao.insertAll(resolveDefaultHabits())
             }
+            sharedPreferences.edit().putBoolean("hasSeeded", true).apply()
         }
     }
 
-    private fun getDefaultHabits(): List<Habit> = listOf(
+    private suspend fun resolveDefaultHabits(): List<Habit> {
+        val cloudFardhuHabits = fetchFardhuDefaultsFromFirestore()
+        return if (cloudFardhuHabits.isNotEmpty()) cloudFardhuHabits else getFallbackFardhuHabits()
+    }
+
+    private suspend fun fetchFardhuDefaultsFromFirestore(): List<Habit> {
+        val firestore = runCatching { FirebaseFirestore.getInstance() }.getOrNull() ?: return emptyList()
+        val snapshot = runCatching {
+            firestore.collection("fardhu_defaults")
+                .orderBy("order")
+                .get()
+                .await()
+        }.getOrElse {
+            runCatching { FirebaseCrashlytics.getInstance().recordException(it) }
+            return emptyList()
+        }
+
+        val canonicalOrder = listOf(
+            "Sholat Subuh",
+            "Sholat Dzuhur",
+            "Sholat Ashar",
+            "Sholat Maghrib",
+            "Sholat Isya"
+        )
+        val canonicalSet = canonicalOrder.toSet()
+
+        val byName = snapshot.documents.mapNotNull { doc ->
+            val name = doc.getString("name").orEmpty()
+            val time = doc.getString("defaultTime").orEmpty()
+            val icon = doc.getString("icon").orEmpty().ifBlank { "sun" }
+            if (name !in canonicalSet || !time.matches(Regex("^\\d{2}:\\d{2}$"))) return@mapNotNull null
+            name to Habit(
+                name = name,
+                category = "Sholat Fardhu",
+                icon = icon,
+                description = "",
+                time = time
+            )
+        }.toMap()
+
+        return canonicalOrder.mapNotNull { byName[it] }
+            .takeIf { it.size == canonicalOrder.size } ?: emptyList()
+    }
+
+    private fun getFallbackFardhuHabits(): List<Habit> = listOf(
         // Sholat Fardhu
         Habit(name = "Sholat Subuh", category = "Sholat Fardhu", icon = "sunrise", description = "", time = "04:30"),
         Habit(name = "Sholat Dzuhur", category = "Sholat Fardhu", icon = "sun", description = "", time = "11:55"),
         Habit(name = "Sholat Ashar", category = "Sholat Fardhu", icon = "cloud", description = "", time = "15:10"),
         Habit(name = "Sholat Maghrib", category = "Sholat Fardhu", icon = "moon", description = "", time = "18:00"),
-        Habit(name = "Sholat Isya", category = "Sholat Fardhu", icon = "moon", description = "", time = "19:15"),
-        // Sholat Sunnah
-        Habit(name = "Sholat Dhuha", category = "Sholat Sunnah", icon = "sun", description = "06:00 - 11:00", time = "06:00"),
-        Habit(name = "Qabliyah Dzuhur", category = "Sholat Sunnah", icon = "sun", description = "", time = "11:30"),
-        Habit(name = "Ba'diyah Dzuhur", category = "Sholat Sunnah", icon = "sun", description = "", time = "12:15"),
-        Habit(name = "Ba'diyah Maghrib", category = "Sholat Sunnah", icon = "moon", description = "", time = "18:20"),
-        Habit(name = "Ba'diyah Isya", category = "Sholat Sunnah", icon = "moon", description = "", time = "19:35"),
-        Habit(name = "Tahajud", category = "Sholat Sunnah", icon = "night", description = "", time = "03:00"),
-        Habit(name = "Witir", category = "Sholat Sunnah", icon = "night", description = "", time = "03:30"),
-        // Puasa Wajib
-        Habit(name = "Puasa Ramadan", category = "Puasa Wajib", icon = "plate", description = "Sahur - Maghrib", time = ""),
-        // Puasa Sunnah
-        Habit(name = "Puasa Senin", category = "Puasa Sunnah", icon = "moon", description = "Setiap Senin", time = ""),
-        Habit(name = "Puasa Kamis", category = "Puasa Sunnah", icon = "moon", description = "Setiap Kamis", time = ""),
-        Habit(name = "Puasa Ayyamul Bidh", category = "Puasa Sunnah", icon = "moon", description = "13-15 Hijriah", time = ""),
-        Habit(name = "Puasa Daud", category = "Puasa Sunnah", icon = "moon", description = "Selang-seling", time = ""),
-        Habit(name = "Puasa Syawal", category = "Puasa Sunnah", icon = "moon", description = "6 hari di bulan Syawal", time = "")
+        Habit(name = "Sholat Isya", category = "Sholat Fardhu", icon = "moon", description = "", time = "19:15")
     )
 
     private fun loadHabits() {
-        viewModelScope.launch {
+        launchSafely("loadHabits") {
             habitDao.getHabits().collect { habits ->
                 _uiState.update { currentState ->
                     currentState.copy(
@@ -220,10 +266,10 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun startTimeUpdates() {
-        viewModelScope.launch {
+        launchSafely("startTimeUpdates") {
             while (true) {
                 val now = Calendar.getInstance()
-                val prayerInfo = calculateNextPrayer(now)
+                val prayerInfo = calculateNextPrayer(now, _uiState.value.allHabits)
                 _uiState.update {
                     it.copy(
                         currentTime = getCurrentTime(),
@@ -237,7 +283,9 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun calculateNextPrayer(now: Calendar): Triple<String, String, Float> {
+    private fun calculateNextPrayer(now: Calendar, habits: List<Habit>): Triple<String, String, Float> {
+        val prayerTimes = parsePrayerTimes(habits)
+        if (prayerTimes.isEmpty()) return Triple("", "", 0f)
         val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
 
         for (i in prayerTimes.indices) {
@@ -270,22 +318,57 @@ class HomeViewModel @Inject constructor(
         return Triple("Subuh", timeText, 0.9f)
     }
 
-    private fun loadQuote() {
-        val quote = getRandomMotivationalQuote()
-        _uiState.update { it.copy(motivationalQuote = quote.first, quoteSource = quote.second) }
-    }
+    private fun loadQuote() = Unit
 
     fun toggleHabitCompletion(habit: Habit) {
         viewModelScope.launch {
-            val updatedHabit = habit.copy(isCompleted = !habit.isCompleted)
+            val willComplete = !habit.isCompleted
+            val updatedHabit = habit.copy(isCompleted = willComplete)
             habitDao.updateHabit(updatedHabit)
+
+            val todayKey = DateUtils.getTodayKey()
+            val habitKey = "default_${habit.id}"
+            if (willComplete) {
+                habitCompletionDao.insert(
+                    HabitCompletionRecord(
+                        habitKey = habitKey,
+                        dateKey = todayKey,
+                        category = habit.category,
+                        source = "DEFAULT"
+                    )
+                )
+            } else {
+                habitCompletionDao.deleteByHabitAndDate(habitKey, todayKey)
+            }
         }
     }
 
     fun toggleReminderEnabled(habit: Habit) {
         viewModelScope.launch {
-            val updatedHabit = habit.copy(isReminderEnabled = !habit.isReminderEnabled)
+            val willEnable = !habit.isReminderEnabled
+            val updatedHabit = habit.copy(isReminderEnabled = willEnable)
             habitDao.updateHabit(updatedHabit)
+
+            if (habit.time.isNotBlank()) {
+                val parts = habit.time.split(":")
+                if (parts.size == 2) {
+                    val hour = parts[0].toIntOrNull()
+                    val minute = parts[1].toIntOrNull()
+                    if (hour != null && minute != null) {
+                        if (willEnable) {
+                            NotificationScheduler.scheduleHabitReminder(
+                                context = context,
+                                habitId = "default_${habit.id}",
+                                habitName = habit.name,
+                                hour = hour,
+                                minute = minute
+                            )
+                        } else {
+                            NotificationScheduler.cancelHabitReminder(context, "default_${habit.id}")
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -353,6 +436,9 @@ class HomeViewModel @Inject constructor(
         LocationHelper.getLastLocation(
             context = context,
             onResult = { result ->
+                launchSafely("syncPrayerTimesByLocation") {
+                    syncPrayerTimesByLocation(result.latitude, result.longitude)
+                }
                 _uiState.update {
                     it.copy(location = result.cityName, isLocationLoading = false)
                 }
@@ -361,6 +447,40 @@ class HomeViewModel @Inject constructor(
                 _uiState.update { it.copy(isLocationLoading = false) }
             }
         )
+    }
+
+    private suspend fun syncPrayerTimesByLocation(latitude: Double, longitude: Double) {
+        val times = PrayerTimeApiService.fetchTodayFardhuTimes(latitude, longitude) ?: return
+
+        val mapping = listOf(
+            "Sholat Subuh" to times.subuh,
+            "Sholat Dzuhur" to times.dzuhur,
+            "Sholat Ashar" to times.ashar,
+            "Sholat Maghrib" to times.maghrib,
+            "Sholat Isya" to times.isya
+        )
+
+        mapping.forEach { (habitName, time) ->
+            if (time.matches(Regex("^\\d{2}:\\d{2}$"))) {
+                habitDao.updateFardhuTimeByName(habitName, time)
+            }
+        }
+
+        // Keep user reminder behavior intact: only reschedule habits that are currently enabled.
+        habitDao.getFardhuHabits().forEach { habit ->
+            val parts = habit.time.split(":")
+            if (habit.isReminderEnabled && parts.size == 2) {
+                val hour = parts[0].toIntOrNull() ?: return@forEach
+                val minute = parts[1].toIntOrNull() ?: return@forEach
+                NotificationScheduler.scheduleHabitReminder(
+                    context = context,
+                    habitId = "default_${habit.id}",
+                    habitName = habit.name,
+                    hour = hour,
+                    minute = minute
+                )
+            }
+        }
     }
 
     fun refreshAuthState() {
@@ -376,6 +496,46 @@ class HomeViewModel @Inject constructor(
                 userName = userName
             )
         }
+    }
+
+    private fun resetDefaultHabitsIfNewDay() {
+        launchSafely("resetDefaultHabitsIfNewDay") {
+            val todayKey = DateUtils.getTodayKey()
+            val lastResetKey = sharedPreferences.getString(KEY_LAST_DAILY_RESET, null)
+            if (lastResetKey == todayKey) return@launchSafely
+            habitDao.resetAllCompletions()
+            sharedPreferences.edit().putString(KEY_LAST_DAILY_RESET, todayKey).apply()
+        }
+    }
+
+    private fun launchSafely(tag: String, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            runCatching { block() }
+                .onFailure { error ->
+                    Log.e("HomeViewModel", "Startup task failed: $tag", error)
+                    runCatching { FirebaseCrashlytics.getInstance().recordException(error) }
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+        }
+    }
+
+    private fun parsePrayerTimes(habits: List<Habit>): List<PrayerTimeInfo> {
+        val targets = listOf(
+            "Sholat Subuh" to "Subuh",
+            "Sholat Dzuhur" to "Dzuhur",
+            "Sholat Ashar" to "Ashar",
+            "Sholat Maghrib" to "Maghrib",
+            "Sholat Isya" to "Isya"
+        )
+        val mapped = targets.mapNotNull { (habitName, prayerName) ->
+            val habit = habits.firstOrNull { it.name == habitName && it.time.contains(":") } ?: return@mapNotNull null
+            val parts = habit.time.split(":")
+            if (parts.size != 2) return@mapNotNull null
+            val hour = parts[0].toIntOrNull() ?: return@mapNotNull null
+            val minute = parts[1].toIntOrNull() ?: return@mapNotNull null
+            PrayerTimeInfo(prayerName, hour, minute)
+        }
+        return if (mapped.size == targets.size) mapped else emptyList()
     }
 
     private fun getCurrentTime(): String {
@@ -394,21 +554,4 @@ class HomeViewModel @Inject constructor(
         return DateUtils.getHijriDateFormatted()
     }
 
-    private fun getRandomMotivationalQuote(): Pair<String, String> {
-        val quotes = listOf(
-            Pair(
-                "Dan bersegeralah kamu kepada ampunan dari Tuhanmu dan kepada surga yang luasnya seluas langit dan bumi yang disediakan untuk orang-orang yang bertakwa.",
-                "- QS. Ali Imran: 133"
-            ),
-            Pair(
-                "Sesungguhnya shalat itu mencegah dari perbuatan keji dan mungkar.",
-                "- QS. Al-Ankabut: 45"
-            ),
-            Pair(
-                "Amalan yang paling dicintai oleh Allah adalah yang paling konsisten meskipun sedikit.",
-                "- HR. Bukhari & Muslim"
-            )
-        )
-        return quotes.random()
-    }
 }

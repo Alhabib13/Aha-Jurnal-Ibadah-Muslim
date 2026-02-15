@@ -42,9 +42,8 @@ object LocationHelper {
             return
         }
 
-        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-
         try {
+            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
             fusedLocationClient.getCurrentLocation(
                 Priority.PRIORITY_BALANCED_POWER_ACCURACY,
                 CancellationTokenSource().token
@@ -76,6 +75,9 @@ object LocationHelper {
         } catch (e: SecurityException) {
             Log.e(TAG, "SecurityException getting location", e)
             onError("Izin lokasi belum diberikan")
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error getting location", e)
+            onError("Layanan lokasi tidak tersedia")
         }
     }
 

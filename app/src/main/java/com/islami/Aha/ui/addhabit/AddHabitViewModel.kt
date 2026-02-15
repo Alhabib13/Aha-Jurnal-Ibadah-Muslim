@@ -239,6 +239,7 @@ class AddHabitViewModel @Inject constructor(
             name = habitName,
             category = state.selectedCategory,
             frequencyLabel = frequencyLabel,
+            rakaat = if (state.selectedCategory == SunnahCategoryType.SHOLAT) state.selectedRakaat else null,
             reminderEnabled = state.isReminderEnabled,
             reminderTime = reminderTime
         )

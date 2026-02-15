@@ -342,7 +342,7 @@ fun SummaryCard(icon: ImageVector, value: String, label: String, backgroundColor
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = label,
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
                 textAlign = TextAlign.Center,
                 lineHeight = 14.sp
@@ -419,7 +419,7 @@ fun HeatmapCell(day: DailyStatistic) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = day.dayName,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -454,7 +454,7 @@ fun StreakCards(currentStreak: Int, longestStreak: Int) {
                 Text(
                     text = "Saat Ini",
                     fontSize = 12.sp,
-                    color = Gray500
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -486,7 +486,7 @@ fun StreakCards(currentStreak: Int, longestStreak: Int) {
                 Text(
                     text = "Terpanjang",
                     fontSize = 12.sp,
-                    color = Gray500
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(

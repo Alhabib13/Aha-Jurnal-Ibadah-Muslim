@@ -1,17 +1,17 @@
 package com.islami.Aha.ui.shared
 
+import com.islami.Aha.data.local.HabitCompletionDao
+import com.islami.Aha.data.model.HabitCompletionRecord
 import com.islami.Aha.data.repository.UserHabitRepository
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
+import com.islami.Aha.util.DateUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
@@ -19,26 +19,24 @@ import javax.inject.Singleton
 
 @Singleton
 class SunnahHabitSharedViewModel @Inject constructor(
+    private val habitCompletionDao: HabitCompletionDao,
     private val repository: UserHabitRepository
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // In-memory only: tracks today's completions (resets on app restart)
-    private val _completedIds = MutableStateFlow<Set<String>>(emptySet())
-
     val sunnahHabits: StateFlow<List<SunnahHabit>> =
-        combine(repository.getAllHabits(), _completedIds) { habits, completedIds ->
-            habits.map { habit ->
-                if (habit.id in completedIds) habit.copy(isCompletedToday = true)
-                else habit
-            }
-        }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+        repository.getAllHabits().stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    init {
+        syncFromCloudIfLoggedIn()
+    }
 
     fun addHabit(
         name: String,
         category: SunnahCategoryType,
         frequencyLabel: String = "",
+        rakaat: Int? = null,
         reminderEnabled: Boolean = false,
         reminderTime: String? = null
     ): String {
@@ -48,6 +46,7 @@ class SunnahHabitSharedViewModel @Inject constructor(
             name = name,
             category = category,
             frequencyLabel = frequencyLabel,
+            rakaat = rakaat,
             reminderEnabled = reminderEnabled,
             reminderTime = reminderTime
         )
@@ -56,8 +55,31 @@ class SunnahHabitSharedViewModel @Inject constructor(
     }
 
     fun toggleHabitComplete(id: String) {
-        _completedIds.update { current ->
-            if (id in current) current - id else current + id
+        scope.launch {
+            val habit = repository.getHabitById(id) ?: return@launch
+            val todayKey = DateUtils.getTodayKey()
+            val habitKey = "sunnah_${habit.id}"
+            val updated = if (habit.isCompletedToday) {
+                habit.copy(isCompletedToday = false)
+            } else {
+                habit.copy(isCompletedToday = true)
+            }
+            repository.updateHabit(updated)
+            if (updated.isCompletedToday) {
+                habitCompletionDao.insert(
+                    HabitCompletionRecord(
+                        habitKey = habitKey,
+                        dateKey = todayKey,
+                        category = when (habit.category) {
+                            SunnahCategoryType.SHOLAT -> "Sholat Sunnah"
+                            SunnahCategoryType.PUASA -> "Puasa Sunnah"
+                        },
+                        source = "SUNNAH"
+                    )
+                )
+            } else {
+                habitCompletionDao.deleteByHabitAndDate(habitKey, todayKey)
+            }
         }
     }
 
@@ -68,12 +90,33 @@ class SunnahHabitSharedViewModel @Inject constructor(
         }
     }
 
+    fun updateHabitSettings(
+        id: String,
+        frequencyLabel: String,
+        reminderTime: String?,
+        rakaat: Int?
+    ) {
+        scope.launch {
+            val habit = repository.getHabitById(id) ?: return@launch
+            repository.updateHabit(
+                habit.copy(
+                    frequencyLabel = frequencyLabel,
+                    reminderTime = reminderTime,
+                    rakaat = rakaat
+                )
+            )
+        }
+    }
+
     fun getHabitById(id: String): SunnahHabit? {
         return sunnahHabits.value.firstOrNull { it.id == id }
     }
 
     fun removeHabit(id: String) {
-        _completedIds.update { it - id }
         scope.launch { repository.deleteHabit(id) }
+    }
+
+    fun syncFromCloudIfLoggedIn() {
+        scope.launch { repository.syncFromCloudIfLoggedIn() }
     }
 }

@@ -23,7 +23,9 @@
       "Bash(JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\" cmd.exe /c \"cd /d \"\"D:\\\\Projeck APK\"\" && gradlew.bat assembleDebug\")",
       "Bash(\"D:/Projeck APK/gradlew.bat\" --project-dir \"D:/Projeck APK\" assembleDebug)",
       "Bash(cd:*)",
-      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew.bat:*)"
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew.bat:*)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew.bat testDebugUnitTest:*)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew.bat compileDebugKotlin:*)"
     ]
   }
 }

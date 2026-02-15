@@ -1,0 +1,42 @@
+[
+  {
+    "id": "subuh",
+    "name": "Sholat Subuh",
+    "defaultTime": "04:30",
+    "icon": "sunrise",
+    "order": 1,
+    "isSystem": true
+  },
+  {
+    "id": "dzuhur",
+    "name": "Sholat Dzuhur",
+    "defaultTime": "11:55",
+    "icon": "sun",
+    "order": 2,
+    "isSystem": true
+  },
+  {
+    "id": "ashar",
+    "name": "Sholat Ashar",
+    "defaultTime": "15:10",
+    "icon": "cloud",
+    "order": 3,
+    "isSystem": true
+  },
+  {
+    "id": "maghrib",
+    "name": "Sholat Maghrib",
+    "defaultTime": "18:00",
+    "icon": "moon",
+    "order": 4,
+    "isSystem": true
+  },
+  {
+    "id": "isya",
+    "name": "Sholat Isya",
+    "defaultTime": "19:15",
+    "icon": "moon",
+    "order": 5,
+    "isSystem": true
+  }
+]

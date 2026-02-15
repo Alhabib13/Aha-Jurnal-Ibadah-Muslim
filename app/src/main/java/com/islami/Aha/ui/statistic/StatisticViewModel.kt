@@ -2,10 +2,14 @@ package com.islami.Aha.ui.statistic
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.islami.Aha.data.repository.AdminConfigRepository
+import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.model.DailyCompletionCount
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import com.islami.Aha.ui.shared.SunnahHabitSharedViewModel
+import com.islami.Aha.util.DateUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,8 +55,10 @@ data class StatisticUiState(
 
 @HiltViewModel
 class StatisticViewModel @Inject constructor(
+    private val habitCompletionDao: HabitCompletionDao,
     private val habitDao: HabitDao,
-    private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel
+    private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
+    private val adminConfigRepository: AdminConfigRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StatisticUiState())
@@ -68,14 +74,18 @@ class StatisticViewModel @Inject constructor(
 
             combine(
                 habitDao.getHabits(),
-                sunnahHabitSharedViewModel.sunnahHabits
-            ) { habits, sunnahHabits ->
-                Pair(habits, sunnahHabits)
-            }.collect { (habits, sunnahHabits) ->
-                val fardhuCompleted = habits.count { it.isCompleted }
+                sunnahHabitSharedViewModel.sunnahHabits,
+                adminConfigRepository.featureConfig
+            ) { habits, sunnahHabits, config ->
+                Triple(habits, sunnahHabits, config)
+            }.collect { (habits, sunnahHabits, config) ->
+                val visibleHabits = habits.filter {
+                    !(it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled))
+                }
+                val fardhuCompleted = visibleHabits.count { it.isCompleted }
                 val sunnahCompleted = sunnahHabits.count { it.isCompletedToday }
                 val todayCompleted = fardhuCompleted + sunnahCompleted
-                val todayTotal = habits.size + sunnahHabits.size
+                val todayTotal = visibleHabits.size + sunnahHabits.size
                 val todayPercentage = if (todayTotal > 0) (todayCompleted * 100) / todayTotal else 0
 
                 val categoryOrder = listOf("Sholat Fardhu", "Sholat Sunnah", "Puasa Wajib", "Puasa Sunnah")
@@ -87,7 +97,7 @@ class StatisticViewModel @Inject constructor(
                 )
 
                 val categoryStats = categoryOrder.mapIndexed { index, categoryName ->
-                    val categoryHabits = habits.filter { it.category == categoryName }
+                    val categoryHabits = visibleHabits.filter { it.category == categoryName }
                     var completed = categoryHabits.count { it.isCompleted }
                     var total = categoryHabits.size
 
@@ -116,6 +126,21 @@ class StatisticViewModel @Inject constructor(
                     )
                 }
 
+                val last7DateKeys = DateUtils.getDateKeysLastDays(7)
+                val dailyCounts = if (last7DateKeys.isNotEmpty()) {
+                    habitCompletionDao.getDailyCountsBetween(last7DateKeys.first(), last7DateKeys.last())
+                } else {
+                    emptyList()
+                }
+                val completionDates = habitCompletionDao.getDistinctCompletionDatesDesc()
+                val currentStreak = calculateCurrentStreak(completionDates)
+                val longestStreak = calculateLongestStreak(completionDates)
+                val historicalTotal = habitCompletionDao.getTotalCompletionCount()
+                val activeDaysCount = completionDates.size
+                val averagePerDay = if (activeDaysCount > 0) {
+                    historicalTotal.toFloat() / activeDaysCount
+                } else 0f
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -124,11 +149,11 @@ class StatisticViewModel @Inject constructor(
                         todayTotal = todayTotal,
                         todayPercentage = todayPercentage,
                         categoryStats = categoryStats,
-                        weeklyStats = generateWeeklyStats(todayCompleted),
-                        currentStreak = 0,
-                        longestStreak = 0,
-                        totalCompleted = todayCompleted,
-                        averagePerDay = if (todayTotal > 0) todayCompleted.toFloat() else 0f,
+                        weeklyStats = generateWeeklyStats(last7DateKeys, dailyCounts),
+                        currentStreak = currentStreak,
+                        longestStreak = longestStreak,
+                        totalCompleted = historicalTotal,
+                        averagePerDay = averagePerDay,
                         sunnahTotal = sunnahHabits.size,
                         sunnahCompleted = sunnahCompleted
                     )
@@ -142,19 +167,59 @@ class StatisticViewModel @Inject constructor(
         return dateFormat.format(Date())
     }
 
-    private fun generateWeeklyStats(todayCompleted: Int): List<DailyStatistic> {
-        val calendar = Calendar.getInstance()
-        val todayDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-
-        val dayNames = listOf("Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab")
-
-        return dayNames.mapIndexed { index, name ->
-            val dayOfWeek = index + 1 // Calendar.SUNDAY=1, MONDAY=2, etc.
+    private fun generateWeeklyStats(
+        last7DateKeys: List<String>,
+        dailyCounts: List<DailyCompletionCount>
+    ): List<DailyStatistic> {
+        val countsByDate = dailyCounts.associate { it.dateKey to it.count }
+        val todayKey = DateUtils.getTodayKey()
+        return last7DateKeys.map { key ->
+            val dayName = runCatching {
+                val day = java.time.LocalDate.parse(key)
+                when (day.dayOfWeek) {
+                    java.time.DayOfWeek.SUNDAY -> "Min"
+                    java.time.DayOfWeek.MONDAY -> "Sen"
+                    java.time.DayOfWeek.TUESDAY -> "Sel"
+                    java.time.DayOfWeek.WEDNESDAY -> "Rab"
+                    java.time.DayOfWeek.THURSDAY -> "Kam"
+                    java.time.DayOfWeek.FRIDAY -> "Jum"
+                    java.time.DayOfWeek.SATURDAY -> "Sab"
+                }
+            }.getOrDefault("-")
             DailyStatistic(
-                dayName = name,
-                completedCount = if (dayOfWeek == todayDayOfWeek) todayCompleted else 0,
-                isToday = dayOfWeek == todayDayOfWeek
+                dayName = dayName,
+                completedCount = countsByDate[key] ?: 0,
+                isToday = key == todayKey
             )
         }
+    }
+
+    private fun calculateCurrentStreak(distinctDatesDesc: List<String>): Int {
+        if (distinctDatesDesc.isEmpty()) return 0
+        val dateSet = distinctDatesDesc.toSet()
+        var cursor = java.time.LocalDate.now()
+        var streak = 0
+        while (dateSet.contains(cursor.toString())) {
+            streak++
+            cursor = cursor.minusDays(1)
+        }
+        return streak
+    }
+
+    private fun calculateLongestStreak(distinctDatesDesc: List<String>): Int {
+        if (distinctDatesDesc.isEmpty()) return 0
+        val sortedAsc = distinctDatesDesc.mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }.sorted()
+        if (sortedAsc.isEmpty()) return 0
+        var longest = 1
+        var current = 1
+        for (i in 1 until sortedAsc.size) {
+            if (sortedAsc[i - 1].plusDays(1) == sortedAsc[i]) {
+                current++
+                if (current > longest) longest = current
+            } else {
+                current = 1
+            }
+        }
+        return longest
     }
 }
