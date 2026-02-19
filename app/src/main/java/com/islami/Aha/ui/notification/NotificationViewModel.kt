@@ -32,7 +32,8 @@ data class NotificationUiState(
     val habitToDelete: Habit? = null,
     val sunnahHabitToDelete: SunnahHabit? = null,
     val showEditSunnahDialog: Boolean = false,
-    val sunnahHabitToEdit: SunnahHabit? = null
+    val sunnahHabitToEdit: SunnahHabit? = null,
+    val snackbarMessage: String? = null
 ) {
     val deleteTargetName: String
         get() = habitToDelete?.name ?: sunnahHabitToDelete?.name ?: ""
@@ -46,13 +47,12 @@ class NotificationViewModel @Inject constructor(
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
     private val adminConfigRepository: AdminConfigRepository
 ) : ViewModel() {
-    companion object {
-        private const val KEY_GLOBAL_NOTIFICATION_ENABLED = "global_notification_enabled"
-    }
-
     private val _uiState = MutableStateFlow(
         NotificationUiState(
-            globalNotificationEnabled = sharedPreferences.getBoolean(KEY_GLOBAL_NOTIFICATION_ENABLED, true)
+            globalNotificationEnabled = sharedPreferences.getBoolean(
+                NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED,
+                true
+            )
         )
     )
     val uiState: StateFlow<NotificationUiState> = _uiState.asStateFlow()
@@ -71,7 +71,13 @@ class NotificationViewModel @Inject constructor(
                 adminConfigRepository.featureConfig
             ) { habits, config ->
                 habits.filter {
-                    !(it.category == "Puasa Wajib" && !config.puasaWajibRamadanEnabled)
+                    if (it.category == "Puasa Wajib" && !config.puasaWajibRamadanEnabled) {
+                        return@filter false
+                    }
+                    if (it.category == "Sholat Tarawih" && (!config.sholatTarawihEnabled || !DateUtils.isRamadanMonth())) {
+                        return@filter false
+                    }
+                    true
                 }
             }.collect { habits ->
                 _uiState.update {
@@ -95,7 +101,16 @@ class NotificationViewModel @Inject constructor(
     fun toggleGlobalNotification() {
         viewModelScope.launch {
             val enable = !_uiState.value.globalNotificationEnabled
-            sharedPreferences.edit().putBoolean(KEY_GLOBAL_NOTIFICATION_ENABLED, enable).apply()
+            if (enable) {
+                val capability = NotificationScheduler.getNotificationCapability(context)
+                if (capability != NotificationScheduler.NotificationCapability.AVAILABLE) {
+                    showSnackbar(messageForNotificationCapability(capability))
+                    return@launch
+                }
+            }
+            sharedPreferences.edit()
+                .putBoolean(NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED, enable)
+                .apply()
             _uiState.update { it.copy(globalNotificationEnabled = enable) }
             applyGlobalNotificationState(enable)
         }
@@ -104,6 +119,13 @@ class NotificationViewModel @Inject constructor(
     fun toggleReminderEnabled(habit: Habit) {
         viewModelScope.launch {
             val willEnable = !habit.isReminderEnabled
+            if (willEnable) {
+                val capability = NotificationScheduler.getNotificationCapability(context)
+                if (capability != NotificationScheduler.NotificationCapability.AVAILABLE) {
+                    showSnackbar(messageForNotificationCapability(capability))
+                    return@launch
+                }
+            }
             val updatedHabit = habit.copy(isReminderEnabled = willEnable)
             habitDao.updateHabit(updatedHabit)
             if (habit.time.isNotBlank()) {
@@ -125,6 +147,13 @@ class NotificationViewModel @Inject constructor(
 
     fun toggleSunnahReminder(sunnahHabit: SunnahHabit) {
         val willEnable = !sunnahHabit.reminderEnabled
+        if (willEnable) {
+            val capability = NotificationScheduler.getNotificationCapability(context)
+            if (capability != NotificationScheduler.NotificationCapability.AVAILABLE) {
+                showSnackbar(messageForNotificationCapability(capability))
+                return
+            }
+        }
         sunnahHabitSharedViewModel.toggleReminder(sunnahHabit.id)
 
         if (willEnable && _uiState.value.globalNotificationEnabled && sunnahHabit.reminderTime != null) {
@@ -204,6 +233,13 @@ class NotificationViewModel @Inject constructor(
         rakaat: Int?
     ) {
         val habit = _uiState.value.sunnahHabits.firstOrNull { it.id == habitId } ?: return
+        if (habit.reminderEnabled) {
+            val capability = NotificationScheduler.getNotificationCapability(context)
+            if (capability != NotificationScheduler.NotificationCapability.AVAILABLE) {
+                showSnackbar(messageForNotificationCapability(capability))
+                return
+            }
+        }
         sunnahHabitSharedViewModel.updateHabitSettings(
             id = habitId,
             frequencyLabel = frequencyLabel,
@@ -245,6 +281,28 @@ class NotificationViewModel @Inject constructor(
                 sunnahHabitSharedViewModel.removeHabit(sunnahHabit.id)
             }
             hideDeleteConfirmation()
+        }
+    }
+
+    fun clearSnackbar() {
+        _uiState.update { it.copy(snackbarMessage = null) }
+    }
+
+    private fun showSnackbar(message: String) {
+        _uiState.update { it.copy(snackbarMessage = message) }
+    }
+
+    private fun messageForNotificationCapability(
+        capability: NotificationScheduler.NotificationCapability
+    ): String {
+        return when (capability) {
+            NotificationScheduler.NotificationCapability.PERMISSION_DENIED ->
+                context.getString(com.islami.Aha.R.string.notification_permission_required_message)
+            NotificationScheduler.NotificationCapability.SYSTEM_DISABLED ->
+                context.getString(com.islami.Aha.R.string.notification_system_disabled_message)
+            NotificationScheduler.NotificationCapability.CHANNEL_DISABLED ->
+                context.getString(com.islami.Aha.R.string.notification_channel_disabled_message)
+            NotificationScheduler.NotificationCapability.AVAILABLE -> ""
         }
     }
 }

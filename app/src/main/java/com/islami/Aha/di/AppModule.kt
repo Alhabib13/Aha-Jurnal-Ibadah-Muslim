@@ -4,11 +4,14 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.room.Room
 import com.islami.Aha.data.local.AppDatabase
+import com.islami.Aha.data.local.DailyIslamicContentDao
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
 import com.islami.Aha.data.local.UserHabitDao
 import com.islami.Aha.data.repository.AuthRepository
+import com.islami.Aha.data.repository.DailyIslamicContentRepository
 import com.islami.Aha.data.repository.UserHabitRepository
+import com.islami.Aha.util.SecurePrefsProvider
 import com.google.firebase.auth.FirebaseAuth
 import dagger.Module
 import dagger.Provides
@@ -33,7 +36,9 @@ object AppModule {
             AppDatabase.MIGRATION_5_6,
             AppDatabase.MIGRATION_6_7,
             AppDatabase.MIGRATION_7_8,
-            AppDatabase.MIGRATION_8_9
+            AppDatabase.MIGRATION_8_9,
+            AppDatabase.MIGRATION_9_10,
+            AppDatabase.MIGRATION_10_11
         )
         .build()
     }
@@ -52,8 +57,14 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideDailyIslamicContentDao(appDatabase: AppDatabase): DailyIslamicContentDao {
+        return appDatabase.dailyIslamicContentDao()
+    }
+
+    @Provides
+    @Singleton
     fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
-        return context.getSharedPreferences("aha_prefs", Context.MODE_PRIVATE)
+        return SecurePrefsProvider.get(context)
     }
 
     @Provides
@@ -64,8 +75,20 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideUserHabitRepository(userHabitDao: UserHabitDao): UserHabitRepository {
-        return UserHabitRepository(userHabitDao)
+    fun provideUserHabitRepository(
+        appDatabase: AppDatabase,
+        userHabitDao: UserHabitDao,
+        habitCompletionDao: HabitCompletionDao
+    ): UserHabitRepository {
+        return UserHabitRepository(appDatabase, userHabitDao, habitCompletionDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDailyIslamicContentRepository(
+        dailyIslamicContentDao: DailyIslamicContentDao
+    ): DailyIslamicContentRepository {
+        return DailyIslamicContentRepository(dailyIslamicContentDao)
     }
 
     @Provides

@@ -80,7 +80,13 @@ class StatisticViewModel @Inject constructor(
                 Triple(habits, sunnahHabits, config)
             }.collect { (habits, sunnahHabits, config) ->
                 val visibleHabits = habits.filter {
-                    !(it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled))
+                    if (it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled)) {
+                        return@filter false
+                    }
+                    if (it.category == "Sholat Tarawih" && (!DateUtils.isRamadanMonth() || !config.sholatTarawihEnabled)) {
+                        return@filter false
+                    }
+                    true
                 }
                 val fardhuCompleted = visibleHabits.count { it.isCompleted }
                 val sunnahCompleted = sunnahHabits.count { it.isCompletedToday }
@@ -88,10 +94,19 @@ class StatisticViewModel @Inject constructor(
                 val todayTotal = visibleHabits.size + sunnahHabits.size
                 val todayPercentage = if (todayTotal > 0) (todayCompleted * 100) / todayTotal else 0
 
-                val categoryOrder = listOf("Sholat Fardhu", "Sholat Sunnah", "Puasa Wajib", "Puasa Sunnah")
+                val categoryOrder = buildList {
+                    add("Sholat Fardhu")
+                    add("Sholat Sunnah")
+                    if (DateUtils.isRamadanMonth() && config.sholatTarawihEnabled) {
+                        add("Sholat Tarawih")
+                    }
+                    add("Puasa Wajib")
+                    add("Puasa Sunnah")
+                }
                 val categoryIcons = mapOf(
                     "Sholat Fardhu" to "masjid",
                     "Sholat Sunnah" to "sun",
+                    "Sholat Tarawih" to "moon",
                     "Puasa Wajib" to "plate",
                     "Puasa Sunnah" to "moon"
                 )

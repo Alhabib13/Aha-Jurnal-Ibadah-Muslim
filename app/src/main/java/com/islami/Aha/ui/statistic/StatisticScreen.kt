@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -41,6 +42,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
+import java.util.Locale
 
 // Category gradient pairs
 private val categoryGradients = listOf(
@@ -306,7 +308,7 @@ fun SummaryCardsRow(totalCompleted: Int, longestStreak: Int, averagePerDay: Floa
         )
         SummaryCard(
             icon = Icons.Filled.BarChart,
-            value = String.format("%.1f", averagePerDay),
+            value = String.format(Locale.getDefault(), "%.1f", averagePerDay),
             label = "Rata-\nrata/hr",
             backgroundColor = Color(0xFF17A2B8)
         )
@@ -664,7 +666,7 @@ private fun CategoryStatIcon(iconKey: String) {
         "masjid", "\uD83D\uDD4C" -> {
             Icon(
                 painter = painterResource(id = R.drawable.masjid),
-                contentDescription = "Masjid",
+                contentDescription = stringResource(R.string.home_mosque_cd),
                 tint = Color.Black,
                 modifier = Modifier.size(20.dp)
             )

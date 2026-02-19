@@ -14,6 +14,9 @@ interface UserHabitDao {
     @Query("SELECT * FROM user_habits ORDER BY createdAt ASC")
     fun getAllHabits(): Flow<List<UserHabitEntity>>
 
+    @Query("SELECT * FROM user_habits ORDER BY createdAt ASC")
+    suspend fun getAllHabitsSnapshot(): List<UserHabitEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHabit(habit: UserHabitEntity)
 
@@ -25,6 +28,21 @@ interface UserHabitDao {
 
     @Query("DELETE FROM user_habits WHERE id = :id")
     suspend fun deleteHabit(id: String)
+
+    @Query("DELETE FROM user_habits WHERE id IN (:ids)")
+    suspend fun deleteHabitsByIds(ids: List<String>)
+
+    @Query(
+        """
+        UPDATE user_habits
+        SET lastSyncedAt = CASE
+            WHEN lastSyncedAt > :syncedAt THEN lastSyncedAt
+            ELSE :syncedAt
+        END
+        WHERE id = :id
+        """
+    )
+    suspend fun markHabitSynced(id: String, syncedAt: Long)
 
     @Query("SELECT * FROM user_habits WHERE id = :id")
     suspend fun getHabitById(id: String): UserHabitEntity?

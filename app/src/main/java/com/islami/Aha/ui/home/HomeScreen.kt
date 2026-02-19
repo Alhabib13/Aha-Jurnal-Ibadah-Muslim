@@ -1,5 +1,12 @@
 package com.islami.Aha.ui.home
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -8,6 +15,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -35,6 +43,8 @@ import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,22 +57,34 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.islami.Aha.data.model.Habit
 import com.islami.Aha.R
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import com.islami.Aha.ui.theme.*
+import com.islami.Aha.util.LocationHelper
 import com.islami.Aha.util.rememberLocationPermissionState
 import com.islami.Aha.util.rememberNotificationPermissionState
 
@@ -95,13 +117,73 @@ fun HomeScreen(
     onNavigateToAddHabit: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var showLocationPermissionBanner by rememberSaveable { mutableStateOf(false) }
+    var showLocationPermissionDialog by rememberSaveable { mutableStateOf(false) }
+    var showLocationServiceDialog by rememberSaveable { mutableStateOf(false) }
+    var hasPromptedLocationPermission by rememberSaveable { mutableStateOf(false) }
+    var hasPromptedLocationService by rememberSaveable { mutableStateOf(false) }
+    var hasAutoRequestedLocationPermission by rememberSaveable { mutableStateOf(false) }
+
+    val locationSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) {
+        if (LocationHelper.isLocationEnabled(context)) {
+            showLocationServiceDialog = false
+            viewModel.refreshLocation(force = true)
+        } else {
+            // Keep app usable with last known location fallback.
+            viewModel.refreshLocation(force = true)
+        }
+    }
 
     val locationPermission = rememberLocationPermissionState(
         onPermissionResult = { granted ->
-            if (granted) viewModel.refreshLocation()
+            if (!granted) {
+                showLocationPermissionDialog = true
+                hasPromptedLocationPermission = true
+                return@rememberLocationPermissionState
+            }
+            if (LocationHelper.isLocationEnabled(context)) {
+                showLocationPermissionDialog = false
+                showLocationServiceDialog = false
+                viewModel.refreshLocation()
+            } else {
+                showLocationServiceDialog = !hasPromptedLocationService
+                viewModel.refreshLocation()
+            }
         }
     )
+
+    fun syncLocationRequirementUi() {
+        val hasPermission = locationPermission.isGranted
+        val locationEnabled = hasPermission && LocationHelper.isLocationEnabled(context)
+        showLocationPermissionBanner = !hasPermission
+        showLocationPermissionDialog = !hasPermission && !hasPromptedLocationPermission
+        showLocationServiceDialog = hasPermission && !locationEnabled && !hasPromptedLocationService
+        if (hasPermission) {
+            viewModel.refreshLocation()
+        }
+    }
+
+    LaunchedEffect(locationPermission.isGranted) {
+        syncLocationRequirementUi()
+        if (!locationPermission.isGranted && !hasAutoRequestedLocationPermission) {
+            hasAutoRequestedLocationPermission = true
+            locationPermission.requestPermission()
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, locationPermission.isGranted) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                syncLocationRequirementUi()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val notificationPermission = rememberNotificationPermissionState()
 
@@ -110,15 +192,25 @@ fun HomeScreen(
         locationPermissionGranted = locationPermission.isGranted,
         showLocationPermissionBanner = showLocationPermissionBanner && !locationPermission.isGranted,
         notificationPermissionGranted = notificationPermission.isGranted,
-        onRequestLocationPermission = locationPermission.requestPermission,
+        onRequestLocationPermission = {
+            showLocationPermissionDialog = true
+            hasPromptedLocationPermission = true
+            locationPermission.requestPermission()
+        },
         onRequestNotificationPermission = notificationPermission.requestPermission,
         onRefresh = { viewModel.refreshData() },
         onRefreshLocation = {
-            if (locationPermission.isGranted) {
-                viewModel.refreshLocation()
-            } else {
+            if (!locationPermission.isGranted) {
                 showLocationPermissionBanner = true
+                showLocationPermissionDialog = true
+                hasPromptedLocationPermission = true
                 locationPermission.requestPermission()
+            } else if (!LocationHelper.isLocationEnabled(context)) {
+                showLocationServiceDialog = true
+                hasPromptedLocationService = true
+                viewModel.refreshLocation(force = true)
+            } else {
+                viewModel.refreshLocation(force = true)
             }
         },
         onToggleHabitCompletion = viewModel::toggleHabitCompletion,
@@ -130,6 +222,123 @@ fun HomeScreen(
         onToggleSunnahReminder = viewModel::toggleSunnahReminder,
         onDeleteSunnah = viewModel::removeSunnahHabit
     )
+
+    if (showLocationPermissionDialog && !locationPermission.isGranted) {
+        AlertDialog(
+            onDismissRequest = {
+                showLocationPermissionDialog = false
+                hasPromptedLocationPermission = true
+            },
+            title = {
+                Text(
+                    text = stringResource(R.string.home_location_permission_button),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(R.string.home_location_permission_banner_text),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    hasPromptedLocationPermission = true
+                    locationPermission.requestPermission()
+                }) {
+                    Text(stringResource(R.string.home_location_permission_button))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    hasPromptedLocationPermission = true
+                    openAppPermissionSettings(context)
+                }) {
+                    Text(stringResource(R.string.home_location_service_button))
+                }
+            }
+        )
+    }
+
+    if (
+        showLocationServiceDialog &&
+        locationPermission.isGranted &&
+        !LocationHelper.isLocationEnabled(context)
+    ) {
+        AlertDialog(
+            onDismissRequest = {
+                showLocationServiceDialog = false
+                hasPromptedLocationService = true
+                viewModel.refreshLocation()
+            },
+            title = {
+                Text(
+                    text = stringResource(R.string.home_location_service_dialog_title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(R.string.home_location_service_dialog_text),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        LocationHelper.requestEnableLocationFromApp(
+                            context = context,
+                            onResolvable = { intentSender ->
+                                locationSettingsLauncher.launch(
+                                    IntentSenderRequest.Builder(intentSender).build()
+                                )
+                            },
+                            onAlreadyEnabled = {
+                                showLocationServiceDialog = false
+                                viewModel.refreshLocation()
+                            },
+                            onFailure = {
+                                openLocationSettings(context)
+                            }
+                        )
+                    }
+                ) {
+                    Text(stringResource(R.string.home_location_service_enable_now))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        hasPromptedLocationService = true
+                        openLocationSettings(context)
+                    }
+                ) {
+                    Text(stringResource(R.string.home_location_service_button))
+                }
+            }
+        )
+    }
+}
+
+private fun openLocationSettings(context: Context) {
+    runCatching {
+        context.startActivity(
+            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    }
+}
+
+private fun openAppPermissionSettings(context: Context) {
+    runCatching {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", context.packageName, null)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -182,6 +391,11 @@ fun HomeScreenContent(
                     nextPrayerName = uiState.nextPrayerName,
                     nextPrayerTimeRemaining = uiState.nextPrayerTimeRemaining,
                     nextPrayerProgress = uiState.nextPrayerProgress,
+                    prayerTimeStatusText = uiState.prayerTimeStatusText,
+                    showRamadanSchedule = uiState.showRamadanScheduleCard,
+                    ramadanImsakTime = uiState.ramadanImsakTime,
+                    ramadanIftarTime = uiState.ramadanIftarTime,
+                    ramadanStatusText = uiState.ramadanStatusText,
                     isLocationLoading = uiState.isLocationLoading,
                     onRefreshLocation = onRefreshLocation
                 )
@@ -192,8 +406,8 @@ fun HomeScreenContent(
                 item {
                     PermissionBanner(
                         icon = Icons.Filled.LocationOn,
-                        text = "Aktifkan lokasi untuk info waktu sholat",
-                        buttonText = "Aktifkan Lokasi",
+                        text = stringResource(R.string.home_location_permission_banner_text),
+                        buttonText = stringResource(R.string.home_location_permission_button),
                         onClick = onRequestLocationPermission
                     )
                 }
@@ -202,9 +416,18 @@ fun HomeScreenContent(
                 item {
                     PermissionBanner(
                         icon = Icons.Filled.Notifications,
-                        text = "Aktifkan notifikasi untuk pengingat ibadah",
-                        buttonText = "Aktifkan Notifikasi",
+                        text = stringResource(R.string.notification_permission_banner_text),
+                        buttonText = stringResource(R.string.notification_permission_action),
                         onClick = onRequestNotificationPermission
+                    )
+                }
+            }
+            if (uiState.showSyncNotice) {
+                item {
+                    SyncStatusBanner(
+                        message = uiState.syncNoticeMessage.ifBlank {
+                            stringResource(R.string.offline_sync_notice_default)
+                        }
                     )
                 }
             }
@@ -223,7 +446,15 @@ fun HomeScreenContent(
 
             item { Spacer(modifier = Modifier.height(20.dp)) }
 
-            // Sub-tabs
+            // Habit Section Header
+            item {
+                HabitSectionHeader(
+                    completedCount = uiState.completedHabitsCount,
+                    totalCount = uiState.totalHabitsCount
+                )
+            }
+
+            // Sub-tabs (moved below "Habit Hari Ini")
             if (!uiState.isComingSoon && uiState.subTabDisplayNames.isNotEmpty()) {
                 item {
                     SubTabRow(
@@ -235,18 +466,35 @@ fun HomeScreenContent(
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }
 
-            // Habit Section Header
-            item {
-                HabitSectionHeader(
-                    completedCount = uiState.completedHabitsCount,
-                    totalCount = uiState.totalHabitsCount
-                )
-            }
-
             // Content based on category
             if (uiState.isComingSoon) {
                 item {
                     ComingSoonState(categoryName = uiState.selectedMainCategory)
+                }
+            } else if (uiState.showRamadanUnifiedCard) {
+                item {
+                    val selectedSubCategory =
+                        uiState.subTabCategories.getOrNull(uiState.selectedSubTabIndex)
+                    RamadanUnifiedHabitCard(
+                        puasaHabit = if (
+                            uiState.selectedMainCategory == "Puasa" &&
+                            selectedSubCategory == "Puasa Wajib"
+                        ) {
+                            uiState.ramadanPuasaHabit
+                        } else {
+                            null
+                        },
+                        tarawihHabit = if (
+                            uiState.selectedMainCategory == "Sholat" &&
+                            selectedSubCategory == "Sholat Tarawih"
+                        ) {
+                            uiState.ramadanTarawihHabit
+                        } else {
+                            null
+                        },
+                        onToggleHabitCompletion = onToggleHabitCompletion,
+                        onToggleHabitReminder = onToggleHabitReminder
+                    )
                 }
             } else if (uiState.filteredHabits.isEmpty() && uiState.filteredSunnahHabits.isEmpty()) {
                 item {
@@ -294,6 +542,11 @@ fun SunnahHabitCard(
     onToggleReminder: () -> Unit = {},
     onDelete: () -> Unit = {}
 ) {
+    val completionStateDescription = if (sunnahHabit.isCompletedToday) {
+        stringResource(R.string.home_completed_cd)
+    } else {
+        stringResource(R.string.home_not_completed_cd)
+    }
     val backgroundColor by animateColorAsState(
         targetValue = if (sunnahHabit.isCompletedToday) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surface,
@@ -355,7 +608,7 @@ fun SunnahHabitCard(
                 )
                 sunnahHabit.rakaat?.let { rakaat ->
                     Text(
-                        text = "$rakaat rakaat",
+                        text = stringResource(R.string.home_rakaat_format, rakaat),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -364,7 +617,7 @@ fun SunnahHabitCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Outlined.AccessTime,
-                            contentDescription = "Reminder Time",
+                            contentDescription = stringResource(R.string.home_reminder_time_cd),
                             tint = Gray500,
                             modifier = Modifier.size(12.dp)
                         )
@@ -391,7 +644,13 @@ fun SunnahHabitCard(
                             Modifier.border(2.dp, Emerald, CircleShape)
                         }
                     )
-                    .clickable(
+                    .semantics {
+                        role = Role.Checkbox
+                        stateDescription = completionStateDescription
+                    }
+                    .toggleable(
+                        value = sunnahHabit.isCompletedToday,
+                        role = Role.Checkbox,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { onToggleComplete() },
@@ -400,7 +659,7 @@ fun SunnahHabitCard(
                 if (sunnahHabit.isCompletedToday) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = "Selesai",
+                        contentDescription = stringResource(R.string.home_completed_cd),
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(18.dp)
                     )
@@ -461,6 +720,45 @@ fun PermissionBanner(
 }
 
 @Composable
+fun SyncStatusBanner(message: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = EmeraldLight)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Cloud,
+                contentDescription = null,
+                tint = Emerald,
+                modifier = Modifier.size(18.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.sync_status_label),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Emerald
+                )
+                Text(
+                    text = message,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun HomeHeader(
     isLoggedIn: Boolean,
     userName: String,
@@ -471,6 +769,11 @@ fun HomeHeader(
     nextPrayerName: String,
     nextPrayerTimeRemaining: String,
     nextPrayerProgress: Float,
+    prayerTimeStatusText: String = "",
+    showRamadanSchedule: Boolean = false,
+    ramadanImsakTime: String = "",
+    ramadanIftarTime: String = "",
+    ramadanStatusText: String = "",
     isLocationLoading: Boolean = false,
     onRefreshLocation: () -> Unit = {}
 ) {
@@ -521,7 +824,7 @@ fun HomeHeader(
             ) {
                 Icon(
                     imageVector = Icons.Outlined.LocationOn,
-                    contentDescription = "Lokasi",
+                    contentDescription = stringResource(R.string.home_location_cd),
                     tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                     modifier = Modifier.size(12.dp)
                 )
@@ -543,12 +846,19 @@ fun HomeHeader(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,
-                            contentDescription = "Refresh lokasi",
+                            contentDescription = stringResource(R.string.home_refresh_location_cd),
                             tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                             modifier = Modifier.size(14.dp)
                         )
                     }
                 }
+            }
+            if (prayerTimeStatusText.isNotBlank()) {
+                Text(
+                    text = prayerTimeStatusText,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                )
             }
 
             // Next prayer info
@@ -568,11 +878,15 @@ fun HomeHeader(
                         ) {
                             Image(
                                 painter = painterResource(id = R.drawable.masjid),
-                                contentDescription = "Masjid",
+                                contentDescription = stringResource(R.string.home_mosque_cd),
                                 modifier = Modifier.size(14.dp)
                             )
                             Text(
-                                text = "$nextPrayerName dalam $nextPrayerTimeRemaining",
+                                text = stringResource(
+                                    R.string.home_next_prayer_format,
+                                    nextPrayerName,
+                                    nextPrayerTimeRemaining
+                                ),
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Medium
@@ -588,6 +902,38 @@ fun HomeHeader(
                             color = GoldShimmer,
                             trackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
                         )
+                    }
+                }
+            }
+
+            if (showRamadanSchedule) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = stringResource(
+                                R.string.home_ramadan_schedule_summary,
+                                ramadanImsakTime,
+                                ramadanIftarTime
+                            ),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        if (ramadanStatusText.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = ramadanStatusText,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                            )
+                        }
                     }
                 }
             }
@@ -612,6 +958,11 @@ fun CategoryCardsRow(
         categoryCards.forEach { card ->
             val isSelected = card.name == selectedCategory
             val isComingSoon = card.name in comingSoonCategories
+            val categoryStateDescription = when {
+                isComingSoon -> stringResource(R.string.home_state_unavailable)
+                isSelected -> stringResource(R.string.home_state_selected)
+                else -> stringResource(R.string.home_state_not_selected)
+            }
             val scale by animateFloatAsState(
                 targetValue = if (isSelected) 1.05f else 1f,
                 label = "categoryScale"
@@ -620,6 +971,11 @@ fun CategoryCardsRow(
             val baseModifier = Modifier
                 .width(100.dp)
                 .scale(scale)
+                .semantics(mergeDescendants = true) {
+                    if (!isComingSoon) role = Role.Button
+                    selected = isSelected
+                    stateDescription = categoryStateDescription
+                }
                 .then(
                     if (isSelected) {
                         Modifier.border(2.dp, Gold, RoundedCornerShape(16.dp))
@@ -701,17 +1057,78 @@ fun SubTabRow(
     selectedIndex: Int,
     onSelectTab: (Int) -> Unit
 ) {
+    val useEqualWidthTabs = tabs.size <= 3
+
+    if (useEqualWidthTabs) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            tabs.forEachIndexed { index, tab ->
+                val isSelected = index == selectedIndex
+                val tabStateDescription = if (isSelected) {
+                    stringResource(R.string.home_state_selected)
+                } else {
+                    stringResource(R.string.home_state_not_selected)
+                }
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(50))
+                        .semantics {
+                            role = Role.Tab
+                            selected = isSelected
+                            stateDescription = tabStateDescription
+                        }
+                        .clickable { onSelectTab(index) },
+                    shape = RoundedCornerShape(50),
+                    color = if (isSelected) Emerald else Color.Transparent,
+                    border = if (!isSelected) {
+                        androidx.compose.foundation.BorderStroke(1.dp, Emerald.copy(alpha = 0.5f))
+                    } else null
+                ) {
+                    Text(
+                        text = tab,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Emerald,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 9.dp)
+                    )
+                }
+            }
+        }
+        return
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         tabs.forEachIndexed { index, tab ->
             val isSelected = index == selectedIndex
+            val tabStateDescription = if (isSelected) {
+                stringResource(R.string.home_state_selected)
+            } else {
+                stringResource(R.string.home_state_not_selected)
+            }
             Surface(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
+                    .semantics {
+                        role = Role.Tab
+                        selected = isSelected
+                        stateDescription = tabStateDescription
+                    }
                     .clickable { onSelectTab(index) },
                 shape = RoundedCornerShape(50),
                 color = if (isSelected) Emerald else Color.Transparent,
@@ -723,8 +1140,177 @@ fun SubTabRow(
                     text = tab,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Emerald,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun RamadanUnifiedHabitCard(
+    puasaHabit: Habit?,
+    tarawihHabit: Habit?,
+    onToggleHabitCompletion: (Habit) -> Unit,
+    onToggleHabitReminder: (Habit) -> Unit
+) {
+    val habits = buildList {
+        puasaHabit?.let { add(it) }
+        tarawihHabit?.let { add(it) }
+    }
+    if (habits.isEmpty()) return
+    val hasPuasa = habits.any { it.category == "Puasa Wajib" }
+    val hasTarawih = habits.any { it.category == "Sholat Tarawih" }
+    val titleText = when {
+        hasPuasa && !hasTarawih -> stringResource(R.string.home_ramadan_unified_title_puasa)
+        hasTarawih && !hasPuasa -> stringResource(R.string.home_ramadan_unified_title_tarawih)
+        else -> stringResource(R.string.home_ramadan_unified_title)
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = titleText,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            habits.forEachIndexed { index, habit ->
+                RamadanUnifiedHabitRow(
+                    habit = habit,
+                    displayName = when (habit.category) {
+                        "Puasa Wajib" -> stringResource(R.string.home_ramadan_unified_puasa_label)
+                        "Sholat Tarawih" -> stringResource(R.string.home_ramadan_unified_tarawih_label)
+                        else -> habit.name
+                    },
+                    onToggleHabitCompletion = { onToggleHabitCompletion(habit) },
+                    onToggleHabitReminder = { onToggleHabitReminder(habit) }
+                )
+                if (index < habits.lastIndex) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RamadanUnifiedHabitRow(
+    habit: Habit,
+    displayName: String,
+    onToggleHabitCompletion: () -> Unit,
+    onToggleHabitReminder: () -> Unit
+) {
+    val completionStateDescription = if (habit.isCompleted) {
+        stringResource(R.string.home_completed_cd)
+    } else {
+        stringResource(R.string.home_not_completed_cd)
+    }
+    val reminderStateDescription = if (habit.isReminderEnabled) {
+        stringResource(R.string.notification_switch_habit_on_format, displayName)
+    } else {
+        stringResource(R.string.notification_switch_habit_off_format, displayName)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = if (habit.isCompleted) Emerald.copy(alpha = 0.15f) else EmeraldLight,
+            modifier = Modifier.size(38.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = getHabitItemIcon(habit),
+                    contentDescription = displayName,
+                    tint = Emerald,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = displayName,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            val secondaryText = habit.time.ifBlank { habit.description }
+            if (secondaryText.isNotBlank()) {
+                Text(
+                    text = secondaryText,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        IconButton(
+            onClick = onToggleHabitReminder,
+            modifier = Modifier.size(28.dp)
+        ) {
+            Icon(
+                imageVector = if (habit.isReminderEnabled) {
+                    Icons.Outlined.Notifications
+                } else {
+                    Icons.Outlined.NotificationsOff
+                },
+                contentDescription = reminderStateDescription,
+                tint = if (habit.isReminderEnabled) Emerald else Gray400,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .then(
+                    if (habit.isCompleted) {
+                        Modifier.background(Emerald, CircleShape)
+                    } else {
+                        Modifier.border(2.dp, Emerald, CircleShape)
+                    }
+                )
+                .semantics {
+                    role = Role.Checkbox
+                    stateDescription = completionStateDescription
+                }
+                .toggleable(
+                    value = habit.isCompleted,
+                    role = Role.Checkbox,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onToggleHabitCompletion() },
+            contentAlignment = Alignment.Center
+        ) {
+            if (habit.isCompleted) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = stringResource(R.string.home_completed_cd),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -741,7 +1327,7 @@ fun HabitSectionHeader(completedCount: Int, totalCount: Int) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = "Habit Hari Ini",
+            text = stringResource(R.string.home_habit_today_title),
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
@@ -751,7 +1337,7 @@ fun HabitSectionHeader(completedCount: Int, totalCount: Int) {
             color = GoldLight
         ) {
             Text(
-                text = "$completedCount/$totalCount selesai",
+                text = stringResource(R.string.home_habit_progress_format, completedCount, totalCount),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Gold,
@@ -770,6 +1356,17 @@ fun HomeHabitItem(
     currentTime: String,
     modifier: Modifier = Modifier
 ) {
+    val completionStateDescription = if (habit.isCompleted) {
+        stringResource(R.string.home_completed_cd)
+    } else {
+        stringResource(R.string.home_not_completed_cd)
+    }
+    val reminderStateDescription = if (habit.isReminderEnabled) {
+        stringResource(R.string.notification_switch_habit_on_format, habit.name)
+    } else {
+        stringResource(R.string.notification_switch_habit_off_format, habit.name)
+    }
+
     // Determine if this is the current prayer time
     val isCurrentPrayer = isCurrentPrayerTime(habit.time, currentTime)
 
@@ -876,7 +1473,7 @@ fun HomeHabitItem(
                         } else {
                             Icons.Outlined.NotificationsOff
                         },
-                        contentDescription = "Pengingat",
+                        contentDescription = reminderStateDescription,
                         tint = if (habit.isReminderEnabled) Emerald else Gray400,
                         modifier = Modifier.size(20.dp)
                     )
@@ -890,23 +1487,29 @@ fun HomeHabitItem(
                         .size(32.dp)
                         .scale(checkScale)
                         .clip(CircleShape)
-                        .then(
-                            if (habit.isCompleted) {
-                                Modifier.background(Emerald, CircleShape)
-                            } else {
-                                Modifier.border(2.dp, Emerald, CircleShape)
-                            }
-                        )
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onCheckedChange(!habit.isCompleted) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (habit.isCompleted) {
+                    .then(
+                        if (habit.isCompleted) {
+                            Modifier.background(Emerald, CircleShape)
+                        } else {
+                            Modifier.border(2.dp, Emerald, CircleShape)
+                        }
+                    )
+                    .semantics {
+                        role = Role.Checkbox
+                        stateDescription = completionStateDescription
+                    }
+                    .toggleable(
+                        value = habit.isCompleted,
+                        role = Role.Checkbox,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onCheckedChange(!habit.isCompleted) },
+                contentAlignment = Alignment.Center
+            ) {
+                if (habit.isCompleted) {
                         Icon(
                             imageVector = Icons.Default.Check,
-                            contentDescription = "Selesai",
+                            contentDescription = stringResource(R.string.home_completed_cd),
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(18.dp)
                         )
@@ -941,25 +1544,11 @@ private fun isMasjidIcon(icon: String): Boolean {
 }
 
 private fun isCurrentPrayerTime(habitTime: String, currentTime: String): Boolean {
-    if (habitTime.isEmpty() || currentTime.isEmpty()) return false
-    try {
-        val habitParts = habitTime.split(":")
-        val currentParts = currentTime.split(":")
-        if (habitParts.size < 2 || currentParts.size < 2) return false
-
-        val habitHour = habitParts[0].toInt()
-        val habitMinute = habitParts[1].toInt()
-        val currentHour = currentParts[0].toInt()
-        val currentMinute = currentParts[1].toInt()
-
-        val habitMinutes = habitHour * 60 + habitMinute
-        val currentMinutes = currentHour * 60 + currentMinute
-
-        // Consider current if within 30 minutes before or after the prayer time
-        return currentMinutes in (habitMinutes - 15)..(habitMinutes + 30)
-    } catch (_: Exception) {
-        return false
-    }
+    val prayerTime = parseHourMinute(habitTime) ?: return false
+    val nowTime = parseHourMinute(currentTime) ?: return false
+    val habitMinutes = prayerTime.first * 60 + prayerTime.second
+    val currentMinutes = nowTime.first * 60 + nowTime.second
+    return currentMinutes in (habitMinutes - 15)..(habitMinutes + 30)
 }
 
 @Composable
@@ -981,18 +1570,18 @@ fun ComingSoonState(categoryName: String) {
         ) {
             Icon(
                 imageVector = Icons.Filled.HourglassTop,
-                contentDescription = "Segera hadir",
+                contentDescription = stringResource(R.string.home_coming_soon_cd),
                 tint = Emerald,
                 modifier = Modifier.size(48.dp)
             )
             Text(
-                text = "Segera Hadir!",
+                text = stringResource(R.string.home_coming_soon_title),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Fitur $categoryName sedang dalam pengembangan.",
+                text = stringResource(R.string.home_coming_soon_desc_format, categoryName),
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -1020,18 +1609,18 @@ fun EmptyHabitState(onAddHabitClick: () -> Unit) {
         ) {
             Icon(
                 imageVector = Icons.Filled.Inbox,
-                contentDescription = "Belum ada kebiasaan",
+                contentDescription = stringResource(R.string.home_empty_habit_cd),
                 tint = Gray500,
                 modifier = Modifier.size(48.dp)
             )
             Text(
-                text = "Belum Ada Kebiasaan",
+                text = stringResource(R.string.home_empty_habit_title),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Mulai lacak ibadah harian Anda dengan menambahkan kebiasaan baru.",
+                text = stringResource(R.string.home_empty_habit_desc),
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -1041,7 +1630,10 @@ fun EmptyHabitState(onAddHabitClick: () -> Unit) {
                 onClick = onAddHabitClick,
                 colors = ButtonDefaults.buttonColors(containerColor = Emerald)
             ) {
-                Text("Tambah Kebiasaan Baru", color = MaterialTheme.colorScheme.onPrimary)
+                Text(
+                    text = stringResource(R.string.home_add_new_habit_button),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }

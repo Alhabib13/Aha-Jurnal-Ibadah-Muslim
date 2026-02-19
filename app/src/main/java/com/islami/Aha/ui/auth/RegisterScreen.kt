@@ -1,18 +1,17 @@
 package com.islami.Aha.ui.auth
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,7 +21,9 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.common.api.ApiException
 import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
 
@@ -47,6 +50,21 @@ fun RegisterScreen(
 ) {
     val uiState by viewModel.registerState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    val googleSignInClient = remember(context) { createGoogleSignInClient(context) }
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        runCatching {
+            task.getResult(ApiException::class.java)?.idToken
+        }.onSuccess { token ->
+            viewModel.registerWithGoogleIdToken(token)
+        }.onFailure { error ->
+            val statusCode = (error as? ApiException)?.statusCode
+            viewModel.onGoogleRegisterFailed(statusCode)
+        }
+    }
 
     LaunchedEffect(uiState.registerSuccess) {
         if (uiState.registerSuccess) {
@@ -67,6 +85,17 @@ fun RegisterScreen(
             focusManager.clearFocus()
             viewModel.register()
         },
+        onGoogleRegisterClick = {
+            focusManager.clearFocus()
+            val client = googleSignInClient
+            if (client == null) {
+                viewModel.onGoogleRegisterUnavailable()
+            } else {
+                client.signOut().addOnCompleteListener {
+                    googleSignInLauncher.launch(client.signInIntent)
+                }
+            }
+        },
         onLoginClick = onNavigateToLogin,
         onPrivacyPolicyClick = onPrivacyPolicyClick,
         onTermsClick = onTermsClick
@@ -83,6 +112,7 @@ fun RegisterScreenContent(
     onTogglePasswordVisibility: () -> Unit,
     onToggleConfirmPasswordVisibility: () -> Unit,
     onRegisterClick: () -> Unit,
+    onGoogleRegisterClick: () -> Unit,
     onLoginClick: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
     onTermsClick: () -> Unit
@@ -99,19 +129,6 @@ fun RegisterScreenContent(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start
-            ) {
-                IconButton(onClick = onLoginClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Kembali",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
             Surface(
                 modifier = Modifier.size(72.dp),
                 shape = RoundedCornerShape(18.dp),
@@ -121,7 +138,7 @@ fun RegisterScreenContent(
                 Box(contentAlignment = Alignment.Center) {
                     Image(
                         painter = painterResource(id = R.drawable.logo),
-                        contentDescription = "Aha Logo",
+                        contentDescription = stringResource(R.string.auth_logo_cd),
                         modifier = Modifier.size(48.dp)
                     )
                 }
@@ -130,7 +147,7 @@ fun RegisterScreenContent(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "Daftar dulu yuk!",
+                text = stringResource(R.string.auth_register_title),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -139,7 +156,7 @@ fun RegisterScreenContent(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Buat akun untuk menyimpan dan sinkronkan data ibadah Anda",
+                text = stringResource(R.string.auth_register_subtitle),
                 fontSize = 14.sp,
                 color = Gray500,
                 textAlign = TextAlign.Center
@@ -164,8 +181,8 @@ fun RegisterScreenContent(
                     AuthTextField(
                         value = uiState.name,
                         onValueChange = onNameChange,
-                        label = "Nama Lengkap",
-                        placeholder = "Masukkan nama lengkap Anda",
+                        label = stringResource(R.string.auth_full_name_label),
+                        placeholder = stringResource(R.string.auth_full_name_placeholder),
                         leadingIcon = Icons.Default.Person,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Text,
@@ -182,8 +199,8 @@ fun RegisterScreenContent(
                     AuthTextField(
                         value = uiState.email,
                         onValueChange = onEmailChange,
-                        label = "Email",
-                        placeholder = "Masukkan email Anda",
+                        label = stringResource(R.string.auth_email_label),
+                        placeholder = stringResource(R.string.auth_email_placeholder),
                         leadingIcon = Icons.Default.Email,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Email,
@@ -200,8 +217,8 @@ fun RegisterScreenContent(
                     AuthTextField(
                         value = uiState.password,
                         onValueChange = onPasswordChange,
-                        label = "Password",
-                        placeholder = "Minimal 6 karakter",
+                        label = stringResource(R.string.auth_password_label),
+                        placeholder = stringResource(R.string.auth_password_min_placeholder),
                         leadingIcon = Icons.Default.Lock,
                         trailingIcon = if (uiState.isPasswordVisible)
                             Icons.Default.Visibility else Icons.Default.VisibilityOff,
@@ -223,8 +240,8 @@ fun RegisterScreenContent(
                     AuthTextField(
                         value = uiState.confirmPassword,
                         onValueChange = onConfirmPasswordChange,
-                        label = "Konfirmasi Password",
-                        placeholder = "Ulangi password Anda",
+                        label = stringResource(R.string.auth_confirm_password_label),
+                        placeholder = stringResource(R.string.auth_confirm_password_placeholder),
                         leadingIcon = Icons.Default.Lock,
                         trailingIcon = if (uiState.isConfirmPasswordVisible)
                             Icons.Default.Visibility else Icons.Default.VisibilityOff,
@@ -301,7 +318,7 @@ fun RegisterScreenContent(
                         )
                     } else {
                         Text(
-                            text = "Daftar",
+                            text = stringResource(R.string.auth_register_button),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onPrimary
@@ -317,31 +334,21 @@ fun RegisterScreenContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
-                Text(text = "  atau  ", fontSize = 14.sp, color = Gray400)
+                Text(text = stringResource(R.string.auth_or_separator), fontSize = 14.sp, color = Gray400)
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             RegisterSocialLoginButton(
-                text = "Login Google",
-                iconText = "G",
-                onClick = {},
-                enabled = false
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            RegisterSocialLoginButton(
-                text = "Login Facebook",
-                iconText = "f",
-                onClick = {},
-                enabled = false
+                text = stringResource(R.string.auth_register_google_button),
+                onClick = onGoogleRegisterClick,
+                enabled = !uiState.isLoading
             )
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Login sosial segera hadir",
+                text = stringResource(R.string.auth_register_google_hint),
                 fontSize = 12.sp,
                 color = Gray500
             )
@@ -352,7 +359,7 @@ fun RegisterScreenContent(
             // TERMS
             // ================================================================
             Text(
-                text = "Dengan mendaftar, Anda menyetujui",
+                text = stringResource(R.string.auth_register_terms_prefix),
                 fontSize = 12.sp,
                 color = Gray500,
                 textAlign = TextAlign.Center
@@ -367,19 +374,19 @@ fun RegisterScreenContent(
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                 ) {
                     Text(
-                        text = "Syarat & Ketentuan",
+                        text = stringResource(R.string.auth_terms_title),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = Emerald
                     )
                 }
-                Text(text = " dan ", fontSize = 12.sp, color = Gray500)
+                Text(text = stringResource(R.string.auth_and), fontSize = 12.sp, color = Gray500)
                 TextButton(
                     onClick = onPrivacyPolicyClick,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                 ) {
                     Text(
-                        text = "Kebijakan Privasi",
+                        text = stringResource(R.string.auth_privacy_title),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = Emerald
@@ -396,13 +403,13 @@ fun RegisterScreenContent(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "Sudah punya akun? ", fontSize = 14.sp, color = Gray500)
+                Text(text = stringResource(R.string.auth_have_account), fontSize = 14.sp, color = Gray500)
                 TextButton(
                     onClick = onLoginClick,
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
-                        text = "Masuk",
+                        text = stringResource(R.string.auth_login_action),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Emerald
@@ -418,7 +425,6 @@ fun RegisterScreenContent(
 @Composable
 private fun RegisterSocialLoginButton(
     text: String,
-    iconText: String,
     onClick: () -> Unit,
     enabled: Boolean = true
 ) {
@@ -435,21 +441,14 @@ private fun RegisterSocialLoginButton(
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Box(
-            modifier = Modifier
-                .size(24.dp)
-                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = iconText,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+        Image(
+            painter = painterResource(id = R.drawable.ic_google_logo),
+            contentDescription = null,
+            modifier = Modifier.size(22.dp)
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = if (enabled) text else "$text (Segera)",
+            text = text,
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -473,6 +472,7 @@ fun RegisterScreenPreview() {
             onTogglePasswordVisibility = {},
             onToggleConfirmPasswordVisibility = {},
             onRegisterClick = {},
+            onGoogleRegisterClick = {},
             onLoginClick = {},
             onPrivacyPolicyClick = {},
             onTermsClick = {}
@@ -502,6 +502,7 @@ fun RegisterScreenErrorPreview() {
             onTogglePasswordVisibility = {},
             onToggleConfirmPasswordVisibility = {},
             onRegisterClick = {},
+            onGoogleRegisterClick = {},
             onLoginClick = {},
             onPrivacyPolicyClick = {},
             onTermsClick = {}
@@ -528,6 +529,7 @@ fun RegisterScreenLoadingPreview() {
             onTogglePasswordVisibility = {},
             onToggleConfirmPasswordVisibility = {},
             onRegisterClick = {},
+            onGoogleRegisterClick = {},
             onLoginClick = {},
             onPrivacyPolicyClick = {},
             onTermsClick = {}

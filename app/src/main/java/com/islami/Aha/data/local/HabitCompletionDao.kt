@@ -28,6 +28,9 @@ interface HabitCompletionDao {
     @Query("SELECT COUNT(*) FROM habit_completion_records")
     suspend fun getTotalCompletionCount(): Int
 
+    @Query("SELECT * FROM habit_completion_records ORDER BY dateKey ASC, id ASC")
+    suspend fun getAllRecords(): List<HabitCompletionRecord>
+
     @Query("DELETE FROM habit_completion_records")
     suspend fun deleteAll()
 }
