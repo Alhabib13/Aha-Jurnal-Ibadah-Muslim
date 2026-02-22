@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "seed:fardhu": "node seed-fardhu-defaults.mjs",
+    "seed:islamic-content": "node seed-islamic-content.mjs",
+    "seed:all": "node seed-all-firestore.mjs"
+  },
   "dependencies": {
     "firebase-admin": "^13.6.1"
   }

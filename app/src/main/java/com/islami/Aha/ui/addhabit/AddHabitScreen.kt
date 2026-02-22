@@ -100,6 +100,7 @@ fun AddHabitScreenContent(
     )
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
         bottomBar = {
             Surface(
                 modifier = Modifier
@@ -142,15 +143,11 @@ fun AddHabitScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = paddingValues.calculateBottomPadding())
+                .verticalScroll(scrollState)
         ) {
-            // Header
             AddHabitHeader(onNavigateBack = onNavigateBack)
-
-            // Scrollable content
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
@@ -189,7 +186,7 @@ fun AddHabitScreenContent(
                             shape = RoundedCornerShape(16.dp),
                             border = if (isSelected) BorderStroke(2.dp, Emerald) else null,
                             colors = CardDefaults.cardColors(
-                                containerColor = if (isSelected) EmeraldLight.copy(alpha = 0.2f)
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant
                                 else MaterialTheme.colorScheme.surface
                             )
                         ) {
@@ -207,7 +204,7 @@ fun AddHabitScreenContent(
                                 Text(
                                     text = habit.description,
                                     fontSize = 12.sp,
-                                    color = Gray500
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -317,7 +314,7 @@ fun AddHabitScreenContent(
             TimePicker(
                 state = timePickerState,
                 colors = TimePickerDefaults.colors(
-                    clockDialColor = EmeraldLight,
+                    clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
                     selectorColor = Emerald,
                     containerColor = MaterialTheme.colorScheme.surface,
                     periodSelectorBorderColor = Emerald,
@@ -349,36 +346,57 @@ private fun AddHabitHeader(onNavigateBack: () -> Unit) {
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                IconButton(onClick = onNavigateBack) {
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.back),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.add_sunnah_worship),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
+
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.add_sunnah_worship),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.add_habit_header_subtitle),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = stringResource(R.string.add_habit_screen_description),
                 fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                modifier = Modifier.padding(start = 8.dp)
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.92f),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }
@@ -522,7 +540,7 @@ private fun DaySelectionChip(title: String, selected: Boolean, onClick: () -> Un
         Text(
             text = title,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else Gray700
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -565,7 +583,7 @@ private fun ReminderCard(
                         Text(
                             text = stringResource(R.string.reminder_for_sunnah_only),
                             fontSize = 12.sp,
-                            color = Gray500
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -596,7 +614,7 @@ private fun ReminderCard(
                             Icon(
                                 imageVector = Icons.Outlined.AccessTime,
                                 contentDescription = null,
-                                tint = Gray500
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
                                 text = stringResource(R.string.reminder_time),
@@ -630,7 +648,7 @@ fun TimePickerDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         title = {

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "surah_001",
+    "surahName": "Al-Baqarah",
+    "ayahNumber": 286,
+    "translation": "Allah tidak membebani seseorang melainkan sesuai dengan kesanggupannya."
+  },
+  {
+    "id": "surah_002",
+    "surahName": "Al-Insyirah",
+    "ayahNumber": 6,
+    "translation": "Sesungguhnya bersama kesulitan ada kemudahan."
+  },
+  {
+    "id": "surah_003",
+    "surahName": "Ar-Rad",
+    "ayahNumber": 28,
+    "translation": "Hanya dengan mengingat Allah hati menjadi tenteram."
+  },
+  {
+    "id": "surah_004",
+    "surahName": "Ali Imran",
+    "ayahNumber": 139,
+    "translation": "Janganlah kamu merasa lemah dan bersedih hati, kamu paling tinggi derajatnya jika beriman."
+  },
+  {
+    "id": "surah_005",
+    "surahName": "At-Talaq",
+    "ayahNumber": 3,
+    "translation": "Barang siapa bertawakal kepada Allah, niscaya Allah akan mencukupkan kebutuhannya."
+  },
+  {
+    "id": "surah_006",
+    "surahName": "Al-Ankabut",
+    "ayahNumber": 69,
+    "translation": "Orang-orang yang bersungguh-sungguh di jalan Kami, pasti Kami tunjukkan jalan-jalan Kami."
+  },
+  {
+    "id": "surah_007",
+    "surahName": "Yunus",
+    "ayahNumber": 57,
+    "translation": "Wahai manusia, sungguh telah datang kepadamu pelajaran dari Tuhanmu, penyembuh bagi penyakit dalam dada."
+  },
+  {
+    "id": "surah_008",
+    "surahName": "Al-Maidah",
+    "ayahNumber": 2,
+    "translation": "Tolong-menolonglah kamu dalam kebajikan dan takwa."
+  },
+  {
+    "id": "surah_009",
+    "surahName": "Az-Zumar",
+    "ayahNumber": 53,
+    "translation": "Jangan berputus asa dari rahmat Allah."
+  },
+  {
+    "id": "surah_010",
+    "surahName": "Al-Furqan",
+    "ayahNumber": 70,
+    "translation": "Allah mengganti keburukan mereka dengan kebaikan."
+  }
+]

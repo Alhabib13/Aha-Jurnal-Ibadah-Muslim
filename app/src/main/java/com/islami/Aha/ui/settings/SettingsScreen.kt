@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -211,9 +212,6 @@ fun SettingsScreenContent(
 ) {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
-        topBar = {
-            SettingsHeader(onNavigateBack = onNavigateBack)
-        },
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { data ->
                 Snackbar(
@@ -231,9 +229,12 @@ fun SettingsScreenContent(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .navigationBarsPadding(),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(top = 0.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
+            item {
+                SettingsHeader(onNavigateBack = onNavigateBack)
+            }
             // =============================================================
             // SECTION: UMUM
             // =============================================================
@@ -279,8 +280,8 @@ fun SettingsScreenContent(
             item {
                 SettingsToggleItem(
                     icon = Icons.Outlined.Notifications,
-                    iconBackground = EmeraldLight,
-                    iconTint = Emerald,
+                    iconBackground = InfoBlue.copy(alpha = 0.1f),
+                    iconTint = InfoBlue,
                     title = stringResource(R.string.settings_reminder_title),
                     subtitle = stringResource(R.string.settings_reminder_subtitle),
                     isChecked = uiState.notificationEnabled,
@@ -326,8 +327,8 @@ fun SettingsScreenContent(
                 item {
                     SettingsInfoItem(
                         icon = Icons.Outlined.Person,
-                        iconBackground = EmeraldLight,
-                        iconTint = Emerald,
+                        iconBackground = CategoryDzikirStart.copy(alpha = 0.1f),
+                        iconTint = CategoryDzikirStart,
                         title = stringResource(R.string.settings_active_account_title),
                         value = uiState.userEmail.ifBlank { stringResource(R.string.settings_user_fallback) }
                     )
@@ -349,8 +350,8 @@ fun SettingsScreenContent(
                     Spacer(modifier = Modifier.height(8.dp))
                     SettingsClickableItem(
                         icon = Icons.Outlined.Shield,
-                        iconBackground = EmeraldLight,
-                        iconTint = Emerald,
+                        iconBackground = InfoBlue.copy(alpha = 0.1f),
+                        iconTint = InfoBlue,
                         title = stringResource(R.string.settings_account_security_title),
                         subtitle = stringResource(R.string.settings_account_security_subtitle),
                         onClick = onAccountSecurityClick
@@ -438,8 +439,8 @@ fun SettingsScreenContent(
             item {
                 SettingsInfoItem(
                     icon = Icons.Outlined.Info,
-                    iconBackground = Gray100,
-                    iconTint = Gray500,
+                    iconBackground = MaterialTheme.colorScheme.surfaceVariant,
+                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                     title = stringResource(R.string.settings_app_version_title),
                     value = BuildConfig.VERSION_NAME.ifBlank { "-" }
                 )
@@ -450,8 +451,8 @@ fun SettingsScreenContent(
                 Spacer(modifier = Modifier.height(8.dp))
                 SettingsClickableItem(
                     icon = Icons.Outlined.PrivacyTip,
-                    iconBackground = EmeraldLight,
-                    iconTint = Emerald,
+                    iconBackground = CategoryDzikirStart.copy(alpha = 0.1f),
+                    iconTint = CategoryDzikirStart,
                     title = stringResource(R.string.settings_privacy_title),
                     subtitle = stringResource(R.string.settings_privacy_subtitle),
                     onClick = onPrivacyPolicyClick
@@ -578,7 +579,7 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .heightIn(min = 90.dp)
+                .heightIn(min = 104.dp)
                 .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp)
         ) {
             Box(
@@ -605,6 +606,12 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.settings_header_subtitle),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
         }
     }
 }
@@ -667,13 +674,23 @@ fun GuestLoginCard(onLoginClick: () -> Unit) {
 @Composable
 fun SettingsToggleItem(
     icon: ImageVector,
-    iconBackground: Color = EmeraldLight,
-    iconTint: Color = Emerald,
+    iconBackground: Color = Color.Unspecified,
+    iconTint: Color = Color.Unspecified,
     title: String,
     subtitle: String,
     isChecked: Boolean,
     onToggle: () -> Unit
 ) {
+    val resolvedIconBackground = if (iconBackground == Color.Unspecified) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        iconBackground
+    }
+    val resolvedIconTint = if (iconTint == Color.Unspecified) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        iconTint
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -700,13 +717,13 @@ fun SettingsToggleItem(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(iconBackground),
+                    .background(resolvedIconBackground),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = iconTint,
+                    tint = resolvedIconTint,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -734,7 +751,7 @@ fun SettingsToggleItem(
                     checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                     checkedTrackColor = Emerald,
                     uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    uncheckedTrackColor = Gray300
+                    uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant
                 )
             )
         }
@@ -744,13 +761,23 @@ fun SettingsToggleItem(
 @Composable
 fun SettingsClickableItem(
     icon: ImageVector,
-    iconBackground: Color = EmeraldLight,
-    iconTint: Color = Emerald,
+    iconBackground: Color = Color.Unspecified,
+    iconTint: Color = Color.Unspecified,
     title: String,
     subtitle: String,
     titleColor: Color = Color.Unspecified,
     onClick: () -> Unit
 ) {
+    val resolvedIconBackground = if (iconBackground == Color.Unspecified) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        iconBackground
+    }
+    val resolvedIconTint = if (iconTint == Color.Unspecified) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        iconTint
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -774,13 +801,13 @@ fun SettingsClickableItem(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(iconBackground),
+                    .background(resolvedIconBackground),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = iconTint,
+                    tint = resolvedIconTint,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -804,7 +831,7 @@ fun SettingsClickableItem(
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = Gray400,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -814,11 +841,21 @@ fun SettingsClickableItem(
 @Composable
 fun SettingsInfoItem(
     icon: ImageVector,
-    iconBackground: Color = EmeraldLight,
-    iconTint: Color = Emerald,
+    iconBackground: Color = Color.Unspecified,
+    iconTint: Color = Color.Unspecified,
     title: String,
     value: String
 ) {
+    val resolvedIconBackground = if (iconBackground == Color.Unspecified) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        iconBackground
+    }
+    val resolvedIconTint = if (iconTint == Color.Unspecified) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        iconTint
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -837,13 +874,13 @@ fun SettingsInfoItem(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(iconBackground),
+                    .background(resolvedIconBackground),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = iconTint,
+                    tint = resolvedIconTint,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -861,7 +898,7 @@ fun SettingsInfoItem(
             Text(
                 text = value,
                 fontSize = 14.sp,
-                color = Gray500
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -924,7 +961,7 @@ fun LocationInputDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -975,7 +1012,7 @@ fun TimeFormatSelectionDialog(
                             Text(
                                 text = format.description,
                                 fontSize = 12.sp,
-                                color = Gray500
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -984,7 +1021,7 @@ fun TimeFormatSelectionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1035,7 +1072,7 @@ fun NotificationSoundSelectionDialog(
                             Text(
                                 text = option.description,
                                 fontSize = 12.sp,
-                                color = Gray500
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -1044,7 +1081,7 @@ fun NotificationSoundSelectionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1087,7 +1124,7 @@ fun AccountSecurityDialog(
                         stringResource(R.string.settings_security_email_format, userEmail)
                     },
                     fontSize = 13.sp,
-                    color = Gray700
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1135,8 +1172,9 @@ fun AccountSecurityDialog(
                             Text(stringResource(R.string.settings_sending))
                         } else if (isVerificationCooldown) {
                             Text(
-                                stringResource(
-                                    R.string.settings_resend_verification_cooldown,
+                                pluralStringResource(
+                                    R.plurals.settings_resend_verification_cooldown,
+                                    verificationResendCooldownSeconds,
                                     verificationResendCooldownSeconds
                                 )
                             )
@@ -1177,7 +1215,7 @@ fun AccountSecurityDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.settings_close), color = Gray500)
+                Text(text = stringResource(R.string.settings_close), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1207,7 +1245,7 @@ fun ImportDataConfirmationDialog(
                 Text(
                     text = stringResource(R.string.settings_import_dialog_desc),
                     fontSize = 13.sp,
-                    color = Gray700
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 ImportMode.entries.forEach { mode ->
                     Row(
@@ -1234,7 +1272,7 @@ fun ImportDataConfirmationDialog(
                             Text(
                                 text = mode.description,
                                 fontSize = 12.sp,
-                                color = Gray500
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -1258,7 +1296,7 @@ fun ImportDataConfirmationDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isImporting) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1295,7 +1333,7 @@ fun ChangePasswordDialog(
                 Text(
                     text = stringResource(R.string.settings_change_password_dialog_desc),
                     fontSize = 13.sp,
-                    color = Gray700
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = oldPassword,
@@ -1355,7 +1393,7 @@ fun ChangePasswordDialog(
                     Text(
                         text = stringResource(R.string.settings_account_email_format, userEmail),
                         fontSize = 12.sp,
-                        color = Gray500
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1383,7 +1421,7 @@ fun ChangePasswordDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isSubmitting) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1409,7 +1447,7 @@ fun ResetConfirmationDialog(
             Text(
                 text = stringResource(R.string.settings_reset_dialog_desc),
                 fontSize = 14.sp,
-                color = Gray700
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
         confirmButton = {
@@ -1423,7 +1461,7 @@ fun ResetConfirmationDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1450,7 +1488,7 @@ fun DeleteAccountConfirmationDialog(
             Text(
                 text = stringResource(R.string.settings_delete_account_dialog_desc),
                 fontSize = 14.sp,
-                color = Gray700
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
         confirmButton = {
@@ -1470,7 +1508,7 @@ fun DeleteAccountConfirmationDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isDeleting) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1500,7 +1538,7 @@ fun ReAuthDialog(
                 Text(
                     text = stringResource(R.string.settings_reauth_dialog_desc),
                     fontSize = 14.sp,
-                    color = Gray700
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
@@ -1541,7 +1579,7 @@ fun ReAuthDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isDeleting) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,

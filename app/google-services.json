@@ -12,7 +12,12 @@
           "package_name": "com.islami.Aha"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "104478583249-q61bi201u180u9f7c45e9fpgelpn7a3m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAJcUEe8Hu-cMibPMA9wiEVNVV7OJzQxNs"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "104478583249-q61bi201u180u9f7c45e9fpgelpn7a3m.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

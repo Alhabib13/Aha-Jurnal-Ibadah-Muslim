@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.islami.Aha.R
@@ -63,9 +65,6 @@ fun AhaBottomNavBar(
                     WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
                 )
         ) {
-            // Top separator line
-            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
             // Nav bar surface
             Box(
                 modifier = Modifier
@@ -161,7 +160,9 @@ private fun NavBarItem(
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .clickable(
+            .selectable(
+                selected = isSelected,
+                role = Role.Tab,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) { onClick() },

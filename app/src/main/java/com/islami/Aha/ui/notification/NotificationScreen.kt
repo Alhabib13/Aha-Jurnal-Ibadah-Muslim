@@ -19,8 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -138,127 +138,152 @@ fun NotificationScreenContent(
         if (uiState.isLoading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Emerald)
         } else {
-            Column(modifier = Modifier.fillMaxSize()) {
-                NotificationHeader(
-                    isEnabled = uiState.globalNotificationEnabled,
-                    onToggle = onToggleGlobalNotification
-                )
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 0.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                    item {
+                        NotificationHeader(
+                            isEnabled = uiState.globalNotificationEnabled,
+                            onToggle = onToggleGlobalNotification
+                        )
+                    }
                     item {
                         Text(
                             text = stringResource(R.string.notification_reminder_title),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Gray700,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 4.dp)
                         )
                     }
                     if (!notificationPermissionGranted) {
                         item {
-                            NotificationPermissionBanner(
-                                onRequestPermission = onRequestNotificationPermission
-                            )
+                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                NotificationPermissionBanner(
+                                    onRequestPermission = onRequestNotificationPermission
+                                )
+                            }
                         }
                     }
 
                     if (isEmpty) {
                         item {
-                            EmptyNotificationState(modifier = Modifier.fillParentMaxHeight(0.5f))
+                            EmptyNotificationState(
+                                modifier = Modifier
+                                    .fillParentMaxHeight(0.5f)
+                                    .padding(horizontal = 16.dp)
+                            )
                         }
                     } else {
                         // ── Sholat Fardhu ──
                         if (sholatFardhu.isNotEmpty()) {
                             item {
-                                CategorySectionHeader(
-                                    title = stringResource(R.string.notification_category_sholat_fardhu),
-                                    count = sholatFardhu.size
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    CategorySectionHeader(
+                                        title = stringResource(R.string.notification_category_sholat_fardhu),
+                                        count = sholatFardhu.size
+                                    )
+                                }
                             }
                             items(sholatFardhu, key = { "fardhu_${it.id}" }) { habit ->
-                                HabitReminderCard(
-                                    habit = habit,
-                                    globalEnabled = uiState.globalNotificationEnabled,
-                                    onToggle = { onToggleReminder(habit) }
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    HabitReminderCard(
+                                        habit = habit,
+                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        onToggle = { onToggleReminder(habit) }
+                                    )
+                                }
                             }
                         }
 
                         // ── Sholat Sunnah ──
                         if (sholatSunnah.isNotEmpty() || sunnahSholat.isNotEmpty()) {
                             item {
-                                CategorySectionHeader(
-                                    title = stringResource(R.string.notification_category_sholat_sunnah),
-                                    count = sholatSunnah.size + sunnahSholat.size
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    CategorySectionHeader(
+                                        title = stringResource(R.string.notification_category_sholat_sunnah),
+                                        count = sholatSunnah.size + sunnahSholat.size
+                                    )
+                                }
                             }
                             items(sholatSunnah, key = { "sunnah_room_${it.id}" }) { habit ->
-                                HabitReminderCard(
-                                    habit = habit,
-                                    globalEnabled = uiState.globalNotificationEnabled,
-                                    onToggle = { onToggleReminder(habit) }
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    HabitReminderCard(
+                                        habit = habit,
+                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        onToggle = { onToggleReminder(habit) }
+                                    )
+                                }
                             }
                             items(sunnahSholat, key = { "sunnah_custom_${it.id}" }) { sunnahHabit ->
-                                SunnahHabitReminderCard(
-                                    sunnahHabit = sunnahHabit,
-                                    globalEnabled = uiState.globalNotificationEnabled,
-                                    onToggleReminder = { onToggleSunnahReminder(sunnahHabit) },
-                                    onDelete = { onDeleteSunnahClick(sunnahHabit) },
-                                    onEdit = { onEditSunnahClick(sunnahHabit) }
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    SunnahHabitReminderCard(
+                                        sunnahHabit = sunnahHabit,
+                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        onToggleReminder = { onToggleSunnahReminder(sunnahHabit) },
+                                        onDelete = { onDeleteSunnahClick(sunnahHabit) },
+                                        onEdit = { onEditSunnahClick(sunnahHabit) }
+                                    )
+                                }
                             }
                         }
 
                         // ── Puasa Wajib ──
                         if (puasaWajib.isNotEmpty()) {
                             item {
-                                CategorySectionHeader(
-                                    title = stringResource(R.string.notification_category_puasa_wajib),
-                                    count = puasaWajib.size
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    CategorySectionHeader(
+                                        title = stringResource(R.string.notification_category_puasa_wajib),
+                                        count = puasaWajib.size
+                                    )
+                                }
                             }
                             items(puasaWajib, key = { "puasa_wajib_${it.id}" }) { habit ->
-                                HabitReminderCard(
-                                    habit = habit,
-                                    globalEnabled = uiState.globalNotificationEnabled,
-                                    onToggle = { onToggleReminder(habit) }
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    HabitReminderCard(
+                                        habit = habit,
+                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        onToggle = { onToggleReminder(habit) }
+                                    )
+                                }
                             }
                         }
 
                         // ── Puasa Sunnah ──
                         if (puasaSunnah.isNotEmpty() || sunnahPuasa.isNotEmpty()) {
                             item {
-                                CategorySectionHeader(
-                                    title = stringResource(R.string.notification_category_puasa_sunnah),
-                                    count = puasaSunnah.size + sunnahPuasa.size
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    CategorySectionHeader(
+                                        title = stringResource(R.string.notification_category_puasa_sunnah),
+                                        count = puasaSunnah.size + sunnahPuasa.size
+                                    )
+                                }
                             }
                             items(puasaSunnah, key = { "puasa_sunnah_${it.id}" }) { habit ->
-                                HabitReminderCard(
-                                    habit = habit,
-                                    globalEnabled = uiState.globalNotificationEnabled,
-                                    onToggle = { onToggleReminder(habit) }
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    HabitReminderCard(
+                                        habit = habit,
+                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        onToggle = { onToggleReminder(habit) }
+                                    )
+                                }
                             }
                             items(sunnahPuasa, key = { "puasa_custom_${it.id}" }) { sunnahHabit ->
-                                SunnahHabitReminderCard(
-                                    sunnahHabit = sunnahHabit,
-                                    globalEnabled = uiState.globalNotificationEnabled,
-                                    onToggleReminder = { onToggleSunnahReminder(sunnahHabit) },
-                                    onDelete = { onDeleteSunnahClick(sunnahHabit) },
-                                    onEdit = { onEditSunnahClick(sunnahHabit) }
-                                )
+                                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    SunnahHabitReminderCard(
+                                        sunnahHabit = sunnahHabit,
+                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        onToggleReminder = { onToggleSunnahReminder(sunnahHabit) },
+                                        onDelete = { onDeleteSunnahClick(sunnahHabit) },
+                                        onEdit = { onEditSunnahClick(sunnahHabit) }
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
         }
     }
 
@@ -303,21 +328,39 @@ fun NotificationHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(horizontal = 20.dp, vertical = 18.dp)
         ) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = stringResource(R.string.notification_screen_title),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.NotificationsActive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.notification_screen_title),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = stringResource(R.string.notification_header_subtitle),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             Surface(
                 shape = RoundedCornerShape(14.dp),
@@ -373,6 +416,13 @@ fun NotificationHeader(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = stringResource(R.string.notification_header_summary),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                modifier = Modifier.padding(top = 6.dp)
+            )
         }
     }
 }
@@ -436,7 +486,7 @@ fun CategorySectionHeader(title: String, count: Int) {
             color = EmeraldLight
         ) {
             Text(
-                text = stringResource(R.string.notification_count_ibadah_format, count),
+                text = pluralStringResource(R.plurals.notification_count_ibadah_format, count, count),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
                 color = Emerald,
@@ -640,7 +690,7 @@ fun SunnahHabitReminderCard(
                 }
                 sunnahHabit.rakaat?.let { rakaat ->
                     Text(
-                        text = stringResource(R.string.notification_rakaat_format, rakaat),
+                        text = pluralStringResource(R.plurals.notification_rakaat_format, rakaat, rakaat),
                         fontSize = 12.sp,
                         color = Gray500
                     )

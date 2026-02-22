@@ -12,6 +12,10 @@ service cloud.firestore {
     );
   }
 
+  function isOwner(userId) {
+    return isSignedIn() && request.auth.uid == userId;
+  }
+
   match /databases/{database}/documents {
     // Client may read default fardhu metadata, but can never write it.
     match /fardhu_defaults/{docId} {
@@ -25,16 +29,33 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // User private sunnah habits.
-    match /users/{userId}/sunnah_habits/{habitId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    // Public Islamic content for home feed.
+    match /hadith_contents/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
-    // User meta profile, e.g. role marker written by backend/admin only.
+    match /surah_verses/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // User private sunnah habits.
+    match /users/{userId}/sunnah_habits/{habitId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // User profile meta. Client can only manage basic profile fields.
     match /users/{userId}/meta/{docId} {
-      allow read: if isSignedIn() && request.auth.uid == userId;
-      allow create, update: if false;
-      allow delete: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && docId == "profile"
+                    && request.resource.data.keys().hasOnly(["name", "email", "avatarBase64", "updatedAt"]);
+      allow update: if isOwner(userId)
+                    && docId == "profile"
+                    && request.resource.data.diff(resource.data).changedKeys()
+                      .hasOnly(["name", "email", "avatarBase64", "updatedAt"]);
+      allow delete: if isOwner(userId);
     }
 
     // Deny all other paths by default.

@@ -132,7 +132,7 @@ fun RegisterScreenContent(
             Surface(
                 modifier = Modifier.size(72.dp),
                 shape = RoundedCornerShape(18.dp),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 4.dp
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -158,7 +158,7 @@ fun RegisterScreenContent(
             Text(
                 text = stringResource(R.string.auth_register_subtitle),
                 fontSize = 14.sp,
-                color = Gray500,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
@@ -334,7 +334,11 @@ fun RegisterScreenContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
-                Text(text = stringResource(R.string.auth_or_separator), fontSize = 14.sp, color = Gray400)
+                Text(
+                    text = stringResource(R.string.auth_or_separator),
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
             }
 
@@ -350,7 +354,7 @@ fun RegisterScreenContent(
             Text(
                 text = stringResource(R.string.auth_register_google_hint),
                 fontSize = 12.sp,
-                color = Gray500
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -361,7 +365,7 @@ fun RegisterScreenContent(
             Text(
                 text = stringResource(R.string.auth_register_terms_prefix),
                 fontSize = 12.sp,
-                color = Gray500,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
@@ -380,7 +384,11 @@ fun RegisterScreenContent(
                         color = Emerald
                     )
                 }
-                Text(text = stringResource(R.string.auth_and), fontSize = 12.sp, color = Gray500)
+                Text(
+                    text = stringResource(R.string.auth_and),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 TextButton(
                     onClick = onPrivacyPolicyClick,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
@@ -394,7 +402,7 @@ fun RegisterScreenContent(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ================================================================
             // FOOTER
@@ -403,7 +411,11 @@ fun RegisterScreenContent(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = stringResource(R.string.auth_have_account), fontSize = 14.sp, color = Gray500)
+                Text(
+                    text = stringResource(R.string.auth_have_account),
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 TextButton(
                     onClick = onLoginClick,
                     contentPadding = PaddingValues(0.dp)

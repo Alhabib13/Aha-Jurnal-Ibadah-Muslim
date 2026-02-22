@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -136,7 +135,7 @@ fun LoginScreenContent(
         Surface(
             modifier = Modifier.size(72.dp),
             shape = RoundedCornerShape(18.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.surface,
             shadowElevation = 4.dp
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -162,7 +161,7 @@ fun LoginScreenContent(
         Text(
             text = stringResource(R.string.auth_login_welcome_subtitle),
             fontSize = 14.sp,
-            color = Gray500,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
 
@@ -332,7 +331,11 @@ fun LoginScreenContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
-            Text(text = stringResource(R.string.auth_or_separator), fontSize = 14.sp, color = Gray400)
+            Text(
+                text = stringResource(R.string.auth_or_separator),
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
         }
 
@@ -348,10 +351,10 @@ fun LoginScreenContent(
         Text(
             text = stringResource(R.string.auth_login_google_hint),
             fontSize = 12.sp,
-            color = Gray500
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // ================================================================
         // FOOTER
@@ -360,7 +363,11 @@ fun LoginScreenContent(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = stringResource(R.string.auth_no_account), fontSize = 14.sp, color = Gray500)
+            Text(
+                text = stringResource(R.string.auth_no_account),
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             TextButton(
                 onClick = onRegisterClick,
                 contentPadding = PaddingValues(0.dp)
@@ -432,7 +439,7 @@ fun AuthTextField(
             text = label,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = Gray700,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -440,7 +447,12 @@ fun AuthTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text(text = placeholder, color = Gray400) },
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
             leadingIcon = {
                 Icon(
                     imageVector = leadingIcon,
@@ -450,14 +462,14 @@ fun AuthTextField(
             },
             trailingIcon = if (trailingIcon != null) {
                 {
-                    Icon(
-                        imageVector = trailingIcon,
-                        contentDescription = stringResource(R.string.auth_toggle_password_visibility),
-                        tint = Gray400,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable { onTrailingIconClick?.invoke() }
-                    )
+                    IconButton(onClick = { onTrailingIconClick?.invoke() }) {
+                        Icon(
+                            imageVector = trailingIcon,
+                            contentDescription = stringResource(R.string.auth_toggle_password_visibility),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             } else null,
             visualTransformation = visualTransformation,
