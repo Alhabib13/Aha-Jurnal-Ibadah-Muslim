@@ -114,7 +114,13 @@ class ProfileViewModel @Inject constructor(
                 Triple(habits, sunnahHabits, config)
             }.collect { (habits, sunnahHabits, config) ->
                 val visibleHabits = habits.filter {
-                    !(it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled))
+                    if (it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled)) {
+                        return@filter false
+                    }
+                    if (it.category == "Sholat Tarawih" && (!DateUtils.isRamadanMonth() || !config.sholatTarawihEnabled)) {
+                        return@filter false
+                    }
+                    true
                 }
                 val totalHabits = visibleHabits.size + sunnahHabits.size
                 val totalCompletedToday = visibleHabits.count { it.isCompleted } + sunnahHabits.count { it.isCompletedToday }
@@ -320,12 +326,34 @@ class ProfileViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            sharedPreferences.edit().putString(KEY_USER_AVATAR_URI, uri).apply()
+            val result = authRepository.updateAvatar(uri)
             _uiState.update {
                 it.copy(
                     isSaving = false,
                     userInfo = getCurrentUserInfo(),
-                    snackbarMessage = "Foto profil diperbarui"
+                    snackbarMessage = if (result.isSuccess) {
+                        "Foto profil diperbarui"
+                    } else {
+                        result.exceptionOrNull()?.message ?: "Gagal menyimpan foto profil"
+                    }
+                )
+            }
+        }
+    }
+
+    fun clearAvatar() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true) }
+            val result = authRepository.clearAvatar()
+            _uiState.update {
+                it.copy(
+                    isSaving = false,
+                    userInfo = getCurrentUserInfo(),
+                    snackbarMessage = if (result.isSuccess) {
+                        "Foto profil dihapus"
+                    } else {
+                        result.exceptionOrNull()?.message ?: "Gagal menghapus foto profil"
+                    }
                 )
             }
         }

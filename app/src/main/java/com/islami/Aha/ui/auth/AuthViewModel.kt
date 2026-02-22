@@ -1,10 +1,14 @@
 package com.islami.Aha.ui.auth
 
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.islami.Aha.R
 import com.islami.Aha.data.repository.AuthRepository
 import com.islami.Aha.data.repository.AuthResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,8 +46,13 @@ data class RegisterUiState(
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
+
+    companion object {
+        private const val INVALID_LOGIN_CREDENTIAL_KEYWORD = "invalid login credentials"
+    }
 
     // ========================================================================
     // LOGIN STATE
@@ -64,11 +73,27 @@ class AuthViewModel @Inject constructor(
     // ========================================================================
 
     fun onLoginEmailChange(email: String) {
-        _loginState.update { it.copy(email = email, emailError = null, errorMessage = null, infoMessage = null) }
+        _loginState.update {
+            it.copy(
+                email = email,
+                emailError = null,
+                passwordError = null,
+                errorMessage = null,
+                infoMessage = null
+            )
+        }
     }
 
     fun onLoginPasswordChange(password: String) {
-        _loginState.update { it.copy(password = password, passwordError = null, errorMessage = null, infoMessage = null) }
+        _loginState.update {
+            it.copy(
+                password = password,
+                emailError = null,
+                passwordError = null,
+                errorMessage = null,
+                infoMessage = null
+            )
+        }
     }
 
     fun toggleLoginPasswordVisibility() {
@@ -98,12 +123,44 @@ class AuthViewModel @Inject constructor(
                     }
                 }
                 is AuthResult.Error -> {
+                    val credentialMessage = normalizeLoginCredentialError(result.message)
                     _loginState.update {
-                        it.copy(isLoading = false, errorMessage = result.message)
+                        if (credentialMessage != null) {
+                            it.copy(
+                                isLoading = false,
+                                emailError = credentialMessage,
+                                passwordError = credentialMessage,
+                                errorMessage = credentialMessage
+                            )
+                        } else {
+                            it.copy(isLoading = false, errorMessage = result.message)
+                        }
                     }
                 }
             }
         }
+    }
+
+    fun loginWithGoogleIdToken(idToken: String?) {
+        if (idToken.isNullOrBlank()) {
+            _loginState.update { it.copy(errorMessage = text(R.string.auth_google_login_cancelled)) }
+            return
+        }
+        loginWithGoogleProviderForLogin(idToken)
+    }
+
+    fun onGoogleLoginUnavailable() {
+        _loginState.update { it.copy(errorMessage = text(R.string.auth_google_config_incomplete)) }
+    }
+
+    fun onGoogleLoginFailed(statusCode: Int?) {
+        val message = when (statusCode) {
+            12501, 16 -> text(R.string.auth_google_login_cancelled)
+            7 -> text(R.string.auth_error_no_internet)
+            10 -> text(R.string.auth_error_google_config_invalid)
+            else -> text(R.string.auth_google_login_failed_retry)
+        }
+        _loginState.update { it.copy(errorMessage = message) }
     }
 
     fun requestPasswordReset() {
@@ -121,14 +178,14 @@ class AuthViewModel @Inject constructor(
                 _loginState.update {
                     it.copy(
                         isLoading = false,
-                        infoMessage = "Email reset password telah dikirim"
+                        infoMessage = text(R.string.auth_info_reset_password_sent)
                     )
                 }
             } else {
                 _loginState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = "Gagal mengirim email reset password"
+                        errorMessage = text(R.string.auth_error_reset_password_failed)
                     )
                 }
             }
@@ -213,6 +270,28 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun registerWithGoogleIdToken(idToken: String?) {
+        if (idToken.isNullOrBlank()) {
+            _registerState.update { it.copy(errorMessage = text(R.string.auth_google_login_cancelled)) }
+            return
+        }
+        loginWithGoogleProviderForRegister(idToken)
+    }
+
+    fun onGoogleRegisterUnavailable() {
+        _registerState.update { it.copy(errorMessage = text(R.string.auth_google_config_incomplete)) }
+    }
+
+    fun onGoogleRegisterFailed(statusCode: Int?) {
+        val message = when (statusCode) {
+            12501, 16 -> text(R.string.auth_google_login_cancelled)
+            7 -> text(R.string.auth_error_no_internet)
+            10 -> text(R.string.auth_error_google_config_invalid)
+            else -> text(R.string.auth_google_login_failed_retry)
+        }
+        _registerState.update { it.copy(errorMessage = message) }
+    }
+
     fun resetRegisterState() {
         _registerState.value = RegisterUiState()
     }
@@ -223,8 +302,8 @@ class AuthViewModel @Inject constructor(
 
     private fun validateName(name: String): String? {
         return when {
-            name.isBlank() -> "Nama tidak boleh kosong"
-            name.length < 3 -> "Nama minimal 3 karakter"
+            name.isBlank() -> text(R.string.auth_validation_name_empty)
+            name.length < 3 -> text(R.string.auth_validation_name_min)
             else -> null
         }
     }
@@ -232,25 +311,72 @@ class AuthViewModel @Inject constructor(
     private fun validateEmail(email: String): String? {
         val emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$".toRegex()
         return when {
-            email.isBlank() -> "Email tidak boleh kosong"
-            !email.matches(emailRegex) -> "Format email tidak valid"
+            email.isBlank() -> text(R.string.auth_validation_email_empty)
+            !email.matches(emailRegex) -> text(R.string.auth_validation_email_invalid)
             else -> null
         }
     }
 
     private fun validatePassword(password: String): String? {
         return when {
-            password.isBlank() -> "Password tidak boleh kosong"
-            password.length < 6 -> "Password minimal 6 karakter"
+            password.isBlank() -> text(R.string.auth_validation_password_empty)
+            password.length < 6 -> text(R.string.auth_validation_password_min)
             else -> null
         }
     }
 
     private fun validateConfirmPassword(password: String, confirmPassword: String): String? {
         return when {
-            confirmPassword.isBlank() -> "Konfirmasi password tidak boleh kosong"
-            confirmPassword != password -> "Password tidak cocok"
+            confirmPassword.isBlank() -> text(R.string.auth_validation_confirm_password_empty)
+            confirmPassword != password -> text(R.string.auth_validation_confirm_password_mismatch)
             else -> null
+        }
+    }
+
+    private fun normalizeLoginCredentialError(message: String): String? {
+        val lowerMessage = message.lowercase()
+        val invalidLoginCredentialMessage = text(R.string.auth_error_invalid_credentials)
+        return when {
+            invalidLoginCredentialMessage.lowercase() in lowerMessage -> invalidLoginCredentialMessage
+            "password salah" in lowerMessage -> invalidLoginCredentialMessage
+            INVALID_LOGIN_CREDENTIAL_KEYWORD in lowerMessage -> invalidLoginCredentialMessage
+            else -> null
+        }
+    }
+
+    private fun text(@StringRes resId: Int, vararg formatArgs: Any): String {
+        return appContext.getString(resId, *formatArgs)
+    }
+
+    private fun loginWithGoogleProviderForLogin(idToken: String) {
+        viewModelScope.launch {
+            _loginState.update { it.copy(isLoading = true, errorMessage = null, infoMessage = null) }
+            val result = authRepository.loginWithGoogleIdToken(idToken)
+
+            when (result) {
+                is AuthResult.Success -> {
+                    _loginState.update { it.copy(isLoading = false, loginSuccess = true) }
+                }
+                is AuthResult.Error -> {
+                    _loginState.update { it.copy(isLoading = false, errorMessage = result.message) }
+                }
+            }
+        }
+    }
+
+    private fun loginWithGoogleProviderForRegister(idToken: String) {
+        viewModelScope.launch {
+            _registerState.update { it.copy(isLoading = true, errorMessage = null) }
+            val result = authRepository.loginWithGoogleIdToken(idToken)
+
+            when (result) {
+                is AuthResult.Success -> {
+                    _registerState.update { it.copy(isLoading = false, registerSuccess = true) }
+                }
+                is AuthResult.Error -> {
+                    _registerState.update { it.copy(isLoading = false, errorMessage = result.message) }
+                }
+            }
         }
     }
 }

@@ -21,6 +21,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,29 +37,82 @@ import com.islami.Aha.data.model.Habit
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import com.islami.Aha.ui.theme.*
+import com.islami.Aha.util.rememberNotificationPermissionState
+import kotlinx.coroutines.launch
 
 @Composable
 fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val notificationPermission = rememberNotificationPermissionState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val permissionMessage = stringResource(R.string.notification_permission_required_message)
 
-    NotificationScreenContent(
-        uiState = uiState,
-        onToggleGlobalNotification = viewModel::toggleGlobalNotification,
-        onToggleReminder = viewModel::toggleReminderEnabled,
-        onDeleteClick = viewModel::showDeleteConfirmation,
-        onConfirmDelete = viewModel::deleteReminder,
-        onDismissDelete = viewModel::hideDeleteConfirmation,
-        onToggleSunnahReminder = viewModel::toggleSunnahReminder,
-        onDeleteSunnahClick = viewModel::showSunnahDeleteConfirmation,
-        onEditSunnahClick = viewModel::showEditSunnahDialog,
-        onDismissEditSunnah = viewModel::hideEditSunnahDialog,
-        onSaveEditSunnah = viewModel::updateSunnahHabit
-    )
+    val requireNotificationPermissionBeforeEnable: () -> Unit = {
+        notificationPermission.requestPermission()
+        coroutineScope.launch {
+            snackbarHostState.showSnackbar(message = permissionMessage)
+        }
+    }
+
+    LaunchedEffect(uiState.snackbarMessage) {
+        val message = uiState.snackbarMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message = message)
+        viewModel.clearSnackbar()
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        NotificationScreenContent(
+            uiState = uiState,
+            notificationPermissionGranted = notificationPermission.isGranted,
+            onRequestNotificationPermission = requireNotificationPermissionBeforeEnable,
+            onToggleGlobalNotification = {
+                val enablingGlobal = !uiState.globalNotificationEnabled
+                if (enablingGlobal && !notificationPermission.isGranted) {
+                    requireNotificationPermissionBeforeEnable()
+                } else {
+                    viewModel.toggleGlobalNotification()
+                }
+            },
+            onToggleReminder = { habit ->
+                val enablingReminder = !habit.isReminderEnabled
+                if (enablingReminder && !notificationPermission.isGranted) {
+                    requireNotificationPermissionBeforeEnable()
+                } else {
+                    viewModel.toggleReminderEnabled(habit)
+                }
+            },
+            onDeleteClick = viewModel::showDeleteConfirmation,
+            onConfirmDelete = viewModel::deleteReminder,
+            onDismissDelete = viewModel::hideDeleteConfirmation,
+            onToggleSunnahReminder = { habit ->
+                val enablingReminder = !habit.reminderEnabled
+                if (enablingReminder && !notificationPermission.isGranted) {
+                    requireNotificationPermissionBeforeEnable()
+                } else {
+                    viewModel.toggleSunnahReminder(habit)
+                }
+            },
+            onDeleteSunnahClick = viewModel::showSunnahDeleteConfirmation,
+            onEditSunnahClick = viewModel::showEditSunnahDialog,
+            onDismissEditSunnah = viewModel::hideEditSunnahDialog,
+            onSaveEditSunnah = viewModel::updateSunnahHabit
+        )
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+    }
 }
 
 @Composable
 fun NotificationScreenContent(
     uiState: NotificationUiState,
+    notificationPermissionGranted: Boolean = true,
+    onRequestNotificationPermission: () -> Unit = {},
     onToggleGlobalNotification: () -> Unit,
     onToggleReminder: (Habit) -> Unit,
     onDeleteClick: (Habit) -> Unit,
@@ -69,7 +125,9 @@ fun NotificationScreenContent(
     onSaveEditSunnah: (String, String?, String, Int?) -> Unit
 ) {
     val sholatFardhu = uiState.habits.filter { it.category == "Sholat Fardhu" }
-    val sholatSunnah = uiState.habits.filter { it.category == "Sholat Sunnah" }
+    val sholatSunnah = uiState.habits.filter {
+        it.category == "Sholat Sunnah" || it.category == "Sholat Tarawih"
+    }
     val sunnahSholat = uiState.sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
     val puasaWajib = uiState.habits.filter { it.category == "Puasa Wajib" && uiState.isRamadanMonth }
     val puasaSunnah = uiState.habits.filter { it.category == "Puasa Sunnah" }
@@ -93,12 +151,19 @@ fun NotificationScreenContent(
                 ) {
                     item {
                         Text(
-                            text = "Pengingat Ibadah",
+                            text = stringResource(R.string.notification_reminder_title),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Gray700,
                             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                         )
+                    }
+                    if (!notificationPermissionGranted) {
+                        item {
+                            NotificationPermissionBanner(
+                                onRequestPermission = onRequestNotificationPermission
+                            )
+                        }
                     }
 
                     if (isEmpty) {
@@ -110,7 +175,7 @@ fun NotificationScreenContent(
                         if (sholatFardhu.isNotEmpty()) {
                             item {
                                 CategorySectionHeader(
-                                    title = "Sholat Fardhu",
+                                    title = stringResource(R.string.notification_category_sholat_fardhu),
                                     count = sholatFardhu.size
                                 )
                             }
@@ -127,7 +192,7 @@ fun NotificationScreenContent(
                         if (sholatSunnah.isNotEmpty() || sunnahSholat.isNotEmpty()) {
                             item {
                                 CategorySectionHeader(
-                                    title = "Sholat Sunnah",
+                                    title = stringResource(R.string.notification_category_sholat_sunnah),
                                     count = sholatSunnah.size + sunnahSholat.size
                                 )
                             }
@@ -153,7 +218,7 @@ fun NotificationScreenContent(
                         if (puasaWajib.isNotEmpty()) {
                             item {
                                 CategorySectionHeader(
-                                    title = "Puasa Wajib",
+                                    title = stringResource(R.string.notification_category_puasa_wajib),
                                     count = puasaWajib.size
                                 )
                             }
@@ -170,7 +235,7 @@ fun NotificationScreenContent(
                         if (puasaSunnah.isNotEmpty() || sunnahPuasa.isNotEmpty()) {
                             item {
                                 CategorySectionHeader(
-                                    title = "Puasa Sunnah",
+                                    title = stringResource(R.string.notification_category_puasa_sunnah),
                                     count = puasaSunnah.size + sunnahPuasa.size
                                 )
                             }
@@ -221,6 +286,11 @@ fun NotificationHeader(
     isEnabled: Boolean,
     onToggle: () -> Unit
 ) {
+    val globalSwitchDescription = if (isEnabled) {
+        stringResource(R.string.notification_switch_global_on)
+    } else {
+        stringResource(R.string.notification_switch_global_off)
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -240,7 +310,7 @@ fun NotificationHeader(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Notifikasi",
+                    text = stringResource(R.string.notification_screen_title),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary
@@ -272,19 +342,26 @@ fun NotificationHeader(
                         )
                         Column {
                             Text(
-                                text = "Notifikasi Aktif",
+                                text = stringResource(R.string.notification_enabled_title),
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 fontSize = 14.sp
                             )
                             Text(
-                                text = if (isEnabled) "Semua pengingat aktif" else "Pengingat dinonaktifkan",
+                                text = if (isEnabled) {
+                                    stringResource(R.string.notification_enabled_desc)
+                                } else {
+                                    stringResource(R.string.notification_disabled_desc)
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
                             )
                         }
                     }
                     Switch(
+                        modifier = Modifier.semantics {
+                            contentDescription = globalSwitchDescription
+                        },
                         checked = isEnabled,
                         onCheckedChange = { onToggle() },
                         colors = SwitchDefaults.colors(
@@ -301,6 +378,43 @@ fun NotificationHeader(
 }
 
 // ── Section Header ──
+
+@Composable
+fun NotificationPermissionBanner(onRequestPermission: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = GoldLight)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.NotificationsOff,
+                contentDescription = null,
+                tint = Gold,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.notification_permission_banner_text),
+                color = Gray700,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onRequestPermission) {
+                Text(
+                    text = stringResource(R.string.notification_permission_action),
+                    color = Emerald,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun CategorySectionHeader(title: String, count: Int) {
@@ -322,7 +436,7 @@ fun CategorySectionHeader(title: String, count: Int) {
             color = EmeraldLight
         ) {
             Text(
-                text = "$count ibadah",
+                text = stringResource(R.string.notification_count_ibadah_format, count),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
                 color = Emerald,
@@ -342,6 +456,11 @@ fun HabitReminderCard(
 ) {
     val isEffectivelyEnabled = globalEnabled && habit.isReminderEnabled
     val cardAlpha by animateFloatAsState(targetValue = if (globalEnabled) 1f else 0.6f, label = "")
+    val reminderSwitchDescription = if (habit.isReminderEnabled) {
+        stringResource(R.string.notification_switch_habit_on_format, habit.name)
+    } else {
+        stringResource(R.string.notification_switch_habit_off_format, habit.name)
+    }
 
     Card(
         modifier = Modifier
@@ -367,7 +486,7 @@ fun HabitReminderCard(
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.masjid),
-                    contentDescription = "Masjid",
+                    contentDescription = stringResource(R.string.notification_mosque_cd),
                     tint = Emerald,
                     modifier = Modifier.size(24.dp)
                 )
@@ -406,7 +525,7 @@ fun HabitReminderCard(
                     }
                     // Frequency
                     Text(
-                        text = "Setiap hari",
+                        text = stringResource(R.string.notification_frequency_daily),
                         fontSize = 12.sp,
                         color = Gray500
                     )
@@ -416,6 +535,9 @@ fun HabitReminderCard(
             Spacer(modifier = Modifier.width(8.dp))
 
             Switch(
+                modifier = Modifier.semantics {
+                    contentDescription = reminderSwitchDescription
+                },
                 checked = habit.isReminderEnabled,
                 onCheckedChange = { onToggle() },
                 enabled = globalEnabled,
@@ -442,6 +564,11 @@ fun SunnahHabitReminderCard(
 ) {
     val isEffectivelyEnabled = globalEnabled && sunnahHabit.reminderEnabled
     val cardAlpha by animateFloatAsState(targetValue = if (globalEnabled) 1f else 0.6f, label = "")
+    val reminderSwitchDescription = if (sunnahHabit.reminderEnabled) {
+        stringResource(R.string.notification_switch_habit_on_format, sunnahHabit.name)
+    } else {
+        stringResource(R.string.notification_switch_habit_off_format, sunnahHabit.name)
+    }
 
     Card(
         modifier = Modifier
@@ -467,7 +594,7 @@ fun SunnahHabitReminderCard(
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.masjid),
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.notification_mosque_cd),
                     tint = Emerald,
                     modifier = Modifier.size(24.dp)
                 )
@@ -504,14 +631,16 @@ fun SunnahHabitReminderCard(
                         }
                     }
                     Text(
-                        text = sunnahHabit.frequencyLabel.ifEmpty { "Setiap hari" },
+                        text = sunnahHabit.frequencyLabel.ifEmpty {
+                            stringResource(R.string.notification_frequency_daily)
+                        },
                         fontSize = 12.sp,
                         color = Gray500
                     )
                 }
                 sunnahHabit.rakaat?.let { rakaat ->
                     Text(
-                        text = "$rakaat rakaat",
+                        text = stringResource(R.string.notification_rakaat_format, rakaat),
                         fontSize = 12.sp,
                         color = Gray500
                     )
@@ -524,7 +653,7 @@ fun SunnahHabitReminderCard(
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Edit,
-                    contentDescription = "Edit",
+                    contentDescription = stringResource(R.string.notification_edit_cd),
                     tint = Gray500,
                     modifier = Modifier.size(20.dp)
                 )
@@ -537,7 +666,7 @@ fun SunnahHabitReminderCard(
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Delete,
-                    contentDescription = "Hapus",
+                    contentDescription = stringResource(R.string.notification_delete_cd),
                     tint = ErrorRed.copy(alpha = 0.7f),
                     modifier = Modifier.size(20.dp)
                 )
@@ -547,6 +676,9 @@ fun SunnahHabitReminderCard(
 
             // Bell switch
             Switch(
+                modifier = Modifier.semantics {
+                    contentDescription = reminderSwitchDescription
+                },
                 checked = sunnahHabit.reminderEnabled,
                 onCheckedChange = { onToggleReminder() },
                 enabled = globalEnabled,
@@ -567,33 +699,51 @@ fun EditSunnahHabitDialog(
     onDismiss: () -> Unit,
     onSave: (String?, String, Int?) -> Unit
 ) {
-    var frequency by remember(habit.id) { mutableStateOf(habit.frequencyLabel.ifBlank { "Setiap hari" }) }
+    val timeRegex = remember { Regex("^([01]\\d|2[0-3]):([0-5]\\d)$") }
+    val dailyFrequencyText = stringResource(R.string.notification_frequency_daily)
+    var frequency by remember(habit.id, dailyFrequencyText) {
+        mutableStateOf(habit.frequencyLabel.ifBlank { dailyFrequencyText })
+    }
     var reminderTime by remember(habit.id) { mutableStateOf(habit.reminderTime.orEmpty()) }
     var rakaatText by remember(habit.id) { mutableStateOf(habit.rakaat?.toString().orEmpty()) }
+    val normalizedTime = reminderTime.trim()
+    val hasTimeInput = normalizedTime.isNotEmpty()
+    val hasInvalidTime = hasTimeInput && !timeRegex.matches(normalizedTime)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Habit Sunnah", fontWeight = FontWeight.SemiBold) },
+        title = {
+            Text(
+                text = stringResource(R.string.notification_edit_sunnah_title),
+                fontWeight = FontWeight.SemiBold
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = frequency,
                     onValueChange = { frequency = it },
-                    label = { Text("Frekuensi") },
+                    label = { Text(stringResource(R.string.notification_frequency_label)) },
                     singleLine = true
                 )
                 OutlinedTextField(
                     value = reminderTime,
                     onValueChange = { reminderTime = it },
-                    label = { Text("Jam Pengingat (HH:mm)") },
-                    placeholder = { Text("05:30") },
-                    singleLine = true
+                    label = { Text(stringResource(R.string.notification_time_label)) },
+                    placeholder = { Text(stringResource(R.string.notification_time_placeholder)) },
+                    singleLine = true,
+                    isError = hasInvalidTime,
+                    supportingText = {
+                        if (hasInvalidTime) {
+                            Text(stringResource(R.string.notification_time_error_format))
+                        }
+                    }
                 )
                 if (habit.category == SunnahCategoryType.SHOLAT) {
                     OutlinedTextField(
                         value = rakaatText,
                         onValueChange = { rakaatText = it.filter(Char::isDigit) },
-                        label = { Text("Rakaat") },
+                        label = { Text(stringResource(R.string.notification_rakaat_label)) },
                         singleLine = true
                     )
                 }
@@ -601,18 +751,26 @@ fun EditSunnahHabitDialog(
         },
         confirmButton = {
             TextButton(
+                enabled = !hasInvalidTime,
                 onClick = {
-                    val normalizedTime = reminderTime.trim().ifBlank { null }
                     val rakaat = rakaatText.toIntOrNull()
-                    onSave(normalizedTime, frequency.trim().ifBlank { "Setiap hari" }, rakaat)
+                    onSave(
+                        normalizedTime.ifBlank { null },
+                        frequency.trim().ifBlank { dailyFrequencyText },
+                        rakaat
+                    )
                 }
             ) {
-                Text("Simpan", color = Emerald, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = stringResource(R.string.common_save),
+                    color = Emerald,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -628,14 +786,27 @@ fun DeleteConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Hapus Ibadah", fontWeight = FontWeight.SemiBold) },
-        text = { Text("Apakah Anda yakin ingin menghapus \"$habitName\"? Ini akan menghapus data terkait.") },
+        title = {
+            Text(
+                text = stringResource(R.string.notification_delete_dialog_title),
+                fontWeight = FontWeight.SemiBold
+            )
+        },
+        text = {
+            Text(stringResource(R.string.notification_delete_dialog_desc_format, habitName))
+        },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Hapus", color = ErrorRed, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = stringResource(R.string.settings_delete_action),
+                    color = ErrorRed,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
     )
 }
 
@@ -648,9 +819,9 @@ fun EmptyNotificationState(modifier: Modifier = Modifier) {
     ) {
         Icon(Icons.Outlined.NotificationsOff, null, modifier = Modifier.size(48.dp), tint = Gray400)
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Tidak Ada Ibadah", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.notification_empty_title), style = MaterialTheme.typography.titleMedium)
         Text(
-            text = "Belum ada pengingat aktif. Tambahkan kebiasaan dari Beranda agar pengingat muncul di sini.",
+            text = stringResource(R.string.notification_empty_desc),
             style = MaterialTheme.typography.bodyMedium,
             color = Gray500,
             textAlign = TextAlign.Center

@@ -14,5 +14,7 @@ data class UserHabitEntity(
     val reminderEnabled: Boolean = false,
     val reminderTime: String? = null,
     val completedDateKey: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = createdAt,
+    val lastSyncedAt: Long = 0L
 )

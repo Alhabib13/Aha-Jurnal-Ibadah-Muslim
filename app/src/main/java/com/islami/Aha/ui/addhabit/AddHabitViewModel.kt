@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.Locale
 import javax.inject.Inject
 
 enum class SunnahCategoryType(val displayName: String) {
@@ -245,7 +246,7 @@ class AddHabitViewModel @Inject constructor(
         )
 
         // Schedule notification if reminder is enabled
-        if (state.isReminderEnabled) {
+        if (state.isReminderEnabled && NotificationScheduler.isGlobalNotificationEnabled(context)) {
             Log.d("AddHabitVM", "Scheduling reminder: habitId=$habitId at ${state.reminderHour}:${state.reminderMinute}")
             NotificationScheduler.scheduleHabitReminder(
                 context = context,
@@ -254,6 +255,8 @@ class AddHabitViewModel @Inject constructor(
                 hour = state.reminderHour,
                 minute = state.reminderMinute
             )
+        } else if (state.isReminderEnabled) {
+            Log.d("AddHabitVM", "Global notification disabled, skip scheduling reminder for $habitName")
         }
 
         _uiState.update { it.copy(saveSuccess = true) }
@@ -264,7 +267,7 @@ class AddHabitViewModel @Inject constructor(
     }
 
     fun getFormattedReminderTime(state: AddHabitUiState = _uiState.value): String {
-        return String.format("%02d:%02d", state.reminderHour, state.reminderMinute)
+        return String.format(Locale.ROOT, "%02d:%02d", state.reminderHour, state.reminderMinute)
     }
 
     private fun buildFrequencyLabel(state: AddHabitUiState): String {

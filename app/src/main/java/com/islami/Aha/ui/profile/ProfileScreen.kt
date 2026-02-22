@@ -1,5 +1,8 @@
 package com.islami.Aha.ui.profile
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,7 +13,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,7 +25,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.outlined.Settings
@@ -46,13 +47,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -60,9 +65,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.islami.Aha.R
 import com.islami.Aha.ui.theme.Emerald
 import com.islami.Aha.ui.theme.EmeraldDark
-import com.islami.Aha.ui.theme.ErrorRed
 import com.islami.Aha.ui.theme.Gray500
 import com.islami.Aha.ui.theme.HabitIslamiTheme
 
@@ -74,8 +79,23 @@ fun ProfileScreen(
     onNavigateToLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showAvatarOptions by remember { mutableStateOf(false) }
+    val avatarPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            viewModel.updateAvatar(uri.toString())
+        }
+    }
 
     LaunchedEffect(uiState.snackbarMessage) {
         uiState.snackbarMessage?.let { message ->
@@ -90,14 +110,68 @@ fun ProfileScreen(
         onNavigateToSettings = onNavigateToSettings,
         onNavigateToAdmin = onNavigateToAdmin,
         onNavigateToLogin = onNavigateToLogin,
-        onShowLogoutConfirmation = viewModel::showLogoutConfirmation,
-        onHideLogoutConfirmation = viewModel::hideLogoutConfirmation,
-        onConfirmLogout = {
-            if (viewModel.logout()) {
-                onLogout()
+        onAvatarEditClick = {
+            showAvatarOptions = true
+        }
+    )
+
+    if (showAvatarOptions) {
+        AvatarOptionsDialog(
+            hasAvatar = !uiState.userInfo.avatarUri.isNullOrBlank(),
+            onPickFromGallery = {
+                showAvatarOptions = false
+                avatarPickerLauncher.launch(arrayOf("image/*"))
+            },
+            onRemoveAvatar = {
+                showAvatarOptions = false
+                viewModel.clearAvatar()
+            },
+            onDismiss = { showAvatarOptions = false }
+        )
+    }
+}
+
+@Composable
+private fun AvatarOptionsDialog(
+    hasAvatar: Boolean,
+    onPickFromGallery: () -> Unit,
+    onRemoveAvatar: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Foto Profil",
+                fontWeight = FontWeight.SemiBold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    onClick = onPickFromGallery,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Pilih dari Galeri")
+                }
+                if (hasAvatar) {
+                    TextButton(
+                        onClick = onRemoveAvatar,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Hapus Foto",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
         },
-        onAvatarEditClick = onNavigateToSettings
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Tutup", color = Gray500)
+            }
+        }
     )
 }
 
@@ -108,9 +182,6 @@ fun ProfileScreenContent(
     onNavigateToSettings: () -> Unit,
     onNavigateToAdmin: () -> Unit,
     onNavigateToLogin: () -> Unit,
-    onShowLogoutConfirmation: () -> Unit,
-    onHideLogoutConfirmation: () -> Unit,
-    onConfirmLogout: () -> Unit,
     onAvatarEditClick: () -> Unit
 ) {
     Scaffold(
@@ -174,7 +245,11 @@ fun ProfileScreenContent(
                 item { Spacer(modifier = Modifier.height(24.dp)) }
 
                 item {
-                    WeeklySummaryCard(summary = uiState.weeklySummary)
+                    ActivityOverviewCard(
+                        sholatCount = uiState.sholatCount,
+                        puasaCount = uiState.puasaCount,
+                        reminderCount = uiState.reminderCount
+                    )
                 }
 
                 if (uiState.userInfo.isLoggedIn) {
@@ -199,36 +274,8 @@ fun ProfileScreenContent(
                             }
                         }
                     }
-
-                    item {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        OutlinedButton(
-                            onClick = onShowLogoutConfirmation,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp)
-                                .height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
-                            border = BorderStroke(1.dp, ErrorRed)
-                        ) {
-                            Icon(Icons.AutoMirrored.Outlined.Logout, null, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Keluar", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
                 }
             }
-        }
-
-        if (uiState.showLogoutConfirmation) {
-            AlertDialog(
-                onDismissRequest = onHideLogoutConfirmation,
-                title = { Text("Keluar", fontWeight = FontWeight.SemiBold) },
-                text = { Text("Yakin ingin keluar?") },
-                confirmButton = { TextButton(onClick = onConfirmLogout) { Text("Keluar", color = ErrorRed) } },
-                dismissButton = { TextButton(onClick = onHideLogoutConfirmation) { Text("Batal") } }
-            )
         }
     }
 }
@@ -321,7 +368,7 @@ fun ProfileHeader(
                         if (userInfo.isLoggedIn && userInfo.avatarUri != null) {
                             coil.compose.AsyncImage(
                                 model = userInfo.avatarUri,
-                                contentDescription = "Foto Profil",
+                                contentDescription = stringResource(R.string.profile_photo_cd),
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .clip(CircleShape),
@@ -350,7 +397,7 @@ fun ProfileHeader(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CameraAlt,
-                                contentDescription = "Ubah Foto Profil",
+                                contentDescription = stringResource(R.string.profile_edit_photo_cd),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(15.dp)
                             )
@@ -510,7 +557,11 @@ fun AchievementCard(achievement: Achievement, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun WeeklySummaryCard(summary: WeeklySummary) {
+fun ActivityOverviewCard(
+    sholatCount: Int,
+    puasaCount: Int,
+    reminderCount: Int
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -520,89 +571,38 @@ fun WeeklySummaryCard(summary: WeeklySummary) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "\uD83D\uDCCA Ringkasan Minggu Ini",
+                text = "\uD83D\uDEE0\uFE0F Aktivitas & Pengingat",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Ibadah Selesai",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                Box(
-                    modifier = Modifier
-                        .width(100.dp)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    val fraction = (summary.completionPercentage / 100f).coerceIn(0f, 1f)
-                    if (fraction > 0f) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(fraction)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Emerald)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "${summary.completionPercentage.toInt()}%",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Emerald
-                )
-            }
-
             Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Hari Aktif",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "${summary.activeDays}/${summary.totalDays} hari",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Kategori Terbaik",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = summary.bestCategory,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            ProfileInfoRow(label = "Habit Sholat Sunnah", value = "$sholatCount")
+            Spacer(modifier = Modifier.height(10.dp))
+            ProfileInfoRow(label = "Habit Puasa Sunnah", value = "$puasaCount")
+            Spacer(modifier = Modifier.height(10.dp))
+            ProfileInfoRow(label = "Pengingat Aktif", value = "$reminderCount")
         }
+    }
+}
+
+@Composable
+private fun ProfileInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -642,9 +642,6 @@ fun ProfileScreenPreview() {
             onNavigateToSettings = {},
             onNavigateToAdmin = {},
             onNavigateToLogin = {},
-            onShowLogoutConfirmation = {},
-            onHideLogoutConfirmation = {},
-            onConfirmLogout = {},
             onAvatarEditClick = {}
         )
     }

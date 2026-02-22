@@ -1,11 +1,8 @@
 package com.islami.Aha.ui.shared
 
-import com.islami.Aha.data.local.HabitCompletionDao
-import com.islami.Aha.data.model.HabitCompletionRecord
 import com.islami.Aha.data.repository.UserHabitRepository
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
-import com.islami.Aha.util.DateUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,7 +16,6 @@ import javax.inject.Singleton
 
 @Singleton
 class SunnahHabitSharedViewModel @Inject constructor(
-    private val habitCompletionDao: HabitCompletionDao,
     private val repository: UserHabitRepository
 ) {
 
@@ -56,30 +52,7 @@ class SunnahHabitSharedViewModel @Inject constructor(
 
     fun toggleHabitComplete(id: String) {
         scope.launch {
-            val habit = repository.getHabitById(id) ?: return@launch
-            val todayKey = DateUtils.getTodayKey()
-            val habitKey = "sunnah_${habit.id}"
-            val updated = if (habit.isCompletedToday) {
-                habit.copy(isCompletedToday = false)
-            } else {
-                habit.copy(isCompletedToday = true)
-            }
-            repository.updateHabit(updated)
-            if (updated.isCompletedToday) {
-                habitCompletionDao.insert(
-                    HabitCompletionRecord(
-                        habitKey = habitKey,
-                        dateKey = todayKey,
-                        category = when (habit.category) {
-                            SunnahCategoryType.SHOLAT -> "Sholat Sunnah"
-                            SunnahCategoryType.PUASA -> "Puasa Sunnah"
-                        },
-                        source = "SUNNAH"
-                    )
-                )
-            } else {
-                habitCompletionDao.deleteByHabitAndDate(habitKey, todayKey)
-            }
+            repository.toggleHabitCompletion(id)
         }
     }
 

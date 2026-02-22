@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.auth
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -22,7 +24,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -38,6 +42,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.common.api.ApiException
 import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
 
@@ -49,6 +55,21 @@ fun LoginScreen(
 ) {
     val uiState by viewModel.loginState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    val googleSignInClient = remember(context) { createGoogleSignInClient(context) }
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        runCatching {
+            task.getResult(ApiException::class.java)?.idToken
+        }.onSuccess { token ->
+            viewModel.loginWithGoogleIdToken(token)
+        }.onFailure { error ->
+            val statusCode = (error as? ApiException)?.statusCode
+            viewModel.onGoogleLoginFailed(statusCode)
+        }
+    }
 
     LaunchedEffect(uiState.loginSuccess) {
         if (uiState.loginSuccess) {
@@ -70,8 +91,17 @@ fun LoginScreen(
             focusManager.clearFocus()
             viewModel.requestPasswordReset()
         },
-        onGoogleLoginClick = {},
-        onFacebookLoginClick = {},
+        onGoogleLoginClick = {
+            focusManager.clearFocus()
+            val client = googleSignInClient
+            if (client == null) {
+                viewModel.onGoogleLoginUnavailable()
+            } else {
+                client.signOut().addOnCompleteListener {
+                    googleSignInLauncher.launch(client.signInIntent)
+                }
+            }
+        },
         onRegisterClick = onNavigateToRegister
     )
 }
@@ -85,7 +115,6 @@ fun LoginScreenContent(
     onLoginClick: () -> Unit,
     onForgotPasswordClick: () -> Unit,
     onGoogleLoginClick: () -> Unit,
-    onFacebookLoginClick: () -> Unit,
     onRegisterClick: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
@@ -113,7 +142,7 @@ fun LoginScreenContent(
             Box(contentAlignment = Alignment.Center) {
                 Image(
                     painter = painterResource(id = R.drawable.logo),
-                    contentDescription = "Aha Logo",
+                    contentDescription = stringResource(R.string.auth_logo_cd),
                     modifier = Modifier.size(48.dp)
                 )
             }
@@ -122,7 +151,7 @@ fun LoginScreenContent(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Selamat Datang!",
+            text = stringResource(R.string.auth_login_welcome_title),
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
@@ -131,7 +160,7 @@ fun LoginScreenContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Masuk untuk melanjutkan perjalanan ibadah Anda",
+            text = stringResource(R.string.auth_login_welcome_subtitle),
             fontSize = 14.sp,
             color = Gray500,
             textAlign = TextAlign.Center
@@ -156,8 +185,8 @@ fun LoginScreenContent(
                 AuthTextField(
                     value = uiState.email,
                     onValueChange = onEmailChange,
-                    label = "Email",
-                    placeholder = "Masukkan email Anda",
+                    label = stringResource(R.string.auth_email_label),
+                    placeholder = stringResource(R.string.auth_email_placeholder),
                     leadingIcon = Icons.Default.Email,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
@@ -174,8 +203,8 @@ fun LoginScreenContent(
                 AuthTextField(
                     value = uiState.password,
                     onValueChange = onPasswordChange,
-                    label = "Password",
-                    placeholder = "Masukkan password",
+                    label = stringResource(R.string.auth_password_label),
+                    placeholder = stringResource(R.string.auth_password_placeholder),
                     leadingIcon = Icons.Default.Lock,
                     trailingIcon = if (uiState.isPasswordVisible)
                         Icons.Default.Visibility else Icons.Default.VisibilityOff,
@@ -205,7 +234,7 @@ fun LoginScreenContent(
                         contentPadding = PaddingValues(0.dp)
                     ) {
                         Text(
-                            text = "Lupa password?",
+                            text = stringResource(R.string.auth_forgot_password),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = Emerald
@@ -286,7 +315,7 @@ fun LoginScreenContent(
                     )
                 } else {
                     Text(
-                        text = "Masuk",
+                        text = stringResource(R.string.auth_login_button),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimary
@@ -303,31 +332,21 @@ fun LoginScreenContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
-            Text(text = "  atau  ", fontSize = 14.sp, color = Gray400)
+            Text(text = stringResource(R.string.auth_or_separator), fontSize = 14.sp, color = Gray400)
             HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         SocialLoginButton(
-            text = "Login Google",
-            iconText = "G",
+            text = stringResource(R.string.auth_login_google_button),
             onClick = onGoogleLoginClick,
-            enabled = false
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        SocialLoginButton(
-            text = "Login Facebook",
-            iconText = "f",
-            onClick = onFacebookLoginClick,
-            enabled = false
+            enabled = !uiState.isLoading
         )
 
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Login sosial segera hadir",
+            text = stringResource(R.string.auth_login_google_hint),
             fontSize = 12.sp,
             color = Gray500
         )
@@ -341,13 +360,13 @@ fun LoginScreenContent(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "Belum punya akun? ", fontSize = 14.sp, color = Gray500)
+            Text(text = stringResource(R.string.auth_no_account), fontSize = 14.sp, color = Gray500)
             TextButton(
                 onClick = onRegisterClick,
                 contentPadding = PaddingValues(0.dp)
             ) {
                 Text(
-                    text = "Daftar",
+                    text = stringResource(R.string.auth_register_action),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Emerald
@@ -362,7 +381,6 @@ fun LoginScreenContent(
 @Composable
 private fun SocialLoginButton(
     text: String,
-    iconText: String,
     onClick: () -> Unit,
     enabled: Boolean = true
 ) {
@@ -379,21 +397,14 @@ private fun SocialLoginButton(
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Box(
-            modifier = Modifier
-                .size(24.dp)
-                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = iconText,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+        Image(
+            painter = painterResource(id = R.drawable.ic_google_logo),
+            contentDescription = null,
+            modifier = Modifier.size(22.dp)
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = if (enabled) text else "$text (Segera)",
+            text = text,
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -441,7 +452,7 @@ fun AuthTextField(
                 {
                     Icon(
                         imageVector = trailingIcon,
-                        contentDescription = "Toggle visibility",
+                        contentDescription = stringResource(R.string.auth_toggle_password_visibility),
                         tint = Gray400,
                         modifier = Modifier
                             .size(20.dp)
@@ -492,7 +503,6 @@ fun LoginScreenPreview() {
             onLoginClick = {},
             onForgotPasswordClick = {},
             onGoogleLoginClick = {},
-            onFacebookLoginClick = {},
             onRegisterClick = {}
         )
     }
@@ -515,7 +525,6 @@ fun LoginScreenErrorPreview() {
             onLoginClick = {},
             onForgotPasswordClick = {},
             onGoogleLoginClick = {},
-            onFacebookLoginClick = {},
             onRegisterClick = {}
         )
     }
@@ -537,7 +546,6 @@ fun LoginScreenLoadingPreview() {
             onLoginClick = {},
             onForgotPasswordClick = {},
             onGoogleLoginClick = {},
-            onFacebookLoginClick = {},
             onRegisterClick = {}
         )
     }
