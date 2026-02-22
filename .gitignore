@@ -14,6 +14,12 @@
 .cxx
 local.properties
 hs_err_pid*.log
+# Firebase — jangan commit, API key ada di sini
 google-services.json
 app/google-services.json
+app/src/dev/google-services.json
+app/src/prod/google-services.json
+# Service account keys
+secrets/
+*.json.key
 app/schemas/
