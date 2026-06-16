@@ -3,6 +3,7 @@ package com.islami.Aha.ui.addhabit
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import com.islami.Aha.BuildConfig
 import com.islami.Aha.ui.shared.SunnahHabitSharedViewModel
 import com.islami.Aha.util.NotificationScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -102,8 +103,10 @@ data class AddHabitUiState(
     val isReminderEnabled: Boolean = false,
     val reminderHour: Int = 5,
     val reminderMinute: Int = 0,
+    val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
-    val showTimePicker: Boolean = false
+    val showTimePicker: Boolean = false,
+    val savedHabitName: String = ""
 ) {
     val availableHabits: List<SunnahHabitPreset>
         get() = getPresetsFor(selectedCategory)
@@ -131,6 +134,16 @@ class AddHabitViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel
 ) : ViewModel() {
+
+    private fun debugLog(message: String) {
+        if (BuildConfig.DEBUG && Log.isLoggable(TAG, Log.DEBUG)) {
+            Log.d(TAG, message)
+        }
+    }
+
+    companion object {
+        private const val TAG = "AddHabitVM"
+    }
 
     private val _uiState = MutableStateFlow(AddHabitUiState())
     val uiState: StateFlow<AddHabitUiState> = _uiState.asStateFlow()
@@ -230,24 +243,32 @@ class AddHabitViewModel @Inject constructor(
         val state = _uiState.value
         val habitName = state.selectedHabitName
         if (habitName.isBlank()) return
+        _uiState.update { it.copy(isSaving = true) }
 
-        Log.d("AddHabitVM", "Saving habit: name=$habitName, category=${state.selectedCategory}, reminder=${state.isReminderEnabled}")
+        debugLog("Saving habit: name=$habitName, category=${state.selectedCategory}, reminder=${state.isReminderEnabled}")
 
         val frequencyLabel = buildFrequencyLabel(state)
-        val reminderTime = if (state.isReminderEnabled) getFormattedReminderTime(state) else null
+
+        // Jika global notification dinonaktifkan, simpan reminderEnabled=false agar
+        // state DB konsisten dengan kondisi nyata (tidak ada alarm terjadwal).
+        // Saat user mengaktifkan kembali global notification di Settings,
+        // SettingsViewModel.rescheduleAllActiveReminders() hanya menjadwalkan
+        // habit yang reminderEnabled=true — sehingga tidak ada efek sampingan.
+        val globalEnabled = NotificationScheduler.isGlobalNotificationEnabled(context)
+        val effectiveReminderEnabled = state.isReminderEnabled && globalEnabled
+        val reminderTime = if (effectiveReminderEnabled) getFormattedReminderTime(state) else null
 
         val habitId = sunnahHabitSharedViewModel.addHabit(
             name = habitName,
             category = state.selectedCategory,
             frequencyLabel = frequencyLabel,
             rakaat = if (state.selectedCategory == SunnahCategoryType.SHOLAT) state.selectedRakaat else null,
-            reminderEnabled = state.isReminderEnabled,
+            reminderEnabled = effectiveReminderEnabled,
             reminderTime = reminderTime
         )
 
-        // Schedule notification if reminder is enabled
-        if (state.isReminderEnabled && NotificationScheduler.isGlobalNotificationEnabled(context)) {
-            Log.d("AddHabitVM", "Scheduling reminder: habitId=$habitId at ${state.reminderHour}:${state.reminderMinute}")
+        if (effectiveReminderEnabled) {
+            debugLog("Scheduling reminder: habitId=$habitId at ${state.reminderHour}:${state.reminderMinute}")
             NotificationScheduler.scheduleHabitReminder(
                 context = context,
                 habitId = habitId,
@@ -256,10 +277,21 @@ class AddHabitViewModel @Inject constructor(
                 minute = state.reminderMinute
             )
         } else if (state.isReminderEnabled) {
-            Log.d("AddHabitVM", "Global notification disabled, skip scheduling reminder for $habitName")
+            // Reminder dipilih user tapi global off → simpan tanpa alarm
+            debugLog("Global notification disabled — saving '$habitName' with reminderEnabled=false")
         }
 
-        _uiState.update { it.copy(saveSuccess = true) }
+        _uiState.update {
+            it.copy(
+                isSaving = false,
+                saveSuccess = true,
+                savedHabitName = if (effectiveReminderEnabled) {
+                    "$habitName disimpan dengan pengingat"
+                } else {
+                    "$habitName berhasil disimpan"
+                }
+            )
+        }
     }
 
     fun resetState() {

@@ -57,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -84,6 +85,9 @@ import com.islami.Aha.data.model.Habit
 import com.islami.Aha.R
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
+import com.islami.Aha.ui.components.AhaLoadingOverlay
+import com.islami.Aha.ui.components.AhaToastTone
+import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.*
 import com.islami.Aha.util.LocationHelper
 import com.islami.Aha.util.rememberLocationPermissionState
@@ -123,11 +127,14 @@ private val categoryCards = listOf(
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
+    transientSnackbarMessage: String? = null,
+    onTransientSnackbarShown: () -> Unit = {},
     onNavigateToAddHabit: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     var showLocationPermissionBanner by rememberSaveable { mutableStateOf(false) }
     var showLocationPermissionDialog by rememberSaveable { mutableStateOf(false) }
     var showLocationServiceDialog by rememberSaveable { mutableStateOf(false) }
@@ -184,6 +191,24 @@ fun HomeScreen(
         }
     }
 
+    LaunchedEffect(transientSnackbarMessage) {
+        val message = transientSnackbarMessage ?: return@LaunchedEffect
+        toastMessage = message
+    }
+
+    LaunchedEffect(uiState.snackbarMessage) {
+        val message = uiState.snackbarMessage ?: return@LaunchedEffect
+        toastMessage = message
+    }
+
+    val toastTone = if (
+        toastMessage == transientSnackbarMessage && !transientSnackbarMessage.isNullOrBlank()
+    ) {
+        AhaToastTone.SUCCESS
+    } else {
+        AhaToastTone.AUTO
+    }
+
     DisposableEffect(lifecycleOwner, locationPermission.isGranted) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -196,41 +221,65 @@ fun HomeScreen(
 
     val notificationPermission = rememberNotificationPermissionState()
 
-    HomeScreenContent(
-        uiState = uiState,
-        locationPermissionGranted = locationPermission.isGranted,
-        showLocationPermissionBanner = showLocationPermissionBanner && !locationPermission.isGranted,
-        notificationPermissionGranted = notificationPermission.isGranted,
-        onRequestLocationPermission = {
-            showLocationPermissionDialog = true
-            hasPromptedLocationPermission = true
-            locationPermission.requestPermission()
-        },
-        onRequestNotificationPermission = notificationPermission.requestPermission,
-        onRefresh = { viewModel.refreshData() },
-        onRefreshLocation = {
-            if (!locationPermission.isGranted) {
-                showLocationPermissionBanner = true
+    Box(modifier = Modifier.fillMaxSize()) {
+        HomeScreenContent(
+            uiState = uiState,
+            locationPermissionGranted = locationPermission.isGranted,
+            showLocationPermissionBanner = showLocationPermissionBanner && !locationPermission.isGranted,
+            notificationPermissionGranted = notificationPermission.isGranted,
+            onRequestLocationPermission = {
                 showLocationPermissionDialog = true
                 hasPromptedLocationPermission = true
                 locationPermission.requestPermission()
-            } else if (!LocationHelper.isLocationEnabled(context)) {
-                showLocationServiceDialog = true
-                hasPromptedLocationService = true
-                viewModel.refreshLocation(force = true)
-            } else {
-                viewModel.refreshLocation(force = true)
-            }
-        },
-        onToggleHabitCompletion = viewModel::toggleHabitCompletion,
-        onToggleHabitReminder = viewModel::toggleReminderEnabled,
-        onNavigateToAddHabit = onNavigateToAddHabit,
-        onSelectMainCategory = viewModel::selectMainCategory,
-        onSelectSubTab = viewModel::selectSubTab,
-        onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
-        onToggleSunnahReminder = viewModel::toggleSunnahReminder,
-        onDeleteSunnah = viewModel::removeSunnahHabit
-    )
+            },
+            onRequestNotificationPermission = notificationPermission.requestPermission,
+            onRefresh = { viewModel.refreshData() },
+            onRefreshLocation = {
+                if (!locationPermission.isGranted) {
+                    showLocationPermissionBanner = true
+                    showLocationPermissionDialog = true
+                    hasPromptedLocationPermission = true
+                    locationPermission.requestPermission()
+                } else if (!LocationHelper.isLocationEnabled(context)) {
+                    showLocationServiceDialog = true
+                    hasPromptedLocationService = true
+                    viewModel.refreshLocation(force = true)
+                } else {
+                    viewModel.refreshLocation(force = true)
+                }
+            },
+            onToggleHabitCompletion = viewModel::toggleHabitCompletion,
+            onToggleHabitReminder = viewModel::toggleReminderEnabled,
+            onNavigateToAddHabit = onNavigateToAddHabit,
+            onSelectMainCategory = viewModel::selectMainCategory,
+            onSelectSubTab = viewModel::selectSubTab,
+            onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
+            onToggleSunnahReminder = viewModel::toggleSunnahReminder,
+            onDeleteSunnah = viewModel::removeSunnahHabit
+        )
+
+        AhaToastHost(
+            message = toastMessage,
+            tone = toastTone,
+            onDismissed = {
+                if (toastMessage == transientSnackbarMessage) {
+                    onTransientSnackbarShown()
+                }
+                if (toastMessage == uiState.snackbarMessage) {
+                    viewModel.clearSnackbar()
+                }
+                toastMessage = null
+            },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+
+        AhaLoadingOverlay(
+            visible = uiState.isLoading,
+            message = stringResource(R.string.home_loading_message)
+        )
+    }
 
     if (showLocationPermissionDialog && !locationPermission.isGranted) {
         AlertDialog(
@@ -371,9 +420,6 @@ fun HomeScreenContent(
     onDeleteSunnah: (String) -> Unit = {}
 ) {
     if (uiState.isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Emerald)
-        }
         return
     }
 
@@ -598,7 +644,13 @@ fun SunnahHabitCard(
                     Image(
                         painter = painterResource(id = iconRes),
                         contentDescription = sunnahHabit.name,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(24.dp),
+                        colorFilter = ColorFilter.tint(
+                            when (sunnahHabit.category) {
+                                SunnahCategoryType.PUASA -> WarningAmber
+                                SunnahCategoryType.SHOLAT -> Emerald
+                            }
+                        )
                     )
                 }
             }

@@ -19,7 +19,7 @@ import com.islami.Aha.data.model.UserHabitEntity
         HadithContentEntity::class,
         SurahVerseEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -132,6 +132,16 @@ abstract class AppDatabase : RoomDatabase() {
                     WHERE updatedAt = 0
                     """.trimIndent()
                 )
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!columnExists(db, "habit_completion_records", "isSynced")) {
+                    db.execSQL(
+                        "ALTER TABLE habit_completion_records ADD COLUMN isSynced INTEGER NOT NULL DEFAULT 0"
+                    )
+                }
             }
         }
 

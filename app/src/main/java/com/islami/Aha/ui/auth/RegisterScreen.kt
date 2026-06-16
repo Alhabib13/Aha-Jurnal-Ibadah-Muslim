@@ -38,6 +38,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import com.islami.Aha.R
+import com.islami.Aha.ui.components.AhaLoadingOverlay
+import com.islami.Aha.ui.components.AhaToastTone
+import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.*
 
 @Composable
@@ -51,6 +54,7 @@ fun RegisterScreen(
     val uiState by viewModel.registerState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     val googleSignInClient = remember(context) { createGoogleSignInClient(context) }
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -73,33 +77,59 @@ fun RegisterScreen(
         }
     }
 
-    RegisterScreenContent(
-        uiState = uiState,
-        onNameChange = viewModel::onRegisterNameChange,
-        onEmailChange = viewModel::onRegisterEmailChange,
-        onPasswordChange = viewModel::onRegisterPasswordChange,
-        onConfirmPasswordChange = viewModel::onRegisterConfirmPasswordChange,
-        onTogglePasswordVisibility = viewModel::toggleRegisterPasswordVisibility,
-        onToggleConfirmPasswordVisibility = viewModel::toggleRegisterConfirmPasswordVisibility,
-        onRegisterClick = {
-            focusManager.clearFocus()
-            viewModel.register()
-        },
-        onGoogleRegisterClick = {
-            focusManager.clearFocus()
-            val client = googleSignInClient
-            if (client == null) {
-                viewModel.onGoogleRegisterUnavailable()
-            } else {
-                client.signOut().addOnCompleteListener {
-                    googleSignInLauncher.launch(client.signInIntent)
+    LaunchedEffect(uiState.errorMessage) {
+        toastMessage = uiState.errorMessage
+    }
+
+    val toastTone = if (!uiState.errorMessage.isNullOrBlank() && toastMessage == uiState.errorMessage) {
+        AhaToastTone.ERROR
+    } else {
+        AhaToastTone.AUTO
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        RegisterScreenContent(
+            uiState = uiState,
+            onNameChange = viewModel::onRegisterNameChange,
+            onEmailChange = viewModel::onRegisterEmailChange,
+            onPasswordChange = viewModel::onRegisterPasswordChange,
+            onConfirmPasswordChange = viewModel::onRegisterConfirmPasswordChange,
+            onTogglePasswordVisibility = viewModel::toggleRegisterPasswordVisibility,
+            onToggleConfirmPasswordVisibility = viewModel::toggleRegisterConfirmPasswordVisibility,
+            onRegisterClick = {
+                focusManager.clearFocus()
+                viewModel.register()
+            },
+            onGoogleRegisterClick = {
+                focusManager.clearFocus()
+                val client = googleSignInClient
+                if (client == null) {
+                    viewModel.onGoogleRegisterUnavailable()
+                } else {
+                    client.signOut().addOnCompleteListener {
+                        googleSignInLauncher.launch(client.signInIntent)
+                    }
                 }
-            }
-        },
-        onLoginClick = onNavigateToLogin,
-        onPrivacyPolicyClick = onPrivacyPolicyClick,
-        onTermsClick = onTermsClick
-    )
+            },
+            onLoginClick = onNavigateToLogin,
+            onPrivacyPolicyClick = onPrivacyPolicyClick,
+            onTermsClick = onTermsClick
+        )
+
+        AhaToastHost(
+            message = toastMessage,
+            tone = toastTone,
+            onDismissed = { toastMessage = null },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+
+        AhaLoadingOverlay(
+            visible = uiState.isLoading,
+            message = stringResource(R.string.auth_register_loading)
+        )
+    }
 }
 
 @Composable
@@ -274,7 +304,7 @@ fun RegisterScreenContent(
                     colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
                 ) {
                     Text(
-                        text = uiState.errorMessage!!,
+                        text = uiState.errorMessage ?: "",
                         fontSize = 13.sp,
                         color = ErrorRed,
                         modifier = Modifier.padding(12.dp),

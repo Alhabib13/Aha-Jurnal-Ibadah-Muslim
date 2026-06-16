@@ -39,6 +39,9 @@ interface HabitDao {
     @Query("UPDATE habits SET isCompleted = 0")
     suspend fun resetAllCompletions()
 
+    @Query("UPDATE habits SET isCompleted = 0, streak = 0")
+    suspend fun resetTrackerState()
+
     @Query("SELECT * FROM habits WHERE isReminderEnabled = 1 AND time != ''")
     suspend fun getActiveReminderHabits(): List<Habit>
 

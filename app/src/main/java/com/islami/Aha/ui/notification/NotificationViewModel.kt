@@ -7,7 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.islami.Aha.data.local.HabitDao
 import com.islami.Aha.data.model.Habit
-import com.islami.Aha.data.repository.AdminConfigRepository
+import com.islami.Aha.data.repository.FeatureConfigRepository
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.shared.SunnahHabitSharedViewModel
 import com.islami.Aha.util.DateUtils
@@ -45,7 +45,7 @@ class NotificationViewModel @Inject constructor(
     private val habitDao: HabitDao,
     private val sharedPreferences: SharedPreferences,
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
-    private val adminConfigRepository: AdminConfigRepository
+    private val featureConfigRepository: FeatureConfigRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         NotificationUiState(
@@ -58,6 +58,7 @@ class NotificationViewModel @Inject constructor(
     val uiState: StateFlow<NotificationUiState> = _uiState.asStateFlow()
 
     init {
+        featureConfigRepository.refresh()
         sunnahHabitSharedViewModel.syncFromCloudIfLoggedIn()
         loadHabitsAsReminders()
         observeSunnahHabits()
@@ -68,7 +69,7 @@ class NotificationViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true) }
             combine(
                 habitDao.getHabits(),
-                adminConfigRepository.featureConfig
+                featureConfigRepository.featureConfig
             ) { habits, config ->
                 habits.filter {
                     if (it.category == "Puasa Wajib" && !config.puasaWajibRamadanEnabled) {
@@ -142,6 +143,13 @@ class NotificationViewModel @Inject constructor(
                     }
                 }
             }
+            showSnackbar(
+                if (willEnable) {
+                    "Pengingat ${habit.name} diaktifkan"
+                } else {
+                    "Pengingat ${habit.name} dimatikan"
+                }
+            )
         }
     }
 
@@ -168,6 +176,13 @@ class NotificationViewModel @Inject constructor(
             Log.d("NotificationVM", "Cancelling alarm for ${sunnahHabit.name}")
             NotificationScheduler.cancelHabitReminder(context, sunnahHabit.id)
         }
+        showSnackbar(
+            if (willEnable) {
+                "Pengingat ${sunnahHabit.name} diaktifkan"
+            } else {
+                "Pengingat ${sunnahHabit.name} dimatikan"
+            }
+        )
     }
 
     private fun applyGlobalNotificationState(enable: Boolean) {
@@ -262,6 +277,7 @@ class NotificationViewModel @Inject constructor(
             }
         }
         hideEditSunnahDialog()
+        showSnackbar("Pengaturan ${habit.name} diperbarui")
     }
 
     fun deleteReminder() {
@@ -272,6 +288,7 @@ class NotificationViewModel @Inject constructor(
             if (habit != null) {
                 if (habit.isCustom) {
                     habitDao.deleteHabit(habit)
+                    showSnackbar("${habit.name} dihapus")
                 }
             } else if (sunnahHabit != null) {
                 if (sunnahHabit.reminderEnabled) {
@@ -279,6 +296,7 @@ class NotificationViewModel @Inject constructor(
                     NotificationScheduler.cancelHabitReminder(context, sunnahHabit.id)
                 }
                 sunnahHabitSharedViewModel.removeHabit(sunnahHabit.id)
+                showSnackbar("${sunnahHabit.name} dihapus")
             }
             hideDeleteConfirmation()
         }

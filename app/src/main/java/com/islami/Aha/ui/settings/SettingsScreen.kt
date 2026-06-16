@@ -42,6 +42,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.islami.Aha.BuildConfig
 import com.islami.Aha.R
+import com.islami.Aha.ui.components.AhaLoadingOverlay
+import com.islami.Aha.ui.components.AhaToastTone
+import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.*
 import com.islami.Aha.util.NotificationScheduler
 
@@ -50,11 +53,11 @@ import com.islami.Aha.util.NotificationScheduler
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
-    onNavigateToLogin: () -> Unit = {}
+    onNavigateToLogin: (String?) -> Unit = {}
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -75,10 +78,7 @@ fun SettingsScreen(
     }
 
     LaunchedEffect(uiState.snackbarMessage) {
-        uiState.snackbarMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearSnackbar()
-        }
+        toastMessage = uiState.snackbarMessage
     }
 
     LaunchedEffect(uiState.launchExportPicker, uiState.exportFileName) {
@@ -97,7 +97,11 @@ fun SettingsScreen(
 
     SettingsScreenContent(
         uiState = uiState,
-        snackbarHostState = snackbarHostState,
+        toastMessage = toastMessage,
+        onToastDismissed = {
+            toastMessage = null
+            viewModel.clearSnackbar()
+        },
         onNavigateBack = onNavigateBack,
         onShowLocationDialog = viewModel::showLocationDialog,
         onHideLocationDialog = viewModel::hideLocationDialog,
@@ -125,7 +129,7 @@ fun SettingsScreen(
         onHideDeleteAccountConfirmation = viewModel::hideDeleteAccountConfirmation,
         onConfirmDeleteAccount = {
             viewModel.confirmDeleteAccount {
-                onNavigateToLogin()
+                onNavigateToLogin(null)
             }
         },
         onImportDataClick = viewModel::onImportDataClick,
@@ -150,15 +154,16 @@ fun SettingsScreen(
                 }
             )
         },
-        onLoginClick = onNavigateToLogin,
+        onLoginClick = { onNavigateToLogin(null) },
         onLogoutClick = {
-            viewModel.logout()
-            onNavigateToLogin()
+            viewModel.logout {
+                onNavigateToLogin(context.getString(R.string.auth_logout_success_snackbar))
+            }
         },
         onHideReAuthDialog = viewModel::hideReAuthDialog,
         onConfirmReAuthDelete = { password ->
             viewModel.confirmReAuthDelete(password) {
-                onNavigateToLogin()
+                onNavigateToLogin(null)
             }
         }
     )
@@ -168,7 +173,8 @@ fun SettingsScreen(
 @Composable
 fun SettingsScreenContent(
     uiState: SettingsUiState,
-    snackbarHostState: SnackbarHostState,
+    toastMessage: String?,
+    onToastDismissed: () -> Unit,
     onNavigateBack: () -> Unit,
     onShowLocationDialog: () -> Unit,
     onHideLocationDialog: () -> Unit,
@@ -210,28 +216,19 @@ fun SettingsScreenContent(
     onHideReAuthDialog: () -> Unit = {},
     onConfirmReAuthDelete: (String) -> Unit = {}
 ) {
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = Gray800,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(12.dp)
-                )
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .navigationBarsPadding(),
-            contentPadding = PaddingValues(top = 0.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
+            containerColor = MaterialTheme.colorScheme.background
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .navigationBarsPadding(),
+                contentPadding = PaddingValues(top = 0.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
             item {
                 SettingsHeader(onNavigateBack = onNavigateBack)
             }
@@ -476,7 +473,24 @@ fun SettingsScreenContent(
             item {
                 Spacer(modifier = Modifier.height(24.dp))
             }
+            }
         }
+
+        AhaToastHost(
+            message = toastMessage,
+            tone = if (
+                toastMessage == stringResource(R.string.auth_logout_success_snackbar)
+            ) AhaToastTone.SUCCESS else AhaToastTone.AUTO,
+            onDismissed = onToastDismissed,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+
+        AhaLoadingOverlay(
+            visible = uiState.isLoggingOut,
+            message = stringResource(R.string.settings_logout_loading)
+        )
     }
 
     // === DIALOGS ===
@@ -1597,7 +1611,8 @@ fun SettingsScreenPreview() {
     HabitIslamiTheme {
         SettingsScreenContent(
             uiState = SettingsUiState(),
-            snackbarHostState = remember { SnackbarHostState() },
+            toastMessage = null,
+            onToastDismissed = {},
             onNavigateBack = {},
             onShowLocationDialog = {},
             onHideLocationDialog = {},

@@ -84,6 +84,7 @@ data class SettingsUiState(
     val showDeleteAccountConfirmation: Boolean = false,
     val isChangingPassword: Boolean = false,
     val isDeletingAccount: Boolean = false,
+    val isLoggingOut: Boolean = false,
     val showReAuthDialog: Boolean = false,
 
     // Snackbar
@@ -407,17 +408,34 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(showDeleteAccountConfirmation = false) }
     }
 
-    fun logout() {
-        verificationCooldownJob?.cancel()
-        authRepository.logout()
-        _uiState.update {
-            it.copy(
-                isLoggedIn = false,
-                userEmail = "",
-                verificationResendCooldownSeconds = 0
-            )
+    fun logout(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoggingOut = true) }
+            delay(450)
+            verificationCooldownJob?.cancel()
+            clearTrackedDataForGuestMode()
+            authRepository.logout()
+            _uiState.update {
+                it.copy(
+                    isLoggedIn = false,
+                    userEmail = "",
+                    verificationResendCooldownSeconds = 0,
+                    isLoggingOut = false
+                )
+            }
+            onSuccess()
         }
-        showSnackbar("Anda telah keluar dari akun")
+    }
+
+    private suspend fun clearTrackedDataForGuestMode() {
+        userHabitDao.getActiveReminderHabits().forEach { habit ->
+            NotificationScheduler.cancelHabitReminder(appContext, habit.id)
+        }
+        runInDbTransaction {
+            userHabitDao.deleteAll()
+            habitCompletionDao.deleteAll()
+            habitDao.resetTrackerState()
+        }
     }
 
     fun confirmDeleteAccount(onSuccess: () -> Unit) {

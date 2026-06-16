@@ -31,6 +31,12 @@ interface HabitCompletionDao {
     @Query("SELECT * FROM habit_completion_records ORDER BY dateKey ASC, id ASC")
     suspend fun getAllRecords(): List<HabitCompletionRecord>
 
+    @Query("SELECT * FROM habit_completion_records WHERE isSynced = 0")
+    suspend fun getUnsyncedRecords(): List<HabitCompletionRecord>
+
+    @Query("UPDATE habit_completion_records SET isSynced = 1 WHERE habitKey = :habitKey AND dateKey = :dateKey")
+    suspend fun markSyncedByKey(habitKey: String, dateKey: String)
+
     @Query("DELETE FROM habit_completion_records")
     suspend fun deleteAll()
 }

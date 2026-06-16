@@ -14,7 +14,8 @@ data class HabitCompletionRecord(
     val habitKey: String,
     val dateKey: String,
     val category: String,
-    val source: String
+    val source: String,
+    val isSynced: Boolean = false
 )
 
 data class DailyCompletionCount(

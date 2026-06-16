@@ -3,7 +3,8 @@ import { spawnSync } from "node:child_process";
 
 const steps = [
   { label: "fardhu_defaults", file: "seed-fardhu-defaults.mjs" },
-  { label: "islamic_content", file: "seed-islamic-content.mjs" }
+  { label: "islamic_content", file: "seed-islamic-content.mjs" },
+  { label: "app_config", file: "seed-app-config.mjs" }
 ];
 
 for (const step of steps) {

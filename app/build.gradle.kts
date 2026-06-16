@@ -1,6 +1,4 @@
 import java.io.File
-import java.security.MessageDigest
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -10,10 +8,7 @@ plugins {
     alias(libs.plugins.google.firebase.crashlytics)
 }
 
-private data class FirebaseConfigMeta(
-    val projectId: String,
-    val mobileSdkAppId: String
-)
+private data class FirebaseConfigMeta(val projectId: String, val mobileSdkAppId: String)
 
 private fun quoteForBuildConfig(value: String): String {
     return "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
@@ -33,79 +28,51 @@ private fun readFirebaseConfigMeta(file: File): FirebaseConfigMeta {
     )
 }
 
-private fun sha256(file: File): String {
-    val digest = MessageDigest.getInstance("SHA-256")
-    val bytes = file.readBytes()
-    return digest.digest(bytes).joinToString("") { "%02x".format(it) }
-}
-
 android {
     namespace = "com.islami.Aha"
     compileSdk = 36
+    val firebaseConfigMeta = readFirebaseConfigMeta(file("google-services.json"))
 
     defaultConfig {
         applicationId = "com.islami.Aha"
         minSdk = 23
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
         val forceDebugAppCheck = providers
             .gradleProperty("FORCE_APPCHECK_DEBUG")
             .orNull
             ?.toBooleanStrictOrNull()
             ?: false
+        buildConfigField("String", "APP_ENV", "\"prod\"")
+        buildConfigField(
+            "String",
+            "FIREBASE_PROJECT_ID",
+            quoteForBuildConfig(firebaseConfigMeta.projectId)
+        )
+        buildConfigField(
+            "String",
+            "FIREBASE_MOBILE_SDK_APP_ID",
+            quoteForBuildConfig(firebaseConfigMeta.mobileSdkAppId)
+        )
         buildConfigField("boolean", "FORCE_APPCHECK_DEBUG", forceDebugAppCheck.toString())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "APP_CHECK_MODE", "\"NONE\"")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             isDebuggable = false
             isJniDebuggable = false
+            buildConfigField("String", "APP_CHECK_MODE", "\"PLAY_INTEGRITY\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
-            )
-        }
-    }
-
-    flavorDimensions += "environment"
-    val devFirebaseConfigMeta = readFirebaseConfigMeta(file("src/dev/google-services.json"))
-    val prodFirebaseConfigMeta = readFirebaseConfigMeta(file("src/prod/google-services.json"))
-    productFlavors {
-        create("dev") {
-            dimension = "environment"
-            versionNameSuffix = "-dev"
-            buildConfigField("String", "APP_ENV", "\"dev\"")
-            // Dev defaults to DEBUG so emulator login works when App Check enforcement is active.
-            buildConfigField("String", "APP_CHECK_MODE", "\"DEBUG\"")
-            buildConfigField(
-                "String",
-                "FIREBASE_PROJECT_ID",
-                quoteForBuildConfig(devFirebaseConfigMeta.projectId)
-            )
-            buildConfigField(
-                "String",
-                "FIREBASE_MOBILE_SDK_APP_ID",
-                quoteForBuildConfig(devFirebaseConfigMeta.mobileSdkAppId)
-            )
-        }
-        create("prod") {
-            dimension = "environment"
-            buildConfigField("String", "APP_ENV", "\"prod\"")
-            buildConfigField("String", "APP_CHECK_MODE", "\"PLAY_INTEGRITY\"")
-            buildConfigField(
-                "String",
-                "FIREBASE_PROJECT_ID",
-                quoteForBuildConfig(prodFirebaseConfigMeta.projectId)
-            )
-            buildConfigField(
-                "String",
-                "FIREBASE_MOBILE_SDK_APP_ID",
-                quoteForBuildConfig(prodFirebaseConfigMeta.mobileSdkAppId)
             )
         }
     }
@@ -162,6 +129,9 @@ dependencies {
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.8.5")
 
+    // WorkManager
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
@@ -202,58 +172,33 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
-tasks.register("validateFirebaseConfigSeparation") {
+tasks.register("validateFirebaseConfigPresence") {
     group = "verification"
-    description = "Validate dev/prod google-services.json presence. Identical files are allowed unless STRICT_FIREBASE_CONFIG=true."
+    description = "Validate the single Firebase configuration file required by this app."
 
     doLast {
-        val strictByProperty = providers
-            .gradleProperty("STRICT_FIREBASE_CONFIG")
-            .orNull
-            ?.toBooleanStrictOrNull()
-            ?: false
-        val strictValidation = strictByProperty
-
-        fun enforceOrWarn(message: String) {
-            if (strictValidation) {
-                throw GradleException(message)
-            } else {
-                logger.warn("Firebase config validation (non-strict): $message")
-            }
+        val firebaseFile = file("google-services.json")
+        if (!firebaseFile.exists()) {
+            throw GradleException("Missing Firebase config: app/google-services.json")
         }
-
-        val devFile = file("src/dev/google-services.json")
-        val prodFile = file("src/prod/google-services.json")
-
-        if (!devFile.exists()) {
-            enforceOrWarn("Missing Firebase config: app/src/dev/google-services.json")
-            return@doLast
-        }
-        if (!prodFile.exists()) {
-            enforceOrWarn("Missing Firebase config: app/src/prod/google-services.json")
-            return@doLast
-        }
-
-        val devHash = sha256(devFile)
-        val prodHash = sha256(prodFile)
-        if (devHash == prodHash) {
-            enforceOrWarn(
-                "Firebase config dev/prod are identical. " +
-                    "Use separate files for app/src/dev/google-services.json and app/src/prod/google-services.json."
-            )
-        }
-
-        val devMeta = readFirebaseConfigMeta(devFile)
-        val prodMeta = readFirebaseConfigMeta(prodFile)
-        if (devMeta.projectId.isNotBlank() && devMeta.projectId == prodMeta.projectId) {
-            logger.warn(
-                "Dev and prod Firebase project_id are the same (${devMeta.projectId}). " +
-                    "This is allowed but not recommended for strict environment isolation."
+        val meta = readFirebaseConfigMeta(firebaseFile)
+        if (meta.projectId.isBlank() || meta.mobileSdkAppId.isBlank()) {
+            throw GradleException(
+                "Invalid Firebase config: app/google-services.json must contain project_id and mobilesdk_app_id."
             )
         }
     }
 }
 
+tasks.register<Copy>("syncLegalDocsToAssets") {
+    group = "build setup"
+    description = "Sync legal HTML files from docs/ into app assets."
+    from(rootProject.file("docs"))
+    include("privacy-policy.html", "terms-of-service.html")
+    into(layout.projectDirectory.dir("src/main/assets"))
+}
+
 tasks.named("preBuild").configure {
-    dependsOn("validateFirebaseConfigSeparation")
+    dependsOn("validateFirebaseConfigPresence")
+    dependsOn("syncLegalDocsToAssets")
 }

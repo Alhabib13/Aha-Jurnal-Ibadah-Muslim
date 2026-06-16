@@ -11,6 +11,7 @@
     <string name="back">Kembali</string>
     <string name="add_sunnah_worship">Tambah Ibadah Sunnah</string>
     <string name="add_habit_screen_description">Pilih ibadah sunnah yang ingin kamu jadikan kebiasaan harian.</string>
+    <string name="add_habit_saved_snackbar_default">Ibadah sunnah berhasil disimpan</string>
     <string name="other_options_heading">Pilihan Lainnya</string>
     <string name="write_custom_label">Tulis sendiri</string>
     <string name="custom_sholat_label">Nama sholat sunnah</string>
@@ -62,6 +63,11 @@
     <string name="auth_google_login_failed_retry">Gagal login Google. Coba lagi</string>
     <string name="auth_info_reset_password_sent">Email reset password telah dikirim</string>
     <string name="auth_error_reset_password_failed">Gagal mengirim email reset password</string>
+    <string name="auth_login_success_snackbar">Berhasil masuk ke akun</string>
+    <string name="auth_register_success_snackbar">Akun berhasil dibuat</string>
+    <string name="auth_logout_success_snackbar">Anda telah keluar dari akun</string>
+    <string name="auth_login_loading">Sedang masuk ke akun...</string>
+    <string name="auth_register_loading">Sedang membuat akun...</string>
     <string name="auth_validation_name_empty">Nama tidak boleh kosong</string>
     <string name="auth_validation_name_min">Nama minimal 3 karakter</string>
     <string name="auth_validation_email_empty">Email tidak boleh kosong</string>
@@ -152,6 +158,11 @@
     <string name="settings_forgot_password_send_email">Lupa Password? Kirim ke Email</string>
     <string name="settings_account_email_format">Email akun: %1$s</string>
     <string name="settings_saving">Menyimpan...</string>
+    <string name="settings_logout_loading">Sedang keluar dari akun...</string>
+    <string name="home_loading_message">Menyiapkan halaman utama...</string>
+    <string name="add_habit_loading_message">Sedang menyimpan ibadah...</string>
+    <string name="notification_loading_message">Menyiapkan pengingat...</string>
+    <string name="profile_loading_message">Sedang memperbarui profil...</string>
     <string name="settings_reset_dialog_desc">Apakah Anda yakin ingin menghapus semua data kebiasaan? Tindakan ini tidak dapat dibatalkan.</string>
     <string name="settings_reset_action">Reset</string>
     <string name="settings_delete_account_dialog_title">Hapus Akun</string>
@@ -223,15 +234,6 @@
     <string name="nav_add_cd">Tambah</string>
     <string name="profile_photo_cd">Foto Profil</string>
     <string name="profile_edit_photo_cd">Ubah Foto Profil</string>
-    <string name="admin_panel_title">Panel Admin</string>
-    <string name="admin_feature_global_control">Kontrol Fitur Global</string>
-    <string name="admin_feature_access_admin">Akses: Admin</string>
-    <string name="admin_feature_access_user">Akses: User biasa</string>
-    <string name="admin_feature_puasa_wajib_desc">Aktifkan/nonaktifkan habit Puasa Wajib Ramadan untuk semua pengguna.</string>
-    <string name="admin_feature_puasa_wajib_title">Puasa Wajib Ramadan</string>
-    <string name="admin_feature_ramadan_schedule_title">Jadwal Puasa Wilayah</string>
-    <string name="admin_feature_sholat_tarawih_title">Sholat Tarawih</string>
-    <string name="admin_feature_fardhu_schedule_title">Jadwal Sholat API Wilayah</string>
     <string name="notification_frequency_daily">Setiap hari</string>
     <plurals name="notification_rakaat_format">
         <item quantity="one">%1$d rakaat</item>
@@ -314,4 +316,5 @@
     <string name="statistic_coming_soon_desc">akan tersedia segera!</string>
     <string name="privacy_policy_url">https://aha-islamic-tracker.github.io/Habit-Tracker-Islami/privacy-policy.html</string>
     <string name="terms_of_service_url">https://aha-islamic-tracker.github.io/Habit-Tracker-Islami/terms-of-service.html</string>
+
 </resources>

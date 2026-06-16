@@ -6,12 +6,21 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.islami.Aha.worker.SyncCompletionsWorker
 import com.islami.Aha.data.local.AppDatabase
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.local.UserHabitDao
 import com.islami.Aha.data.model.HabitCompletionRecord
 import com.islami.Aha.data.model.Habit
-import com.islami.Aha.data.repository.AdminConfigRepository
+import com.islami.Aha.data.repository.AuthRepository
+import com.islami.Aha.data.repository.FeatureConfigRepository
+import com.islami.Aha.data.repository.CompletionSyncRepository
 import com.islami.Aha.data.repository.DailyIslamicContentRepository
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
@@ -20,6 +29,7 @@ import com.islami.Aha.util.LocationHelper
 import com.islami.Aha.util.DateUtils
 import com.islami.Aha.util.NotificationScheduler
 import com.islami.Aha.util.PrayerTimeApiService
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -76,6 +86,7 @@ data class HomeUiState(
     val motivationalQuote: String = "Memuat hadis...",
     val quoteSource: String = "",
     val sunnahHabits: List<SunnahHabit> = emptyList(),
+    val snackbarMessage: String? = null,
     val showSyncNotice: Boolean = false,
     val syncNoticeMessage: String = "",
     val isRamadanMonth: Boolean = DateUtils.isRamadanMonth()
@@ -225,10 +236,13 @@ class HomeViewModel @Inject constructor(
     private val appDatabase: AppDatabase,
     private val habitCompletionDao: HabitCompletionDao,
     private val habitDao: HabitDao,
+    private val userHabitDao: UserHabitDao,
     private val sharedPreferences: SharedPreferences,
+    private val firebaseAuth: FirebaseAuth,
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
-    private val adminConfigRepository: AdminConfigRepository,
-    private val dailyIslamicContentRepository: DailyIslamicContentRepository
+    private val featureConfigRepository: FeatureConfigRepository,
+    private val dailyIslamicContentRepository: DailyIslamicContentRepository,
+    private val completionSyncRepository: CompletionSyncRepository
 ) : ViewModel() {
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
@@ -259,13 +273,27 @@ class HomeViewModel @Inject constructor(
         }
 
     init {
+        featureConfigRepository.refresh()
         refreshAuthState()
         restorePrayerTimeSyncState()
         sharedPreferences.registerOnSharedPreferenceChangeListener(authPrefsListener)
         resetDefaultHabitsIfNewDay()
         seedDataIfNeeded()
         ensureRamadanFeatureHabits()
-        sunnahHabitSharedViewModel.syncFromCloudIfLoggedIn()
+        launchSafely("syncCloudDataOnStartup") {
+            handleAccountBoundaryBeforeSync()
+            val syncStatuses = listOf(
+                sunnahHabitSharedViewModel.syncFromCloudIfLoggedInAwait(),
+                completionSyncRepository.restoreFromCloud(),
+                completionSyncRepository.syncPendingRecords()
+            )
+            val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
+            if (firstIssue.isNullOrBlank()) {
+                clearSyncNotice()
+            } else {
+                showSyncNotice(firstIssue)
+            }
+        }
         loadHabits()
         startPeriodicHomeUpdates()
         loadDailyIslamicContent()
@@ -279,7 +307,7 @@ class HomeViewModel @Inject constructor(
         }
 
         launchSafely("observeFeatureConfig") {
-            adminConfigRepository.featureConfig.collect { config ->
+            featureConfigRepository.featureConfig.collect { config ->
                 val previousState = _uiState.value
                 ensureRamadanFeatureHabits(config)
                 _uiState.update { current ->
@@ -428,6 +456,39 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private suspend fun handleAccountBoundaryBeforeSync() {
+        val currentUid = firebaseAuth.currentUser?.uid
+        val lastActiveUid = sharedPreferences.getString(AuthRepository.KEY_LAST_ACTIVE_USER_UID, null)
+
+        when {
+            currentUid.isNullOrBlank() -> {
+                sharedPreferences.edit().remove(AuthRepository.KEY_LAST_ACTIVE_USER_UID).apply()
+            }
+            !lastActiveUid.isNullOrBlank() && lastActiveUid != currentUid -> {
+                clearUserScopedLocalTrackerData()
+                sharedPreferences.edit()
+                    .putString(AuthRepository.KEY_LAST_ACTIVE_USER_UID, currentUid)
+                    .apply()
+            }
+            else -> {
+                sharedPreferences.edit()
+                    .putString(AuthRepository.KEY_LAST_ACTIVE_USER_UID, currentUid)
+                    .apply()
+            }
+        }
+    }
+
+    private suspend fun clearUserScopedLocalTrackerData() {
+        userHabitDao.getActiveReminderHabits().forEach { habit ->
+            NotificationScheduler.cancelHabitReminder(context, habit.id)
+        }
+        appDatabase.withTransaction {
+            userHabitDao.deleteAll()
+            habitCompletionDao.deleteAll()
+            habitDao.resetTrackerState()
+        }
+    }
+
     private suspend fun ensureFardhuTimesFallback() {
         val fallbackHabits = fallbackFardhuHabits()
         val existingByName = habitDao.getFardhuHabits().associateBy { it.name }
@@ -466,7 +527,7 @@ class HomeViewModel @Inject constructor(
 
     private fun ensureRamadanFeatureHabits(config: com.islami.Aha.data.repository.AppFeatureConfig? = null) {
         launchSafely("ensureRamadanFeatureHabits") {
-            val activeConfig = config ?: adminConfigRepository.featureConfig.value
+            val activeConfig = config ?: featureConfigRepository.featureConfig.value
             if (activeConfig.puasaWajibRamadanEnabled) {
                 ensureHabitExists(
                     name = "Puasa Ramadan",
@@ -687,22 +748,55 @@ class HomeViewModel @Inject constructor(
             val updatedHabit = habit.copy(isCompleted = willComplete)
             val todayKey = DateUtils.getTodayKey()
             val habitKey = "default_${habit.id}"
+            val record = HabitCompletionRecord(
+                habitKey = habitKey,
+                dateKey = todayKey,
+                category = habit.category,
+                source = "DEFAULT"
+            )
             appDatabase.withTransaction {
                 habitDao.updateHabit(updatedHabit)
                 if (willComplete) {
-                    habitCompletionDao.insert(
-                        HabitCompletionRecord(
-                            habitKey = habitKey,
-                            dateKey = todayKey,
-                            category = habit.category,
-                            source = "DEFAULT"
-                        )
-                    )
+                    habitCompletionDao.insert(record)
                 } else {
                     habitCompletionDao.deleteByHabitAndDate(habitKey, todayKey)
                 }
             }
+            // Sync ke Firestore (fire-and-forget, gagal → tetap tersimpan lokal)
+            val syncStatus = if (willComplete) {
+                completionSyncRepository.syncAdd(record)
+            } else {
+                completionSyncRepository.syncDelete(habitKey, todayKey)
+            }
+            if (syncStatus.hasIssue) {
+                showSyncNotice(syncStatus.userMessage ?: DEFAULT_OFFLINE_NOTICE)
+            }
+            showSnackbar(
+                if (willComplete) {
+                    "${habit.name} ditandai selesai"
+                } else {
+                    "${habit.name} dibatalkan dari selesai"
+                }
+            )
+            // Jadwalkan offline queue: jika sync gagal (offline), worker akan
+            // mengupload ulang saat koneksi tersedia — bahkan setelah app restart.
+            scheduleSyncCompletionsWork()
         }
+    }
+
+    private fun scheduleSyncCompletionsWork() {
+        val request = OneTimeWorkRequestBuilder<SyncCompletionsWorker>()
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "sync_habit_completions",
+            ExistingWorkPolicy.KEEP,
+            request
+        )
     }
 
     fun toggleReminderEnabled(habit: Habit) {
@@ -742,7 +836,16 @@ class HomeViewModel @Inject constructor(
     }
 
     fun toggleSunnahHabitCompletion(id: String) {
+        val habit = sunnahHabitSharedViewModel.getHabitById(id) ?: return
+        val willComplete = !habit.isCompletedToday
         sunnahHabitSharedViewModel.toggleHabitComplete(id)
+        showSnackbar(
+            if (willComplete) {
+                "${habit.name} ditandai selesai"
+            } else {
+                "${habit.name} dibatalkan dari selesai"
+            }
+        )
     }
 
     fun toggleSunnahReminder(id: String) {
@@ -769,6 +872,13 @@ class HomeViewModel @Inject constructor(
         } else {
             NotificationScheduler.cancelHabitReminder(context, id)
         }
+        showSnackbar(
+            if (willEnable) {
+                "Pengingat ${habit.name} diaktifkan"
+            } else {
+                "Pengingat ${habit.name} dimatikan"
+            }
+        )
     }
 
     fun removeSunnahHabit(id: String) {
@@ -777,6 +887,7 @@ class HomeViewModel @Inject constructor(
             NotificationScheduler.cancelHabitReminder(context, id)
         }
         sunnahHabitSharedViewModel.removeHabit(id)
+        habit?.name?.let { showSnackbar("$it dihapus") }
     }
 
     fun refreshData() {
@@ -964,6 +1075,17 @@ class HomeViewModel @Inject constructor(
                 syncNoticeMessage = message
             )
         }
+    }
+
+    fun clearSnackbar() {
+        _uiState.update { current ->
+            if (current.snackbarMessage == null) return@update current
+            current.copy(snackbarMessage = null)
+        }
+    }
+
+    private fun showSnackbar(message: String) {
+        _uiState.update { it.copy(snackbarMessage = message) }
     }
 
     private fun showNotificationCapabilityNotice(

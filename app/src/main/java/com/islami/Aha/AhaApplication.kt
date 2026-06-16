@@ -4,6 +4,7 @@ import android.app.Application
 import android.os.Build
 import android.util.Log
 import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.repository.CompletionSyncRepository
 import com.islami.Aha.data.repository.UserHabitRepository
 import com.islami.Aha.ui.theme.ThemeManager
 import com.islami.Aha.util.NotificationScheduler
@@ -40,6 +41,7 @@ class AhaApplication : Application() {
     interface AppEntryPoint {
         fun userHabitRepository(): UserHabitRepository
         fun habitDao(): HabitDao
+        fun completionSyncRepository(): CompletionSyncRepository
     }
 
     override fun onCreate() {
@@ -50,7 +52,7 @@ class AhaApplication : Application() {
             "App start env=${BuildConfig.APP_ENV}, debug=${BuildConfig.DEBUG}, appCheckMode=$appCheckMode, firebaseProject=${BuildConfig.FIREBASE_PROJECT_ID}, firebaseAppId=${BuildConfig.FIREBASE_MOBILE_SDK_APP_ID}"
         )
         if (BuildConfig.FIREBASE_PROJECT_ID.isBlank() || BuildConfig.FIREBASE_MOBILE_SDK_APP_ID.isBlank()) {
-            Log.e(TAG, "Firebase flavor config is blank. Check google-services.json for active flavor.")
+            Log.e(TAG, "Firebase config is blank. Check app/google-services.json.")
         }
         initializeFirebaseAppCheck(appCheckMode)
         val enableCrashlytics = BuildConfig.APP_ENV == "prod" && !BuildConfig.DEBUG

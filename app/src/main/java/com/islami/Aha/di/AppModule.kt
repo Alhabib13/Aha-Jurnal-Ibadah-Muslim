@@ -9,6 +9,7 @@ import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
 import com.islami.Aha.data.local.UserHabitDao
 import com.islami.Aha.data.repository.AuthRepository
+import com.islami.Aha.data.repository.CompletionSyncRepository
 import com.islami.Aha.data.repository.DailyIslamicContentRepository
 import com.islami.Aha.data.repository.UserHabitRepository
 import com.islami.Aha.util.SecurePrefsProvider
@@ -38,7 +39,8 @@ object AppModule {
             AppDatabase.MIGRATION_7_8,
             AppDatabase.MIGRATION_8_9,
             AppDatabase.MIGRATION_9_10,
-            AppDatabase.MIGRATION_10_11
+            AppDatabase.MIGRATION_10_11,
+            AppDatabase.MIGRATION_11_12
         )
         .build()
     }
@@ -78,9 +80,10 @@ object AppModule {
     fun provideUserHabitRepository(
         appDatabase: AppDatabase,
         userHabitDao: UserHabitDao,
-        habitCompletionDao: HabitCompletionDao
+        habitCompletionDao: HabitCompletionDao,
+        completionSyncRepository: CompletionSyncRepository
     ): UserHabitRepository {
-        return UserHabitRepository(appDatabase, userHabitDao, habitCompletionDao)
+        return UserHabitRepository(appDatabase, userHabitDao, habitCompletionDao, completionSyncRepository)
     }
 
     @Provides

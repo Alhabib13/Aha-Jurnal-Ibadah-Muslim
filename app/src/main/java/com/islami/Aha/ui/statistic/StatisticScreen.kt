@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -448,6 +449,23 @@ fun HeatmapCell(day: DailyStatistic) {
 
 @Composable
 fun StreakCards(currentStreak: Int, longestStreak: Int) {
+    val isDarkTheme = isSystemInDarkTheme()
+    val streakContainerColor = if (isDarkTheme) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        GoldLight
+    }
+    val streakSupportColor = if (isDarkTheme) {
+        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.82f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val streakValueColor = if (isDarkTheme) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -457,7 +475,7 @@ fun StreakCards(currentStreak: Int, longestStreak: Int) {
         Card(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = GoldLight)
+            colors = CardDefaults.cardColors(containerColor = streakContainerColor)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -467,26 +485,26 @@ fun StreakCards(currentStreak: Int, longestStreak: Int) {
                     Icon(
                         imageVector = Icons.Filled.LocalFireDepartment,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = streakSupportColor,
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = stringResource(R.string.statistic_streak_label),
                         fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = streakSupportColor
                     )
                 }
                 Text(
                     text = stringResource(R.string.statistic_streak_current),
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = streakSupportColor
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = pluralStringResource(R.plurals.statistic_streak_days_format, currentStreak, currentStreak),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = streakValueColor
                 )
             }
         }

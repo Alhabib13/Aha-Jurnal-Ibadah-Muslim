@@ -2,6 +2,7 @@
   "scripts": {
     "seed:fardhu": "node seed-fardhu-defaults.mjs",
     "seed:islamic-content": "node seed-islamic-content.mjs",
+    "seed:app-config": "node seed-app-config.mjs",
     "seed:all": "node seed-all-firestore.mjs"
   },
   "dependencies": {

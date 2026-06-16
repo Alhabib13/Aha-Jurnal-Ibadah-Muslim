@@ -29,7 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
@@ -44,9 +43,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -75,6 +71,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.islami.Aha.R
+import com.islami.Aha.ui.components.AhaLoadingOverlay
+import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.Emerald
 import com.islami.Aha.ui.theme.EmeraldDark
 import com.islami.Aha.ui.theme.HabitIslamiTheme
@@ -83,13 +81,11 @@ import com.islami.Aha.ui.theme.HabitIslamiTheme
 fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
     onNavigateToSettings: () -> Unit,
-    onNavigateToAdmin: () -> Unit,
-    onNavigateToLogin: () -> Unit,
-    onLogout: () -> Unit
+    onNavigateToLogin: () -> Unit
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     var showEditProfileModal by remember { mutableStateOf(false) }
     var pendingAvatarUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -108,16 +104,18 @@ fun ProfileScreen(
 
     LaunchedEffect(uiState.snackbarMessage) {
         uiState.snackbarMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearSnackbar()
+            toastMessage = message
         }
     }
 
     ProfileScreenContent(
         uiState = uiState,
-        snackbarHostState = snackbarHostState,
+        toastMessage = toastMessage,
+        onToastDismissed = {
+            toastMessage = null
+            viewModel.clearSnackbar()
+        },
         onNavigateToSettings = onNavigateToSettings,
-        onNavigateToAdmin = onNavigateToAdmin,
         onNavigateToLogin = onNavigateToLogin,
         onEditProfileClick = { showEditProfileModal = true }
     )
@@ -338,96 +336,82 @@ private fun EditProfileDialog(
 @Composable
 fun ProfileScreenContent(
     uiState: ProfileUiState,
-    snackbarHostState: SnackbarHostState,
+    toastMessage: String?,
+    onToastDismissed: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToAdmin: () -> Unit,
     onNavigateToLogin: () -> Unit,
     onEditProfileClick: () -> Unit = {}
 ) {
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState) { data ->
-                Snackbar(snackbarData = data)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { _: PaddingValues ->
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Emerald)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
-            ) {
-                item {
-                    ProfileHeader(
-                        userInfo = uiState.userInfo,
-                        totalHabits = uiState.totalHabits,
-                        totalCompleted = uiState.totalCompleted,
-                        currentStreak = uiState.currentStreak,
-                        isSavingAvatar = uiState.isSavingAvatar,
-                        onSettingsClick = onNavigateToSettings,
-                        onLoginClick = onNavigateToLogin,
-                        onEditProfileClick = onEditProfileClick
-                    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background
+        ) { _: PaddingValues ->
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Emerald)
                 }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
+                ) {
+                    item {
+                        ProfileHeader(
+                            userInfo = uiState.userInfo,
+                            totalHabits = uiState.totalHabits,
+                            totalCompleted = uiState.totalCompleted,
+                            currentStreak = uiState.currentStreak,
+                            isSavingAvatar = uiState.isSavingAvatar,
+                            onSettingsClick = onNavigateToSettings,
+                            onLoginClick = onNavigateToLogin,
+                            onEditProfileClick = onEditProfileClick
+                        )
+                    }
 
-                item { Spacer(modifier = Modifier.height(20.dp)) }
+                    item { Spacer(modifier = Modifier.height(20.dp)) }
 
-                item {
-                    Text(
-                        text = stringResource(R.string.profile_achievement_title),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
+                    item {
+                        Text(
+                            text = stringResource(R.string.profile_achievement_title),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
 
-                item {
-                    AchievementsGrid(achievements = uiState.achievements)
-                }
+                    item {
+                        AchievementsGrid(achievements = uiState.achievements)
+                    }
 
-                item { Spacer(modifier = Modifier.height(24.dp)) }
+                    item { Spacer(modifier = Modifier.height(24.dp)) }
 
-                item {
-                    ActivityOverviewCard(
-                        sholatCount = uiState.sholatCount,
-                        puasaCount = uiState.puasaCount,
-                        reminderCount = uiState.reminderCount
-                    )
-                }
-
-                if (uiState.userInfo.isLoggedIn) {
-                    if (uiState.isAdmin) {
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            OutlinedButton(
-                                onClick = onNavigateToAdmin,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp)
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.AdminPanelSettings,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(stringResource(R.string.admin_panel_title), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
+                    item {
+                        ActivityOverviewCard(
+                            sholatCount = uiState.sholatCount,
+                            puasaCount = uiState.puasaCount,
+                            reminderCount = uiState.reminderCount
+                        )
                     }
                 }
             }
         }
+
+        AhaToastHost(
+            message = toastMessage,
+            onDismissed = onToastDismissed,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+
+        AhaLoadingOverlay(
+            visible = uiState.isSavingAvatar || uiState.isSavingUsername,
+            message = stringResource(R.string.profile_loading_message)
+        )
     }
 }
 
@@ -837,9 +821,9 @@ fun ProfileScreenPreview() {
                     bestCategory = "Sholat Fardhu"
                 )
             ),
-            snackbarHostState = remember { SnackbarHostState() },
+            toastMessage = null,
+            onToastDismissed = {},
             onNavigateToSettings = {},
-            onNavigateToAdmin = {},
             onNavigateToLogin = {},
             onEditProfileClick = {}
         )

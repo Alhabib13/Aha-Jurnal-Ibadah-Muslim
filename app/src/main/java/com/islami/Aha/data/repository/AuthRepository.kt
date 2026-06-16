@@ -18,7 +18,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 sealed class AuthResult {
-    data class Success(val user: FirebaseUser) : AuthResult()
+    data class Success(val user: FirebaseUser, val isProfileIncomplete: Boolean = false) : AuthResult()
     data class Error(val message: String) : AuthResult()
 }
 
@@ -35,8 +35,10 @@ class AuthRepository @Inject constructor(
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_USER_EMAIL = "user_email"
         private const val KEY_USER_AVATAR_URI = "user_avatar_uri"
+        const val KEY_LAST_ACTIVE_USER_UID = "last_active_user_uid"
         const val KEY_LAST_USERNAME_CHANGED = "last_username_changed_at"
         private const val RECENT_LOGIN_MAX_AGE_MS = 10 * 60 * 1000L
+        const val MAX_AVATAR_BASE64_LENGTH = 900_000
     }
 
     private data class CloudSunnahBackup(
@@ -46,6 +48,7 @@ class AuthRepository @Inject constructor(
 
     private data class CloudDeleteBackup(
         val sunnahHabits: List<CloudSunnahBackup>,
+        val completionRecords: List<CloudSunnahBackup>,
         val profileData: Map<String, Any>?
     )
 
@@ -102,7 +105,7 @@ class AuthRepository @Inject constructor(
                 )
                 syncProfileFromCloud(user.uid)
             }.onFailure { FirebaseCrashlytics.getInstance().recordException(it) }
-            AuthResult.Success(user)
+            AuthResult.Success(user, isProfileIncomplete = false)
         } catch (e: Exception) {
             AuthResult.Error(mapFirebaseError(e))
         }
@@ -212,6 +215,8 @@ class AuthRepository @Inject constructor(
         return runCatching {
             firebaseAuth.sendPasswordResetEmail(email).await()
             Unit
+        }.recoverCatching { error ->
+            throw IllegalStateException(mapFirebaseError(error as? Exception ?: Exception(error)))
         }.onFailure { error ->
             FirebaseCrashlytics.getInstance().recordException(error)
         }
@@ -342,6 +347,7 @@ class AuthRepository @Inject constructor(
     private suspend fun deleteCloudDataWithBackup(uid: String): CloudDeleteBackup {
         val db = firestore ?: return CloudDeleteBackup(
             sunnahHabits = emptyList(),
+            completionRecords = emptyList(),
             profileData = null
         )
 
@@ -352,6 +358,21 @@ class AuthRepository @Inject constructor(
             .await()
         val sunnahDocs = sunnahSnapshot.documents
         val sunnahBackup = sunnahDocs.map { doc ->
+            CloudSunnahBackup(
+                id = doc.id,
+                data = doc.data.orEmpty().mapNotNull { (key, value) ->
+                    if (value == null) null else key to value
+                }.toMap()
+            )
+        }
+
+        val completionSnapshot = db.collection("users")
+            .document(uid)
+            .collection("habit_completions")
+            .get()
+            .await()
+        val completionDocs = completionSnapshot.documents
+        val completionBackup = completionDocs.map { doc ->
             CloudSunnahBackup(
                 id = doc.id,
                 data = doc.data.orEmpty().mapNotNull { (key, value) ->
@@ -376,6 +397,12 @@ class AuthRepository @Inject constructor(
             batch.commit().await()
         }
 
+        completionDocs.chunked(500).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+        }
+
         db.collection("users")
             .document(uid)
             .collection("meta")
@@ -385,6 +412,7 @@ class AuthRepository @Inject constructor(
 
         return CloudDeleteBackup(
             sunnahHabits = sunnahBackup,
+            completionRecords = completionBackup,
             profileData = profileBackup
         )
     }
@@ -399,6 +427,20 @@ class AuthRepository @Inject constructor(
                     db.collection("users")
                         .document(uid)
                         .collection("sunnah_habits")
+                        .document(item.id),
+                    item.data
+                )
+            }
+            batch.commit().await()
+        }
+
+        backup.completionRecords.chunked(500).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { item ->
+                batch.set(
+                    db.collection("users")
+                        .document(uid)
+                        .collection("habit_completions")
                         .document(item.id),
                     item.data
                 )
@@ -423,6 +465,7 @@ class AuthRepository @Inject constructor(
             .remove(KEY_USER_NAME)
             .remove(KEY_USER_EMAIL)
             .remove(KEY_USER_AVATAR_URI)
+            .remove(KEY_LAST_ACTIVE_USER_UID)
             .remove(KEY_LAST_USERNAME_CHANGED)
             .apply()
     }
@@ -434,6 +477,7 @@ class AuthRepository @Inject constructor(
             .remove(KEY_USER_NAME)
             .remove(KEY_USER_EMAIL)
             .remove(KEY_USER_AVATAR_URI)
+            .remove(KEY_LAST_ACTIVE_USER_UID)
             .remove(KEY_LAST_USERNAME_CHANGED)
             .apply()
     }
@@ -442,6 +486,7 @@ class AuthRepository @Inject constructor(
         val name = displayName ?: user.displayName ?: user.email?.substringBefore("@") ?: "Pengguna"
         val editor = sharedPreferences.edit()
             .putBoolean(KEY_IS_LOGGED_IN, true)
+            .putString(KEY_LAST_ACTIVE_USER_UID, user.uid)
             .putString(KEY_USER_NAME, name)
             .putString(KEY_USER_EMAIL, user.email ?: "")
         val photoUrl = user.photoUrl?.toString()

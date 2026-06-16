@@ -36,29 +36,36 @@ import com.islami.Aha.R
 import com.islami.Aha.data.model.Habit
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
+import com.islami.Aha.ui.components.AhaLoadingOverlay
+import com.islami.Aha.ui.components.AhaToastTone
+import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.*
 import com.islami.Aha.util.rememberNotificationPermissionState
-import kotlinx.coroutines.launch
 
 @Composable
 fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val notificationPermission = rememberNotificationPermissionState()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     val permissionMessage = stringResource(R.string.notification_permission_required_message)
 
     val requireNotificationPermissionBeforeEnable: () -> Unit = {
         notificationPermission.requestPermission()
-        coroutineScope.launch {
-            snackbarHostState.showSnackbar(message = permissionMessage)
-        }
+        toastMessage = permissionMessage
     }
 
     LaunchedEffect(uiState.snackbarMessage) {
         val message = uiState.snackbarMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message = message)
-        viewModel.clearSnackbar()
+        toastMessage = message
+    }
+
+    val toastTone = if (
+        toastMessage == permissionMessage ||
+            toastMessage == uiState.snackbarMessage && !uiState.snackbarMessage.isNullOrBlank()
+    ) {
+        AhaToastTone.AUTO
+    } else {
+        AhaToastTone.INFO
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -99,11 +106,23 @@ fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
             onSaveEditSunnah = viewModel::updateSunnahHabit
         )
 
-        SnackbarHost(
-            hostState = snackbarHostState,
+        AhaToastHost(
+            message = toastMessage,
+            tone = toastTone,
+            onDismissed = {
+                if (toastMessage == uiState.snackbarMessage) {
+                    viewModel.clearSnackbar()
+                }
+                toastMessage = null
+            },
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.TopCenter)
                 .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+
+        AhaLoadingOverlay(
+            visible = uiState.isLoading,
+            message = stringResource(R.string.notification_loading_message)
         )
     }
 }
@@ -135,9 +154,7 @@ fun NotificationScreenContent(
     val isEmpty = uiState.habits.isEmpty() && uiState.sunnahHabits.isEmpty()
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        if (uiState.isLoading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Emerald)
-        } else {
+        if (!uiState.isLoading) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 0.dp, bottom = 24.dp),
@@ -880,6 +897,93 @@ fun EmptyNotificationState(modifier: Modifier = Modifier) {
 }
 
 // ── Preview ──
+
+private fun notificationPreviewState(
+    isLoading: Boolean = false,
+    globalEnabled: Boolean = true
+): NotificationUiState {
+    return NotificationUiState(
+        isLoading = isLoading,
+        globalNotificationEnabled = globalEnabled,
+        habits = if (isLoading) {
+            emptyList()
+        } else {
+            listOf(
+                Habit(1, "Sholat Subuh", "Sholat Fardhu", "sunrise", "", false, time = "04:30"),
+                Habit(2, "Sholat Dzuhur", "Sholat Fardhu", "sun", "", false, time = "12:00"),
+                Habit(3, "Sholat Ashar", "Sholat Fardhu", "cloud", "", false, time = "15:15"),
+                Habit(4, "Sholat Maghrib", "Sholat Fardhu", "moon", "", false, time = "18:00"),
+                Habit(5, "Sholat Isya", "Sholat Fardhu", "moon", "", false, time = "19:15"),
+                Habit(6, "Sholat Dhuha", "Sholat Sunnah", "sun", "", false, time = "06:00"),
+                Habit(7, "Puasa Ramadan", "Puasa Wajib", "plate", "", false, time = ""),
+                Habit(8, "Puasa Senin", "Puasa Sunnah", "moon", "", false, time = "")
+            )
+        },
+        sunnahHabits = if (isLoading) {
+            emptyList()
+        } else {
+            listOf(
+                SunnahHabit(
+                    name = "Taubat",
+                    category = SunnahCategoryType.SHOLAT,
+                    frequencyLabel = "Setiap hari",
+                    reminderEnabled = true,
+                    reminderTime = "05:00"
+                ),
+                SunnahHabit(
+                    name = "Puasa Nazar",
+                    category = SunnahCategoryType.PUASA,
+                    frequencyLabel = "Hari: Sen",
+                    reminderEnabled = false
+                )
+            )
+        }
+    )
+}
+
+@Composable
+private fun NotificationScreenPreviewContent(
+    uiState: NotificationUiState,
+    notificationPermissionGranted: Boolean = true
+) {
+    HabitIslamiTheme {
+        NotificationScreenContent(
+            uiState = uiState,
+            notificationPermissionGranted = notificationPermissionGranted,
+            onToggleGlobalNotification = {},
+            onToggleReminder = {},
+            onDeleteClick = {},
+            onConfirmDelete = {},
+            onDismissDelete = {},
+            onToggleSunnahReminder = {},
+            onDeleteSunnahClick = {},
+            onEditSunnahClick = {},
+            onDismissEditSunnah = {},
+            onSaveEditSunnah = { _, _, _, _ -> }
+        )
+    }
+}
+
+@Preview(name = "Notification Split Safe", showBackground = true)
+@Composable
+fun NotificationScreenSplitSafePreview() {
+    NotificationScreenPreviewContent(uiState = notificationPreviewState())
+}
+
+@Preview(name = "Notification Loading Safe", showBackground = true)
+@Composable
+fun NotificationScreenLoadingSafePreview() {
+    NotificationScreenPreviewContent(uiState = notificationPreviewState(isLoading = true))
+}
+
+@Preview(name = "Notification Permission Safe", showBackground = true)
+@Composable
+fun NotificationScreenPermissionSafePreview() {
+    NotificationScreenPreviewContent(
+        uiState = notificationPreviewState(globalEnabled = false),
+        notificationPermissionGranted = false
+    )
+}
 
 @Preview(showBackground = true)
 @Composable

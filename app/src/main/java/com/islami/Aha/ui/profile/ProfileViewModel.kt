@@ -15,12 +15,12 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
-import com.islami.Aha.data.repository.AdminConfigRepository
 import com.islami.Aha.data.repository.AuthRepository
+import com.islami.Aha.data.repository.FeatureConfigRepository
 import com.islami.Aha.data.repository.UserHabitRepository
-import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import com.islami.Aha.util.DateUtils
+import com.islami.Aha.util.NotificationScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,7 +65,6 @@ data class ProfileUiState(
     val sholatCount: Int = 0,
     val puasaCount: Int = 0,
     val reminderCount: Int = 0,
-    val isAdmin: Boolean = false,
     val achievements: List<Achievement> = emptyList(),
     val weeklySummary: WeeklySummary = WeeklySummary(),
     val showLogoutConfirmation: Boolean = false,
@@ -97,7 +96,7 @@ class ProfileViewModel @Inject constructor(
     private val sharedPreferences: SharedPreferences,
     private val userHabitRepository: UserHabitRepository,
     private val authRepository: AuthRepository,
-    private val adminConfigRepository: AdminConfigRepository
+    private val featureConfigRepository: FeatureConfigRepository
 ) : ViewModel() {
 
     companion object {
@@ -116,14 +115,13 @@ class ProfileViewModel @Inject constructor(
                 _uiState.update { current ->
                     current.copy(userInfo = getCurrentUserInfo())
                 }
-                refreshAdminStatus()
             }
         }
 
     init {
+        featureConfigRepository.refresh()
         sharedPreferences.registerOnSharedPreferenceChangeListener(authPrefsListener)
         loadProfileData()
-        refreshAdminStatus()
     }
 
     override fun onCleared() {
@@ -138,7 +136,7 @@ class ProfileViewModel @Inject constructor(
             combine(
                 habitDao.getHabits(),
                 userHabitRepository.getAllHabits(),
-                adminConfigRepository.featureConfig
+                featureConfigRepository.featureConfig
             ) { habits, sunnahHabits, config ->
                 Triple(habits, sunnahHabits, config)
             }.collect { (habits, sunnahHabits, config) ->
@@ -321,15 +319,24 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun logout(): Boolean {
-        authRepository.logout()
+        viewModelScope.launch {
+            runCatching {
+                userHabitRepository.getActiveReminderHabits().forEach { habit ->
+                    NotificationScheduler.cancelHabitReminder(context, habit.id)
+                }
+                userHabitRepository.clearLocalHabitsForGuestMode()
+                habitCompletionDao.deleteAll()
+                habitDao.resetTrackerState()
+            }
+            authRepository.logout()
 
-        _uiState.update {
-            it.copy(
-                showLogoutConfirmation = false,
-                userInfo = UserInfo(),
-                isAdmin = false,
-                snackbarMessage = "Anda masuk sebagai tamu"
-            )
+            _uiState.update {
+                it.copy(
+                    showLogoutConfirmation = false,
+                    userInfo = UserInfo(),
+                    snackbarMessage = "Anda masuk sebagai tamu"
+                )
+            }
         }
         return true
     }
@@ -407,6 +414,9 @@ class ProfileViewModel @Inject constructor(
 
                     val base64 = "data:image/jpeg;base64," +
                         Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    if (base64.length > AuthRepository.MAX_AVATAR_BASE64_LENGTH) {
+                        throw IllegalStateException("Foto profil terlalu besar, gunakan gambar yang lebih kecil")
+                    }
 
                     authRepository.updateAvatar(base64).getOrThrow()
                 }
@@ -446,12 +456,5 @@ class ProfileViewModel @Inject constructor(
 
     fun clearSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
-    }
-
-    private fun refreshAdminStatus() {
-        viewModelScope.launch {
-            val admin = adminConfigRepository.isCurrentUserAdmin()
-            _uiState.update { it.copy(isAdmin = admin) }
-        }
     }
 }
