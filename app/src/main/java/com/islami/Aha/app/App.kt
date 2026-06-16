@@ -33,6 +33,8 @@ fun AhaApp() {
             val currentRoute = navBackStackEntry?.destination?.route
             val scaffoldInsets = if (shouldShowBottomNav(currentRoute)) {
                 WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal)
+            } else if (currentRoute == Screen.Splash.route) {
+                WindowInsets(0, 0, 0, 0)
             } else if (currentRoute == Screen.AddHabit.route) {
                 WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal)
             } else if (currentRoute == Screen.Settings.route) {

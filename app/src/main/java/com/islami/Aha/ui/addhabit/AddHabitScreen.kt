@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.islami.Aha.R
+import com.islami.Aha.ui.components.AhaLoadingOverlay
 import com.islami.Aha.ui.theme.*
 import androidx.compose.ui.tooling.preview.Preview
 import com.islami.Aha.ui.theme.HabitIslamiTheme
@@ -51,7 +54,6 @@ fun AddHabitScreen(
             viewModel.resetState()
         }
     }
-
     AddHabitScreenContent(
         uiState = uiState,
         onSelectCategory = viewModel::selectCategory,
@@ -93,67 +95,73 @@ fun AddHabitScreenContent(
     onNavigateBack: () -> Unit
 ) {
     val scrollState = rememberScrollState()
+    val secondaryIconTint = rememberAddHabitSecondaryIconTint()
     val timePickerState = rememberTimePickerState(
         initialHour = uiState.reminderHour,
         initialMinute = uiState.reminderMinute,
         is24Hour = true
     )
 
-    Scaffold(
-        bottomBar = {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 8.dp
-            ) {
-                Button(
-                    onClick = onSaveClick,
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
+            bottomBar = {
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .height(56.dp),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Emerald)
+                        .navigationBarsPadding(),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 8.dp
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    Button(
+                        onClick = onSaveClick,
+                        enabled = !uiState.isSaving,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .height(56.dp),
+                        shape = RoundedCornerShape(28.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Emerald)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.save_sunnah_worship),
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            if (!uiState.isSaving) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text(
+                                text = if (uiState.isSaving) {
+                                    stringResource(R.string.settings_saving)
+                                } else {
+                                    stringResource(R.string.save_sunnah_worship)
+                                },
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
                     }
                 }
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = paddingValues.calculateBottomPadding())
-        ) {
-            // Header
-            AddHabitHeader(onNavigateBack = onNavigateBack)
-
-            // Scrollable content
+            },
+            containerColor = MaterialTheme.colorScheme.background
+        ) { paddingValues ->
             Column(
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxSize()
+                    .padding(bottom = paddingValues.calculateBottomPadding())
                     .verticalScroll(scrollState)
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
+                AddHabitHeader(onNavigateBack = onNavigateBack)
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
                 // ── Kategori ──
                 SectionHeading(stringResource(R.string.category_heading))
                 Row(
@@ -189,7 +197,7 @@ fun AddHabitScreenContent(
                             shape = RoundedCornerShape(16.dp),
                             border = if (isSelected) BorderStroke(2.dp, Emerald) else null,
                             colors = CardDefaults.cardColors(
-                                containerColor = if (isSelected) EmeraldLight.copy(alpha = 0.2f)
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant
                                 else MaterialTheme.colorScheme.surface
                             )
                         ) {
@@ -207,7 +215,7 @@ fun AddHabitScreenContent(
                                 Text(
                                     text = habit.description,
                                     fontSize = 12.sp,
-                                    color = Gray500
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -296,14 +304,21 @@ fun AddHabitScreenContent(
                 ReminderCard(
                     isEnabled = uiState.isReminderEnabled,
                     reminderTime = getFormattedReminderTime(),
+                    secondaryIconTint = secondaryIconTint,
                     onToggle = onToggleReminder,
                     onShowTimePicker = onShowTimePicker
                 )
 
                 // Bottom spacer so content isn't hidden behind save button
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
+
+        AhaLoadingOverlay(
+            visible = uiState.isSaving,
+            message = stringResource(R.string.add_habit_loading_message)
+        )
     }
 
     // Time picker dialog
@@ -317,14 +332,18 @@ fun AddHabitScreenContent(
             TimePicker(
                 state = timePickerState,
                 colors = TimePickerDefaults.colors(
-                    clockDialColor = EmeraldLight,
+                    clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
                     selectorColor = Emerald,
                     containerColor = MaterialTheme.colorScheme.surface,
                     periodSelectorBorderColor = Emerald,
                     periodSelectorSelectedContainerColor = Emerald,
                     periodSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                    periodSelectorUnselectedContentColor = secondaryIconTint,
                     timeSelectorSelectedContainerColor = Emerald,
-                    timeSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary
+                    timeSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                    timeSelectorUnselectedContentColor = secondaryIconTint,
+                    clockDialSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                    clockDialUnselectedContentColor = secondaryIconTint
                 )
             )
         }
@@ -349,36 +368,57 @@ private fun AddHabitHeader(onNavigateBack: () -> Unit) {
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                IconButton(onClick = onNavigateBack) {
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.back),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.add_sunnah_worship),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
+
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.add_sunnah_worship),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.add_habit_header_subtitle),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = stringResource(R.string.add_habit_screen_description),
                 fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                modifier = Modifier.padding(start = 8.dp)
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.92f),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }
@@ -522,7 +562,7 @@ private fun DaySelectionChip(title: String, selected: Boolean, onClick: () -> Un
         Text(
             text = title,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else Gray700
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -531,6 +571,7 @@ private fun DaySelectionChip(title: String, selected: Boolean, onClick: () -> Un
 private fun ReminderCard(
     isEnabled: Boolean,
     reminderTime: String,
+    secondaryIconTint: Color,
     onToggle: () -> Unit,
     onShowTimePicker: () -> Unit
 ) {
@@ -565,7 +606,7 @@ private fun ReminderCard(
                         Text(
                             text = stringResource(R.string.reminder_for_sunnah_only),
                             fontSize = 12.sp,
-                            color = Gray500
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -596,7 +637,7 @@ private fun ReminderCard(
                             Icon(
                                 imageVector = Icons.Outlined.AccessTime,
                                 contentDescription = null,
-                                tint = Gray500
+                                tint = secondaryIconTint
                             )
                             Text(
                                 text = stringResource(R.string.reminder_time),
@@ -616,6 +657,15 @@ private fun ReminderCard(
 }
 
 @Composable
+private fun rememberAddHabitSecondaryIconTint(): Color {
+    return if (isSystemInDarkTheme()) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        Gray700
+    }
+}
+
+@Composable
 fun TimePickerDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
@@ -630,7 +680,7 @@ fun TimePickerDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = Gray500)
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         title = {

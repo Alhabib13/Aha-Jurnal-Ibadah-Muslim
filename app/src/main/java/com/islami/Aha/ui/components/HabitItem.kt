@@ -5,10 +5,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +30,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
@@ -45,8 +49,13 @@ fun HabitItem(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val completionStateDescription = if (habit.isCompleted) {
+        stringResource(R.string.home_completed_cd)
+    } else {
+        stringResource(R.string.home_not_completed_cd)
+    }
     val backgroundColor by animateColorAsState(
-        targetValue = if (habit.isCompleted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        targetValue = if (habit.isCompleted) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
         label = "bgColor"
     )
     val checkScale by animateFloatAsState(
@@ -70,7 +79,7 @@ fun HabitItem(
             // Icon Background
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = if (habit.isCompleted) Emerald.copy(alpha = 0.15f) else EmeraldLight,
+                color = habitIconContainerColor(habit),
                 modifier = Modifier.size(48.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -121,12 +130,18 @@ fun HabitItem(
                     .clip(CircleShape)
                     .then(
                         if (habit.isCompleted) {
-                            Modifier.background(Emerald, CircleShape)
+                            Modifier.background(InfoBlue, CircleShape)
                         } else {
-                            Modifier.border(2.dp, Emerald, CircleShape)
+                            Modifier.border(2.dp, InfoBlue, CircleShape)
                         }
                     )
-                    .clickable(
+                    .semantics {
+                        role = Role.Checkbox
+                        stateDescription = completionStateDescription
+                    }
+                    .toggleable(
+                        value = habit.isCompleted,
+                        role = Role.Checkbox,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { onCheckedChange(!habit.isCompleted) },
@@ -142,6 +157,14 @@ fun HabitItem(
                 }
             }
         }
+    }
+}
+
+private fun habitIconContainerColor(habit: Habit): Color {
+    return if (habit.category.startsWith("Puasa", ignoreCase = true)) {
+        WarningAmber.copy(alpha = 0.12f)
+    } else {
+        InfoBlue.copy(alpha = 0.12f)
     }
 }
 

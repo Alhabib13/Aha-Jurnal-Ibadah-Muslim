@@ -38,24 +38,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import com.islami.Aha.R
+import com.islami.Aha.ui.components.AhaLoadingOverlay
+import com.islami.Aha.ui.components.AhaToastTone
+import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.*
 
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel = hiltViewModel(),
+    transientSnackbarMessage: String? = null,
+    onTransientSnackbarShown: () -> Unit = {},
     onNavigateToRegister: () -> Unit = {},
     onNavigateToHome: () -> Unit = {}
 ) {
     val uiState by viewModel.loginState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     val googleSignInClient = remember(context) { createGoogleSignInClient(context) }
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -78,32 +83,69 @@ fun LoginScreen(
         }
     }
 
-    LoginScreenContent(
-        uiState = uiState,
-        onEmailChange = viewModel::onLoginEmailChange,
-        onPasswordChange = viewModel::onLoginPasswordChange,
-        onTogglePasswordVisibility = viewModel::toggleLoginPasswordVisibility,
-        onLoginClick = {
-            focusManager.clearFocus()
-            viewModel.login()
-        },
-        onForgotPasswordClick = {
-            focusManager.clearFocus()
-            viewModel.requestPasswordReset()
-        },
-        onGoogleLoginClick = {
-            focusManager.clearFocus()
-            val client = googleSignInClient
-            if (client == null) {
-                viewModel.onGoogleLoginUnavailable()
-            } else {
-                client.signOut().addOnCompleteListener {
-                    googleSignInLauncher.launch(client.signInIntent)
+    LaunchedEffect(transientSnackbarMessage) {
+        val message = transientSnackbarMessage ?: return@LaunchedEffect
+        toastMessage = message
+    }
+
+    LaunchedEffect(uiState.infoMessage, uiState.errorMessage) {
+        toastMessage = uiState.infoMessage ?: uiState.errorMessage
+    }
+
+    val toastTone = when {
+        toastMessage == transientSnackbarMessage && !transientSnackbarMessage.isNullOrBlank() -> AhaToastTone.SUCCESS
+        toastMessage == uiState.errorMessage && !uiState.errorMessage.isNullOrBlank() -> AhaToastTone.ERROR
+        toastMessage == uiState.infoMessage && !uiState.infoMessage.isNullOrBlank() -> AhaToastTone.SUCCESS
+        else -> AhaToastTone.AUTO
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LoginScreenContent(
+            uiState = uiState,
+            onEmailChange = viewModel::onLoginEmailChange,
+            onPasswordChange = viewModel::onLoginPasswordChange,
+            onTogglePasswordVisibility = viewModel::toggleLoginPasswordVisibility,
+            onLoginClick = {
+                focusManager.clearFocus()
+                viewModel.login()
+            },
+            onForgotPasswordClick = {
+                focusManager.clearFocus()
+                viewModel.requestPasswordReset()
+            },
+            onGoogleLoginClick = {
+                focusManager.clearFocus()
+                val client = googleSignInClient
+                if (client == null) {
+                    viewModel.onGoogleLoginUnavailable()
+                } else {
+                    client.signOut().addOnCompleteListener {
+                        googleSignInLauncher.launch(client.signInIntent)
+                    }
                 }
-            }
-        },
-        onRegisterClick = onNavigateToRegister
-    )
+            },
+            onRegisterClick = onNavigateToRegister
+        )
+
+        AhaToastHost(
+            message = toastMessage,
+            tone = toastTone,
+            onDismissed = {
+                if (toastMessage == transientSnackbarMessage) {
+                    onTransientSnackbarShown()
+                }
+                toastMessage = null
+            },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+
+        AhaLoadingOverlay(
+            visible = uiState.isLoading,
+            message = stringResource(R.string.auth_login_loading)
+        )
+    }
 }
 
 @Composable
@@ -136,7 +178,7 @@ fun LoginScreenContent(
         Surface(
             modifier = Modifier.size(72.dp),
             shape = RoundedCornerShape(18.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.surface,
             shadowElevation = 4.dp
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -162,7 +204,7 @@ fun LoginScreenContent(
         Text(
             text = stringResource(R.string.auth_login_welcome_subtitle),
             fontSize = 14.sp,
-            color = Gray500,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
 
@@ -225,20 +267,22 @@ fun LoginScreenContent(
                     errorMessage = uiState.passwordError
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(
-                        onClick = onForgotPasswordClick,
-                        contentPadding = PaddingValues(0.dp)
+                if (uiState.showForgotPassword && uiState.email.isNotBlank()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
                     ) {
-                        Text(
-                            text = stringResource(R.string.auth_forgot_password),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Emerald
-                        )
+                        TextButton(
+                            onClick = onForgotPasswordClick,
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.auth_forgot_password),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Emerald
+                            )
+                        }
                     }
                 }
             }
@@ -254,7 +298,7 @@ fun LoginScreenContent(
                 colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
             ) {
                 Text(
-                    text = uiState.errorMessage!!,
+                    text = uiState.errorMessage ?: "",
                     fontSize = 13.sp,
                     color = ErrorRed,
                     modifier = Modifier.padding(12.dp),
@@ -332,7 +376,11 @@ fun LoginScreenContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
-            Text(text = stringResource(R.string.auth_or_separator), fontSize = 14.sp, color = Gray400)
+            Text(
+                text = stringResource(R.string.auth_or_separator),
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
         }
 
@@ -348,10 +396,10 @@ fun LoginScreenContent(
         Text(
             text = stringResource(R.string.auth_login_google_hint),
             fontSize = 12.sp,
-            color = Gray500
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // ================================================================
         // FOOTER
@@ -360,7 +408,11 @@ fun LoginScreenContent(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = stringResource(R.string.auth_no_account), fontSize = 14.sp, color = Gray500)
+            Text(
+                text = stringResource(R.string.auth_no_account),
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             TextButton(
                 onClick = onRegisterClick,
                 contentPadding = PaddingValues(0.dp)
@@ -432,7 +484,7 @@ fun AuthTextField(
             text = label,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = Gray700,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -440,7 +492,12 @@ fun AuthTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text(text = placeholder, color = Gray400) },
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
             leadingIcon = {
                 Icon(
                     imageVector = leadingIcon,
@@ -450,14 +507,14 @@ fun AuthTextField(
             },
             trailingIcon = if (trailingIcon != null) {
                 {
-                    Icon(
-                        imageVector = trailingIcon,
-                        contentDescription = stringResource(R.string.auth_toggle_password_visibility),
-                        tint = Gray400,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable { onTrailingIconClick?.invoke() }
-                    )
+                    IconButton(onClick = { onTrailingIconClick?.invoke() }) {
+                        Icon(
+                            imageVector = trailingIcon,
+                            contentDescription = stringResource(R.string.auth_toggle_password_visibility),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             } else null,
             visualTransformation = visualTransformation,

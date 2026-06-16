@@ -25,8 +25,24 @@ class HomeViewModelTest {
 
     @Test
     fun `sholat category has fardhu and sunnah sub tabs`() {
-        val state = HomeUiState(selectedMainCategory = "Sholat")
+        val state = HomeUiState(
+            selectedMainCategory = "Sholat",
+            isRamadanMonth = false
+        )
         assertEquals(listOf("Sholat Fardhu", "Sholat Sunnah"), state.subTabCategories)
+    }
+
+    @Test
+    fun `sholat category adds tarawih tab when ramadan and enabled`() {
+        val state = HomeUiState(
+            selectedMainCategory = "Sholat",
+            isRamadanMonth = true,
+            sholatTarawihEnabled = true
+        )
+        assertEquals(
+            listOf("Sholat Fardhu", "Sholat Sunnah", "Sholat Tarawih"),
+            state.subTabCategories
+        )
     }
 
     @Test

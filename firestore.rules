@@ -12,6 +12,74 @@ service cloud.firestore {
     );
   }
 
+  function isOwner(userId) {
+    return isSignedIn() && request.auth.uid == userId;
+  }
+
+  function validProfileWrite(data) {
+    return data.keys().hasOnly([
+             "name", "email", "avatarBase64", "updatedAt", "lastUsernameChangedAt"
+           ])
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 100
+        && data.email is string
+        && data.email.size() <= 254
+        && (
+             !("avatarBase64" in data) ||
+             data.avatarBase64 == null ||
+             (
+               data.avatarBase64 is string &&
+               data.avatarBase64.size() > 0 &&
+               data.avatarBase64.size() <= 900000
+             )
+           )
+        && (
+             !("lastUsernameChangedAt" in data) ||
+             data.lastUsernameChangedAt is int
+           );
+  }
+
+  // Validasi field sunnah_habits: hanya field yang dikenal oleh app yang boleh ditulis.
+  function validSunnahHabitWrite(data) {
+    return data.keys().hasOnly([
+               "name", "category", "frequencyLabel", "rakaat",
+               "reminderEnabled", "reminderTime", "completedDateKey",
+               "createdAt", "updatedAt"
+           ])
+        && data.keys().hasAll([
+               "name", "category", "frequencyLabel",
+               "reminderEnabled", "createdAt", "updatedAt"
+           ])
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 100
+        && data.category is string
+        && data.category in ["SHOLAT", "PUASA"]
+        && data.frequencyLabel is string
+        && data.reminderEnabled is bool
+        && data.createdAt is int
+        && data.createdAt > 0
+        && data.updatedAt is int
+        && data.updatedAt > 0;
+  }
+
+  // Validasi field habit_completions: hanya field yang dikenal oleh app yang boleh ditulis.
+  function validCompletionWrite(data) {
+    return data.keys().hasOnly(["habitKey", "dateKey", "category", "source", "createdAt"])
+        && data.keys().hasAll(["habitKey", "dateKey", "category", "source", "createdAt"])
+        && data.habitKey is string
+        && data.habitKey.size() > 0
+        && data.dateKey is string
+        && data.dateKey.size() == 10
+        && data.category is string
+        && data.category.size() > 0
+        && data.source is string
+        && data.source in ["DEFAULT", "SUNNAH"]
+        && data.createdAt is int
+        && data.createdAt > 0;
+  }
+
   match /databases/{database}/documents {
     // Client may read default fardhu metadata, but can never write it.
     match /fardhu_defaults/{docId} {
@@ -25,16 +93,44 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // User private sunnah habits.
-    match /users/{userId}/sunnah_habits/{habitId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    // Public Islamic content for home feed.
+    match /hadith_contents/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
-    // User meta profile, e.g. role marker written by backend/admin only.
+    match /surah_verses/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // User private sunnah habits — field validation ketat agar user tidak bisa
+    // inject field arbitrary (isAdmin, isSynced, role, dll).
+    match /users/{userId}/sunnah_habits/{habitId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validSunnahHabitWrite(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    // History completion ibadah — sync dari app, field validation ketat.
+    match /users/{userId}/habit_completions/{completionId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validCompletionWrite(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    // User profile meta. Client can only manage basic profile fields.
     match /users/{userId}/meta/{docId} {
-      allow read: if isSignedIn() && request.auth.uid == userId;
-      allow create, update: if false;
-      allow delete: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && docId == "profile"
+                    && validProfileWrite(request.resource.data);
+      allow update: if isOwner(userId)
+                    && docId == "profile"
+                    && validProfileWrite(request.resource.data)
+                    && request.resource.data.diff(resource.data).changedKeys()
+                      .hasOnly(["name", "email", "avatarBase64", "updatedAt", "lastUsernameChangedAt"]);
+      allow delete: if isOwner(userId);
     }
 
     // Deny all other paths by default.

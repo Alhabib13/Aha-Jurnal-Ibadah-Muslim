@@ -16,7 +16,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.res.painterResource
@@ -28,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.islami.Aha.BuildConfig
 import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
 import kotlin.math.cos
@@ -129,7 +129,7 @@ fun SplashScreenContent() {
                     .size(120.dp)
                     .scale(scaleAnim.value),
                 shape = RoundedCornerShape(28.dp),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 16.dp
             ) {
                 Box(
@@ -148,7 +148,7 @@ fun SplashScreenContent() {
 
             // App name
             Text(
-                text = "Aha",
+                text = stringResource(R.string.splash_app_short_name),
                 fontSize = 56.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimary,
@@ -159,7 +159,7 @@ fun SplashScreenContent() {
 
             // Tagline
             Text(
-                text = "Pelacak Ibadah Islami",
+                text = stringResource(R.string.splash_tagline),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
@@ -170,7 +170,7 @@ fun SplashScreenContent() {
 
             // Sub-tagline
             Text(
-                text = "Catat, Pantau, Tingkatkan",
+                text = stringResource(R.string.splash_subtagline),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Light,
                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
@@ -180,7 +180,7 @@ fun SplashScreenContent() {
 
         // Version at bottom
         Text(
-            text = "Versi 1.0",
+            text = stringResource(R.string.splash_version_format, BuildConfig.VERSION_NAME),
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
             modifier = Modifier

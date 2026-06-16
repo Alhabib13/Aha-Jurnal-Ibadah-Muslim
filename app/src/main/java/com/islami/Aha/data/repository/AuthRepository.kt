@@ -1,7 +1,6 @@
 package com.islami.Aha.data.repository
 
 import android.content.SharedPreferences
-import android.net.Uri
 import com.islami.Aha.BuildConfig
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
@@ -14,16 +13,12 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
-import com.google.firebase.storage.FirebaseStorage
-import com.google.firebase.storage.StorageException
-import com.google.firebase.storage.StorageReference
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
 sealed class AuthResult {
-    data class Success(val user: FirebaseUser) : AuthResult()
+    data class Success(val user: FirebaseUser, val isProfileIncomplete: Boolean = false) : AuthResult()
     data class Error(val message: String) : AuthResult()
 }
 
@@ -40,7 +35,10 @@ class AuthRepository @Inject constructor(
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_USER_EMAIL = "user_email"
         private const val KEY_USER_AVATAR_URI = "user_avatar_uri"
+        const val KEY_LAST_ACTIVE_USER_UID = "last_active_user_uid"
+        const val KEY_LAST_USERNAME_CHANGED = "last_username_changed_at"
         private const val RECENT_LOGIN_MAX_AGE_MS = 10 * 60 * 1000L
+        const val MAX_AVATAR_BASE64_LENGTH = 900_000
     }
 
     private data class CloudSunnahBackup(
@@ -50,6 +48,7 @@ class AuthRepository @Inject constructor(
 
     private data class CloudDeleteBackup(
         val sunnahHabits: List<CloudSunnahBackup>,
+        val completionRecords: List<CloudSunnahBackup>,
         val profileData: Map<String, Any>?
     )
 
@@ -58,9 +57,6 @@ class AuthRepository @Inject constructor(
     val isLoggedIn: Boolean get() = firebaseAuth.currentUser != null
     private val firestore: FirebaseFirestore? by lazy {
         runCatching { FirebaseFirestore.getInstance() }.getOrNull()
-    }
-    private val storage: FirebaseStorage? by lazy {
-        runCatching { FirebaseStorage.getInstance() }.getOrNull()
     }
 
     suspend fun login(email: String, password: String): AuthResult {
@@ -109,24 +105,21 @@ class AuthRepository @Inject constructor(
                 )
                 syncProfileFromCloud(user.uid)
             }.onFailure { FirebaseCrashlytics.getInstance().recordException(it) }
-            AuthResult.Success(user)
+            AuthResult.Success(user, isProfileIncomplete = false)
         } catch (e: Exception) {
             AuthResult.Error(mapFirebaseError(e))
         }
     }
 
-    suspend fun updateAvatar(avatarUri: String): Result<Unit> {
+    suspend fun updateAvatar(base64Image: String): Result<Unit> {
         val user = firebaseAuth.currentUser ?: return Result.failure(
             IllegalStateException("User tidak login")
         )
-        if (avatarUri.isBlank()) {
+        if (base64Image.isBlank()) {
             return Result.failure(IllegalStateException("Foto profil tidak valid"))
         }
 
         return runCatching {
-            val parsedUri = Uri.parse(avatarUri)
-            val downloadUrl = uploadAvatarAndGetUrl(user.uid, parsedUri)
-
             firestore
                 ?.collection("users")
                 ?.document(user.uid)
@@ -134,17 +127,15 @@ class AuthRepository @Inject constructor(
                 ?.document("profile")
                 ?.set(
                     mapOf(
-                        "avatarUrl" to downloadUrl,
+                        "avatarBase64" to base64Image,
                         "updatedAt" to FieldValue.serverTimestamp()
                     ),
                     SetOptions.merge()
                 )
                 ?.await()
 
-            sharedPreferences.edit().putString(KEY_USER_AVATAR_URI, downloadUrl).apply()
+            sharedPreferences.edit().putString(KEY_USER_AVATAR_URI, base64Image).apply()
             Unit
-        }.recoverCatching { error ->
-            throw IllegalStateException(mapAvatarStorageError(error))
         }.onFailure { error ->
             FirebaseCrashlytics.getInstance().recordException(error)
         }
@@ -156,8 +147,6 @@ class AuthRepository @Inject constructor(
         )
 
         return runCatching {
-            deleteAvatarFromKnownBuckets(user.uid)
-
             firestore
                 ?.collection("users")
                 ?.document(user.uid)
@@ -165,7 +154,7 @@ class AuthRepository @Inject constructor(
                 ?.document("profile")
                 ?.set(
                     mapOf(
-                        "avatarUrl" to FieldValue.delete(),
+                        "avatarBase64" to FieldValue.delete(),
                         "updatedAt" to FieldValue.serverTimestamp()
                     ),
                     SetOptions.merge()
@@ -174,154 +163,51 @@ class AuthRepository @Inject constructor(
 
             sharedPreferences.edit().remove(KEY_USER_AVATAR_URI).apply()
             Unit
-        }.recoverCatching { error ->
-            throw IllegalStateException(mapAvatarStorageError(error))
         }.onFailure { error ->
             FirebaseCrashlytics.getInstance().recordException(error)
         }
     }
 
-    private suspend fun fetchDownloadUrlWithRetry(
-        reference: StorageReference,
-        attempts: Int = 8
-    ): String {
-        var lastError: Exception? = null
-        var delayMs = 400L
-        repeat(attempts) { index ->
-            try {
-                // Force metadata read first; in some cases token generation lags shortly after upload.
-                reference.metadata.await()
-                return reference.downloadUrl.await().toString()
-            } catch (error: Exception) {
-                val storageError = error as? StorageException
-                val isLastAttempt = index == attempts - 1
-                if (storageError?.errorCode != StorageException.ERROR_OBJECT_NOT_FOUND || isLastAttempt) {
-                    throw error
-                }
-                lastError = error
-                delay(delayMs)
-                delayMs = (delayMs * 2).coerceAtMost(3000L)
-            }
-        }
-        throw lastError ?: IllegalStateException("Gagal mengambil URL foto profil")
-    }
+    suspend fun updateDisplayName(newName: String): Result<Unit> {
+        val user = firebaseAuth.currentUser ?: return Result.failure(
+            IllegalStateException("User tidak login")
+        )
+        val trimmed = newName.trim()
+        if (trimmed.isBlank()) return Result.failure(IllegalStateException("Nama tidak boleh kosong"))
 
-    private suspend fun uploadAvatarAndGetUrl(
-        userId: String,
-        sourceUri: Uri
-    ): String {
-        var lastError: Exception? = null
-        val targetPath = "users/$userId/profile/avatar.jpg"
+        return runCatching {
+            val changedAtMs = System.currentTimeMillis()
 
-        for (bucket in resolveStorageBucketCandidates()) {
-            val attempt = runCatching {
-                val storageInstance = if (bucket.isNullOrBlank()) {
-                    storage ?: throw IllegalStateException("Firebase Storage belum siap")
-                } else {
-                    FirebaseStorage.getInstance("gs://$bucket")
-                }
-                val storageRef = storageInstance.reference.child(targetPath)
-                val uploadSnapshot = storageRef.putFile(sourceUri).await()
-                fetchDownloadUrlWithRetry(uploadSnapshot.storage)
-            }
-            if (attempt.isSuccess) {
-                return attempt.getOrThrow()
-            }
-            val error = attempt.exceptionOrNull() as? Exception
-                ?: IllegalStateException("Upload foto profil gagal")
-            lastError = error
-            if (!shouldRetryWithAlternativeBucket(error)) {
-                throw error
-            }
-        }
-        throw lastError ?: IllegalStateException("Upload foto profil gagal")
-    }
+            // Simpan ke Firestore supaya persistent lintas device/login
+            firestore
+                ?.collection("users")
+                ?.document(user.uid)
+                ?.collection("meta")
+                ?.document("profile")
+                ?.set(
+                    mapOf(
+                        "name" to trimmed,
+                        "lastUsernameChangedAt" to changedAtMs,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )
+                ?.await()
 
-    private suspend fun deleteAvatarFromKnownBuckets(userId: String) {
-        val attemptedBuckets = linkedSetOf<String?>()
-        suspend fun deleteFrom(bucketOverride: String?) {
-            if (!attemptedBuckets.add(bucketOverride)) return
-            runCatching {
-                val storageInstance = if (bucketOverride.isNullOrBlank()) {
-                    storage
-                } else {
-                    FirebaseStorage.getInstance("gs://$bucketOverride")
-                } ?: return@runCatching
+            // Update Firebase Auth displayName supaya konsisten
+            val profileUpdates = UserProfileChangeRequest.Builder()
+                .setDisplayName(trimmed)
+                .build()
+            user.updateProfile(profileUpdates).await()
 
-                storageInstance.reference
-                    .child("users/$userId/profile/avatar.jpg")
-                    .delete()
-                    .await()
-            }.onFailure { error ->
-                if (!isStorageNotFoundLike(error)) {
-                    throw error
-                }
-            }
-        }
-
-        resolveStorageBucketCandidates().forEach { bucket ->
-            deleteFrom(bucket)
-        }
-    }
-
-    private fun resolveStorageBucketCandidates(): List<String?> {
-        val buckets = linkedSetOf<String?>()
-        buckets += null
-
-        val configuredBucket = storage?.app?.options?.storageBucket
-            ?.removePrefix("gs://")
-            ?.trim()
-            .orEmpty()
-        if (configuredBucket.isNotBlank()) {
-            buckets += configuredBucket
-            resolveAlternateBucket(configuredBucket)?.let { buckets += it }
-        }
-
-        val projectId = BuildConfig.FIREBASE_PROJECT_ID.trim()
-        if (projectId.isNotBlank()) {
-            buckets += "$projectId.firebasestorage.app"
-            buckets += "$projectId.appspot.com"
-        }
-        return buckets.toList()
-    }
-
-    private fun resolveAlternateBucket(bucket: String): String? {
-        return when {
-            bucket.endsWith(".firebasestorage.app") ->
-                "${bucket.removeSuffix(".firebasestorage.app")}.appspot.com"
-            bucket.endsWith(".appspot.com") ->
-                "${bucket.removeSuffix(".appspot.com")}.firebasestorage.app"
-            else -> null
-        }
-    }
-
-    private fun shouldRetryWithAlternativeBucket(error: Throwable): Boolean {
-        return isStorageNotFoundLike(error)
-    }
-
-    private fun isStorageNotFoundLike(error: Throwable): Boolean {
-        val storageError = error as? StorageException ?: return false
-        return storageError.errorCode == StorageException.ERROR_OBJECT_NOT_FOUND ||
-            storageError.httpResultCode == 404 ||
-            (storageError.message?.contains("Not Found", ignoreCase = true) == true)
-    }
-
-    private fun mapAvatarStorageError(error: Throwable): String {
-        val storageError = error as? StorageException
-        return when (storageError?.errorCode) {
-            StorageException.ERROR_NOT_AUTHENTICATED,
-            StorageException.ERROR_NOT_AUTHORIZED -> "Akses upload foto ditolak. Coba login ulang"
-            StorageException.ERROR_RETRY_LIMIT_EXCEEDED,
-            StorageException.ERROR_QUOTA_EXCEEDED -> "Upload foto gagal. Coba lagi nanti"
-            else -> if (storageError != null && isStorageNotFoundLike(storageError)) {
-                val knownBuckets = resolveStorageBucketCandidates()
-                    .filterNotNull()
-                    .distinct()
-                    .joinToString(", ")
-                "Bucket Firebase Storage tidak ditemukan/aktif. Buka Firebase Console > Storage > Get Started, lalu pastikan bucket cocok: $knownBuckets"
-            } else {
-                error.message ?: "Gagal menyimpan foto profil"
-            }
+            // Update lokal agar UI langsung berubah tanpa perlu sync
+            sharedPreferences.edit()
+                .putString(KEY_USER_NAME, trimmed)
+                .putLong(KEY_LAST_USERNAME_CHANGED, changedAtMs)
+                .apply()
+            Unit
+        }.onFailure { error ->
+            FirebaseCrashlytics.getInstance().recordException(error)
         }
     }
 
@@ -329,6 +215,8 @@ class AuthRepository @Inject constructor(
         return runCatching {
             firebaseAuth.sendPasswordResetEmail(email).await()
             Unit
+        }.recoverCatching { error ->
+            throw IllegalStateException(mapFirebaseError(error as? Exception ?: Exception(error)))
         }.onFailure { error ->
             FirebaseCrashlytics.getInstance().recordException(error)
         }
@@ -459,6 +347,7 @@ class AuthRepository @Inject constructor(
     private suspend fun deleteCloudDataWithBackup(uid: String): CloudDeleteBackup {
         val db = firestore ?: return CloudDeleteBackup(
             sunnahHabits = emptyList(),
+            completionRecords = emptyList(),
             profileData = null
         )
 
@@ -469,6 +358,21 @@ class AuthRepository @Inject constructor(
             .await()
         val sunnahDocs = sunnahSnapshot.documents
         val sunnahBackup = sunnahDocs.map { doc ->
+            CloudSunnahBackup(
+                id = doc.id,
+                data = doc.data.orEmpty().mapNotNull { (key, value) ->
+                    if (value == null) null else key to value
+                }.toMap()
+            )
+        }
+
+        val completionSnapshot = db.collection("users")
+            .document(uid)
+            .collection("habit_completions")
+            .get()
+            .await()
+        val completionDocs = completionSnapshot.documents
+        val completionBackup = completionDocs.map { doc ->
             CloudSunnahBackup(
                 id = doc.id,
                 data = doc.data.orEmpty().mapNotNull { (key, value) ->
@@ -493,6 +397,12 @@ class AuthRepository @Inject constructor(
             batch.commit().await()
         }
 
+        completionDocs.chunked(500).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+        }
+
         db.collection("users")
             .document(uid)
             .collection("meta")
@@ -502,6 +412,7 @@ class AuthRepository @Inject constructor(
 
         return CloudDeleteBackup(
             sunnahHabits = sunnahBackup,
+            completionRecords = completionBackup,
             profileData = profileBackup
         )
     }
@@ -516,6 +427,20 @@ class AuthRepository @Inject constructor(
                     db.collection("users")
                         .document(uid)
                         .collection("sunnah_habits")
+                        .document(item.id),
+                    item.data
+                )
+            }
+            batch.commit().await()
+        }
+
+        backup.completionRecords.chunked(500).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { item ->
+                batch.set(
+                    db.collection("users")
+                        .document(uid)
+                        .collection("habit_completions")
                         .document(item.id),
                     item.data
                 )
@@ -540,6 +465,8 @@ class AuthRepository @Inject constructor(
             .remove(KEY_USER_NAME)
             .remove(KEY_USER_EMAIL)
             .remove(KEY_USER_AVATAR_URI)
+            .remove(KEY_LAST_ACTIVE_USER_UID)
+            .remove(KEY_LAST_USERNAME_CHANGED)
             .apply()
     }
 
@@ -550,6 +477,8 @@ class AuthRepository @Inject constructor(
             .remove(KEY_USER_NAME)
             .remove(KEY_USER_EMAIL)
             .remove(KEY_USER_AVATAR_URI)
+            .remove(KEY_LAST_ACTIVE_USER_UID)
+            .remove(KEY_LAST_USERNAME_CHANGED)
             .apply()
     }
 
@@ -557,6 +486,7 @@ class AuthRepository @Inject constructor(
         val name = displayName ?: user.displayName ?: user.email?.substringBefore("@") ?: "Pengguna"
         val editor = sharedPreferences.edit()
             .putBoolean(KEY_IS_LOGGED_IN, true)
+            .putString(KEY_LAST_ACTIVE_USER_UID, user.uid)
             .putString(KEY_USER_NAME, name)
             .putString(KEY_USER_EMAIL, user.email ?: "")
         val photoUrl = user.photoUrl?.toString()
@@ -597,7 +527,8 @@ class AuthRepository @Inject constructor(
 
         val cloudName = snapshot.getString("name")
         val cloudEmail = snapshot.getString("email")
-        val cloudAvatar = snapshot.getString("avatarUrl")
+        val cloudAvatar = snapshot.getString("avatarBase64")
+        val cloudLastUsernameChanged = snapshot.getLong("lastUsernameChangedAt") ?: 0L
         val editor = sharedPreferences.edit()
         if (!cloudName.isNullOrBlank()) editor.putString(KEY_USER_NAME, cloudName)
         if (!cloudEmail.isNullOrBlank()) editor.putString(KEY_USER_EMAIL, cloudEmail)
@@ -605,6 +536,9 @@ class AuthRepository @Inject constructor(
             editor.putString(KEY_USER_AVATAR_URI, cloudAvatar)
         } else {
             editor.remove(KEY_USER_AVATAR_URI)
+        }
+        if (cloudLastUsernameChanged > 0L) {
+            editor.putLong(KEY_LAST_USERNAME_CHANGED, cloudLastUsernameChanged)
         }
         editor.apply()
     }

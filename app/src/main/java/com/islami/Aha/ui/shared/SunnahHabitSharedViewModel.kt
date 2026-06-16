@@ -1,6 +1,7 @@
 package com.islami.Aha.ui.shared
 
 import com.islami.Aha.data.repository.UserHabitRepository
+import com.islami.Aha.data.repository.CloudSyncStatus
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import kotlinx.coroutines.CoroutineScope
@@ -23,10 +24,6 @@ class SunnahHabitSharedViewModel @Inject constructor(
 
     val sunnahHabits: StateFlow<List<SunnahHabit>> =
         repository.getAllHabits().stateIn(scope, SharingStarted.Eagerly, emptyList())
-
-    init {
-        syncFromCloudIfLoggedIn()
-    }
 
     fun addHabit(
         name: String,
@@ -91,5 +88,9 @@ class SunnahHabitSharedViewModel @Inject constructor(
 
     fun syncFromCloudIfLoggedIn() {
         scope.launch { repository.syncFromCloudIfLoggedIn() }
+    }
+
+    suspend fun syncFromCloudIfLoggedInAwait(): CloudSyncStatus {
+        return repository.syncFromCloudIfLoggedIn()
     }
 }

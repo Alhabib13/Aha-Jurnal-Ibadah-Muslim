@@ -1,17 +1,26 @@
 
 package com.islami.Aha.ui.profile
 
+import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
-import com.islami.Aha.data.repository.AdminConfigRepository
 import com.islami.Aha.data.repository.AuthRepository
+import com.islami.Aha.data.repository.FeatureConfigRepository
 import com.islami.Aha.data.repository.UserHabitRepository
-import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import com.islami.Aha.util.DateUtils
+import com.islami.Aha.util.NotificationScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,7 +56,8 @@ data class WeeklySummary(
 
 data class ProfileUiState(
     val isLoading: Boolean = true,
-    val isSaving: Boolean = false,
+    val isSavingAvatar: Boolean = false,
+    val isSavingUsername: Boolean = false,
     val userInfo: UserInfo = UserInfo(),
     val totalHabits: Int = 0,
     val totalCompleted: Int = 0,
@@ -55,21 +65,38 @@ data class ProfileUiState(
     val sholatCount: Int = 0,
     val puasaCount: Int = 0,
     val reminderCount: Int = 0,
-    val isAdmin: Boolean = false,
     val achievements: List<Achievement> = emptyList(),
     val weeklySummary: WeeklySummary = WeeklySummary(),
     val showLogoutConfirmation: Boolean = false,
-    val snackbarMessage: String? = null
-)
+    val snackbarMessage: String? = null,
+    val lastUsernameChangedAt: Long = 0L
+) {
+    private val cooldownMs = 30L * 24 * 60 * 60 * 1000
+
+    val canChangeUsername: Boolean
+        get() {
+            if (lastUsernameChangedAt <= 0L) return true
+            return System.currentTimeMillis() - lastUsernameChangedAt >= cooldownMs
+        }
+
+    val daysUntilUsernameChange: Int
+        get() {
+            if (canChangeUsername) return 0
+            val elapsed = System.currentTimeMillis() - lastUsernameChangedAt
+            val remaining = cooldownMs - elapsed
+            return ((remaining + 86_399_999L) / 86_400_000L).toInt()
+        }
+}
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val habitDao: HabitDao,
     private val habitCompletionDao: HabitCompletionDao,
     private val sharedPreferences: SharedPreferences,
     private val userHabitRepository: UserHabitRepository,
     private val authRepository: AuthRepository,
-    private val adminConfigRepository: AdminConfigRepository
+    private val featureConfigRepository: FeatureConfigRepository
 ) : ViewModel() {
 
     companion object {
@@ -77,6 +104,7 @@ class ProfileViewModel @Inject constructor(
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_USER_EMAIL = "user_email"
         private const val KEY_USER_AVATAR_URI = "user_avatar_uri"
+        private const val KEY_LAST_USERNAME_CHANGED = AuthRepository.KEY_LAST_USERNAME_CHANGED
     }
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -87,14 +115,13 @@ class ProfileViewModel @Inject constructor(
                 _uiState.update { current ->
                     current.copy(userInfo = getCurrentUserInfo())
                 }
-                refreshAdminStatus()
             }
         }
 
     init {
+        featureConfigRepository.refresh()
         sharedPreferences.registerOnSharedPreferenceChangeListener(authPrefsListener)
         loadProfileData()
-        refreshAdminStatus()
     }
 
     override fun onCleared() {
@@ -109,7 +136,7 @@ class ProfileViewModel @Inject constructor(
             combine(
                 habitDao.getHabits(),
                 userHabitRepository.getAllHabits(),
-                adminConfigRepository.featureConfig
+                featureConfigRepository.featureConfig
             ) { habits, sunnahHabits, config ->
                 Triple(habits, sunnahHabits, config)
             }.collect { (habits, sunnahHabits, config) ->
@@ -170,6 +197,7 @@ class ProfileViewModel @Inject constructor(
                         sholatCount = sholatCount,
                         puasaCount = puasaCount,
                         reminderCount = reminderCount,
+                        lastUsernameChangedAt = sharedPreferences.getLong(KEY_LAST_USERNAME_CHANGED, 0L),
                         achievements = generateAchievements(
                             totalCompleted = historicalTotal,
                             currentStreak = currentStreak,
@@ -291,15 +319,24 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun logout(): Boolean {
-        authRepository.logout()
+        viewModelScope.launch {
+            runCatching {
+                userHabitRepository.getActiveReminderHabits().forEach { habit ->
+                    NotificationScheduler.cancelHabitReminder(context, habit.id)
+                }
+                userHabitRepository.clearLocalHabitsForGuestMode()
+                habitCompletionDao.deleteAll()
+                habitDao.resetTrackerState()
+            }
+            authRepository.logout()
 
-        _uiState.update {
-            it.copy(
-                showLogoutConfirmation = false,
-                userInfo = UserInfo(),
-                isAdmin = false,
-                snackbarMessage = "Anda masuk sebagai tamu"
-            )
+            _uiState.update {
+                it.copy(
+                    showLogoutConfirmation = false,
+                    userInfo = UserInfo(),
+                    snackbarMessage = "Anda masuk sebagai tamu"
+                )
+            }
         }
         return true
     }
@@ -308,28 +345,86 @@ class ProfileViewModel @Inject constructor(
         val trimmed = newName.trim()
         if (trimmed.isBlank()) return
 
-        viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true) }
-            sharedPreferences.edit().putString(KEY_USER_NAME, trimmed).apply()
+        val current = _uiState.value
+        if (!current.canChangeUsername) {
             _uiState.update {
-                it.copy(
-                    isSaving = false,
-                    userInfo = getCurrentUserInfo(),
-                    snackbarMessage = "Username diperbarui"
-                )
+                it.copy(snackbarMessage = "Username bisa diubah lagi dalam ${current.daysUntilUsernameChange} hari")
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSavingUsername = true) }
+            val result = authRepository.updateDisplayName(trimmed)
+            val now = System.currentTimeMillis()
+            _uiState.update {
+                if (result.isSuccess) {
+                    it.copy(
+                        isSavingUsername = false,
+                        userInfo = getCurrentUserInfo(),
+                        lastUsernameChangedAt = now,
+                        snackbarMessage = "Username diperbarui"
+                    )
+                } else {
+                    it.copy(
+                        isSavingUsername = false,
+                        snackbarMessage = result.exceptionOrNull()?.message ?: "Gagal memperbarui username"
+                    )
+                }
             }
         }
     }
 
-    fun updateAvatar(uri: String) {
-        if (uri.isBlank()) return
+    fun updateAvatar(uriString: String) {
+        if (uriString.isBlank()) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true) }
-            val result = authRepository.updateAvatar(uri)
+            _uiState.update { it.copy(isSavingAvatar = true) }
+
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val uri = Uri.parse(uriString)
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                        ?: throw IllegalStateException("Tidak bisa membuka file gambar")
+                    val originalBitmap = BitmapFactory.decodeStream(inputStream)
+                    inputStream.close()
+                    if (originalBitmap == null) throw IllegalStateException("File bukan gambar yang valid")
+
+                    val maxDimension = 512
+                    val scaled = if (originalBitmap.width > maxDimension || originalBitmap.height > maxDimension) {
+                        val ratio = minOf(
+                            maxDimension.toFloat() / originalBitmap.width,
+                            maxDimension.toFloat() / originalBitmap.height
+                        )
+                        Bitmap.createScaledBitmap(
+                            originalBitmap,
+                            (originalBitmap.width * ratio).toInt(),
+                            (originalBitmap.height * ratio).toInt(),
+                            true
+                        )
+                    } else originalBitmap
+
+                    val output = ByteArrayOutputStream()
+                    scaled.compress(Bitmap.CompressFormat.JPEG, 70, output)
+                    val bytes = output.toByteArray()
+
+                    if (bytes.size > 750_000) {
+                        throw IllegalStateException("Gambar terlalu besar, gunakan gambar yang lebih kecil")
+                    }
+
+                    val base64 = "data:image/jpeg;base64," +
+                        Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    if (base64.length > AuthRepository.MAX_AVATAR_BASE64_LENGTH) {
+                        throw IllegalStateException("Foto profil terlalu besar, gunakan gambar yang lebih kecil")
+                    }
+
+                    authRepository.updateAvatar(base64).getOrThrow()
+                }
+            }
+
             _uiState.update {
                 it.copy(
-                    isSaving = false,
+                    isSavingAvatar = false,
                     userInfo = getCurrentUserInfo(),
                     snackbarMessage = if (result.isSuccess) {
                         "Foto profil diperbarui"
@@ -343,11 +438,11 @@ class ProfileViewModel @Inject constructor(
 
     fun clearAvatar() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true) }
+            _uiState.update { it.copy(isSavingAvatar = true) }
             val result = authRepository.clearAvatar()
             _uiState.update {
                 it.copy(
-                    isSaving = false,
+                    isSavingAvatar = false,
                     userInfo = getCurrentUserInfo(),
                     snackbarMessage = if (result.isSuccess) {
                         "Foto profil dihapus"
@@ -361,12 +456,5 @@ class ProfileViewModel @Inject constructor(
 
     fun clearSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
-    }
-
-    private fun refreshAdminStatus() {
-        viewModelScope.launch {
-            val admin = adminConfigRepository.isCurrentUserAdmin()
-            _uiState.update { it.copy(isAdmin = admin) }
-        }
     }
 }

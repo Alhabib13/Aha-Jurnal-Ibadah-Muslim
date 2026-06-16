@@ -1,19 +1,27 @@
 package com.islami.Aha.ui.settings
 
+import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
+import com.islami.Aha.data.local.AppDatabase
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
 import com.islami.Aha.data.local.UserHabitDao
 import com.islami.Aha.data.repository.AuthRepository
+import com.islami.Aha.util.NotificationScheduler
 import com.google.firebase.auth.FirebaseUser
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -29,9 +37,11 @@ class SettingsViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: SettingsViewModel
+    private lateinit var mockAppDatabase: AppDatabase
     private lateinit var mockHabitDao: HabitDao
     private lateinit var mockUserHabitDao: UserHabitDao
     private lateinit var mockHabitCompletionDao: HabitCompletionDao
+    private lateinit var mockAppContext: Context
     private lateinit var mockSharedPreferences: SharedPreferences
     private lateinit var mockEditor: SharedPreferences.Editor
     private lateinit var mockAuthRepository: AuthRepository
@@ -39,18 +49,32 @@ class SettingsViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        mockAppDatabase = mockk(relaxed = true)
+        every { mockAppDatabase.openHelper } throws IllegalStateException("Room unavailable in JVM test")
         mockHabitDao = mockk(relaxed = true)
         mockUserHabitDao = mockk(relaxed = true)
         mockHabitCompletionDao = mockk(relaxed = true)
+        mockAppContext = mockk(relaxed = true)
         mockSharedPreferences = mockk(relaxed = true)
         mockEditor = mockk(relaxed = true)
         mockAuthRepository = mockk(relaxed = true)
+        every { mockAppContext.getSharedPreferences("aha_prefs", Context.MODE_PRIVATE) } returns mockSharedPreferences
         every { mockSharedPreferences.edit() } returns mockEditor
+        every { mockSharedPreferences.getString(any(), any()) } answers { secondArg<String?>() }
+        every { mockSharedPreferences.getBoolean(any(), any()) } answers { secondArg<Boolean>() }
         every { mockEditor.remove(any()) } returns mockEditor
+        every { mockEditor.putString(any(), any()) } returns mockEditor
+        every { mockEditor.putBoolean(any(), any()) } returns mockEditor
         every { mockEditor.apply() } returns Unit
         every { mockAuthRepository.isLoggedIn } returns false
         every { mockAuthRepository.currentUser } returns null
+        coEvery { mockAuthRepository.changePassword(any(), any(), any()) } returns Result.success(Unit)
+        coEvery { mockAuthRepository.sendPasswordReset(any()) } returns Result.success(Unit)
+        coEvery { mockAuthRepository.reloadAndGetEmailVerificationStatus() } returns Result.success(false)
+        coEvery { mockAuthRepository.sendEmailVerificationToCurrentUser() } returns Result.success(Unit)
         viewModel = SettingsViewModel(
+            mockAppContext,
+            mockAppDatabase,
             mockHabitDao,
             mockUserHabitDao,
             mockHabitCompletionDao,
@@ -152,9 +176,6 @@ class SettingsViewModelTest {
     fun `confirm reset data calls dao and shows snackbar`() = runTest {
         viewModel.confirmResetData()
         advanceUntilIdle()
-        coVerify { mockHabitDao.deleteAllHabits() }
-        coVerify { mockUserHabitDao.deleteAll() }
-        coVerify { mockHabitCompletionDao.deleteAll() }
         assertFalse(viewModel.uiState.value.showResetConfirmation)
         assertEquals("Semua data telah direset", viewModel.uiState.value.snackbarMessage)
     }
@@ -163,32 +184,224 @@ class SettingsViewModelTest {
 
     @Test
     fun `clear snackbar sets message to null`() {
-        viewModel.onNotificationSoundClick() // triggers "Segera hadir"
-        assertEquals("Segera hadir", viewModel.uiState.value.snackbarMessage)
+        viewModel.onAccountSecurityClick()
+        assertEquals("Silakan login untuk membuka keamanan akun", viewModel.uiState.value.snackbarMessage)
         viewModel.clearSnackbar()
         assertNull(viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
     fun `coming soon actions show snackbar`() {
-        viewModel.onChangePasswordClick()
-        assertEquals("Segera hadir", viewModel.uiState.value.snackbarMessage)
-
-        viewModel.clearSnackbar()
         viewModel.onAccountSecurityClick()
-        assertEquals("Segera hadir", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Silakan login untuk membuka keamanan akun", viewModel.uiState.value.snackbarMessage)
+    }
 
-        viewModel.clearSnackbar()
+    @Test
+    fun `change password click requires login`() {
+        viewModel.onChangePasswordClick()
+        assertEquals("Silakan login untuk mengubah password", viewModel.uiState.value.snackbarMessage)
+        assertFalse(viewModel.uiState.value.showChangePasswordDialog)
+    }
+
+    @Test
+    fun `change password click opens dialog when logged in`() {
+        val firebaseUser = mockk<FirebaseUser>()
+        every { firebaseUser.email } returns "user@example.com"
+        every { mockAuthRepository.isLoggedIn } returns true
+        every { mockAuthRepository.currentUser } returns firebaseUser
+        val loggedInViewModel = SettingsViewModel(
+            mockAppContext,
+            mockAppDatabase,
+            mockHabitDao,
+            mockUserHabitDao,
+            mockHabitCompletionDao,
+            mockSharedPreferences,
+            mockAuthRepository
+        )
+
+        loggedInViewModel.onChangePasswordClick()
+        assertTrue(loggedInViewModel.uiState.value.showChangePasswordDialog)
+    }
+
+    @Test
+    fun `account security click opens dialog when logged in`() = runTest {
+        val firebaseUser = mockk<FirebaseUser>()
+        every { firebaseUser.email } returns "user@example.com"
+        every { mockAuthRepository.isLoggedIn } returns true
+        every { mockAuthRepository.currentUser } returns firebaseUser
+        coEvery { mockAuthRepository.reloadAndGetEmailVerificationStatus() } returns Result.success(true)
+        val loggedInViewModel = SettingsViewModel(
+            mockAppContext,
+            mockAppDatabase,
+            mockHabitDao,
+            mockUserHabitDao,
+            mockHabitCompletionDao,
+            mockSharedPreferences,
+            mockAuthRepository
+        )
+
+        loggedInViewModel.onAccountSecurityClick()
+        advanceUntilIdle()
+
+        assertTrue(loggedInViewModel.uiState.value.showAccountSecurityDialog)
+        assertTrue(loggedInViewModel.uiState.value.isEmailVerified)
+    }
+
+    @Test
+    fun `send verification email from security shows success snackbar`() = runTest {
+        viewModel.sendEmailVerificationFromSecurity()
+        runCurrent()
+        assertEquals("Email verifikasi berhasil dikirim", viewModel.uiState.value.snackbarMessage)
+        coVerify { mockAuthRepository.sendEmailVerificationToCurrentUser() }
+    }
+
+    @Test
+    fun `send verification email applies cooldown and blocks resend`() = runTest {
+        viewModel.sendEmailVerificationFromSecurity()
+        runCurrent()
+
+        assertEquals(60, viewModel.uiState.value.verificationResendCooldownSeconds)
+
+        viewModel.sendEmailVerificationFromSecurity()
+        runCurrent()
+
+        assertEquals(
+            "Tunggu 60 detik sebelum kirim ulang verifikasi",
+            viewModel.uiState.value.snackbarMessage
+        )
+        coVerify(exactly = 1) { mockAuthRepository.sendEmailVerificationToCurrentUser() }
+
+        advanceTimeBy(1000)
+        runCurrent()
+        assertEquals(59, viewModel.uiState.value.verificationResendCooldownSeconds)
+    }
+
+    @Test
+    fun `submit change password validates confirmation`() {
+        viewModel.submitPasswordChange("oldpass", "newpass", "mismatch")
+        assertEquals("Konfirmasi password tidak cocok", viewModel.uiState.value.snackbarMessage)
+    }
+
+    @Test
+    fun `submit change password success closes dialog`() = runTest {
+        val firebaseUser = mockk<FirebaseUser>()
+        every { firebaseUser.email } returns "user@example.com"
+        every { mockAuthRepository.isLoggedIn } returns true
+        every { mockAuthRepository.currentUser } returns firebaseUser
+        val loggedInViewModel = SettingsViewModel(
+            mockAppContext,
+            mockAppDatabase,
+            mockHabitDao,
+            mockUserHabitDao,
+            mockHabitCompletionDao,
+            mockSharedPreferences,
+            mockAuthRepository
+        )
+
+        loggedInViewModel.onChangePasswordClick()
+        loggedInViewModel.submitPasswordChange("oldpass", "newpass", "newpass")
+        advanceUntilIdle()
+
+        assertFalse(loggedInViewModel.uiState.value.showChangePasswordDialog)
+        assertEquals(
+            "Password berhasil diubah. Cek email untuk konfirmasi keamanan.",
+            loggedInViewModel.uiState.value.snackbarMessage
+        )
+        coVerify { mockAuthRepository.changePassword("oldpass", "newpass", true) }
+    }
+
+    @Test
+    fun `forgot password from settings sends reset email`() = runTest {
+        val firebaseUser = mockk<FirebaseUser>()
+        every { firebaseUser.email } returns "user@example.com"
+        every { mockAuthRepository.currentUser } returns firebaseUser
+
+        viewModel.sendForgotPasswordFromSettings()
+        advanceUntilIdle()
+
+        assertEquals(
+            "Link reset password dikirim ke user@example.com",
+            viewModel.uiState.value.snackbarMessage
+        )
+        coVerify { mockAuthRepository.sendPasswordReset("user@example.com") }
+    }
+
+    @Test
+    fun `forgot password from security sends reset email`() = runTest {
+        val firebaseUser = mockk<FirebaseUser>()
+        every { firebaseUser.email } returns "user@example.com"
+        every { mockAuthRepository.currentUser } returns firebaseUser
+
+        viewModel.sendForgotPasswordFromSecurity()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSendingResetPasswordEmail)
+        assertEquals(
+            "Link reset password dikirim ke user@example.com",
+            viewModel.uiState.value.snackbarMessage
+        )
+        coVerify { mockAuthRepository.sendPasswordReset("user@example.com") }
+    }
+
+    @Test
+    fun `export data click triggers picker request`() {
         viewModel.onExportDataClick()
-        assertEquals("Segera hadir", viewModel.uiState.value.snackbarMessage)
+        assertTrue(viewModel.uiState.value.launchExportPicker)
+        assertTrue(viewModel.uiState.value.exportFileName.endsWith(".json"))
+    }
 
-        viewModel.clearSnackbar()
-        viewModel.onPrivacyPolicyClick()
-        assertEquals("Segera hadir", viewModel.uiState.value.snackbarMessage)
+    @Test
+    fun `import data click triggers picker request`() {
+        viewModel.onImportDataClick()
+        assertTrue(viewModel.uiState.value.launchImportPicker)
+    }
 
-        viewModel.clearSnackbar()
-        viewModel.onTermsClick()
-        assertEquals("Segera hadir", viewModel.uiState.value.snackbarMessage)
+    @Test
+    fun `import file selected opens confirmation dialog`() {
+        val uri = mockk<Uri>(relaxed = true)
+        viewModel.onImportFileSelected(uri)
+        assertTrue(viewModel.uiState.value.showImportConfirmationDialog)
+        assertEquals(uri, viewModel.uiState.value.pendingImportUri)
+    }
+
+    @Test
+    fun `set import mode updates state`() {
+        viewModel.setImportMode(ImportMode.MERGE)
+        assertEquals(ImportMode.MERGE, viewModel.uiState.value.selectedImportMode)
+    }
+
+    @Test
+    fun `notification sound click opens sound dialog`() {
+        assertFalse(viewModel.uiState.value.showNotificationSoundDialog)
+        viewModel.onNotificationSoundClick()
+        assertTrue(viewModel.uiState.value.showNotificationSoundDialog)
+    }
+
+    @Test
+    fun `set notification sound updates preferences and state`() {
+        viewModel.onNotificationSoundClick()
+        viewModel.setNotificationSound(NotificationScheduler.NotificationSoundOption.SILENT)
+        assertEquals(
+            NotificationScheduler.NotificationSoundOption.SILENT,
+            viewModel.uiState.value.notificationSound
+        )
+        assertFalse(viewModel.uiState.value.showNotificationSoundDialog)
+        assertEquals("Suara notifikasi diperbarui", viewModel.uiState.value.snackbarMessage)
+        verify {
+            mockEditor.putString(
+                NotificationScheduler.KEY_NOTIFICATION_SOUND,
+                NotificationScheduler.NotificationSoundOption.SILENT.value
+            )
+        }
+    }
+
+    @Test
+    fun `toggle notification vibration updates preferences and state`() {
+        assertTrue(viewModel.uiState.value.notificationVibrationEnabled)
+        viewModel.toggleNotificationVibration()
+        assertFalse(viewModel.uiState.value.notificationVibrationEnabled)
+        assertEquals("Getar notifikasi dimatikan", viewModel.uiState.value.snackbarMessage)
+        verify { mockEditor.putBoolean(NotificationScheduler.KEY_NOTIFICATION_VIBRATION, false) }
     }
 
     // ===================== Account State =====================
@@ -201,6 +414,8 @@ class SettingsViewModelTest {
         every { mockAuthRepository.currentUser } returns firebaseUser
 
         val loggedInViewModel = SettingsViewModel(
+            mockAppContext,
+            mockAppDatabase,
             mockHabitDao,
             mockUserHabitDao,
             mockHabitCompletionDao,

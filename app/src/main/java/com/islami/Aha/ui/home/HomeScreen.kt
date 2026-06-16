@@ -57,10 +57,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -83,6 +85,9 @@ import com.islami.Aha.data.model.Habit
 import com.islami.Aha.R
 import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
+import com.islami.Aha.ui.components.AhaLoadingOverlay
+import com.islami.Aha.ui.components.AhaToastTone
+import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.*
 import com.islami.Aha.util.LocationHelper
 import com.islami.Aha.util.rememberLocationPermissionState
@@ -96,6 +101,14 @@ private val PurpleEnd = Color(0xFF8B5CF6)
 private val AmberStart = Color(0xFFD97706)
 private val AmberEnd = Color(0xFFFBBF24)
 
+private const val CATEGORY_SHOLAT = "Sholat"
+private const val CATEGORY_PUASA = "Puasa"
+private const val CATEGORY_DZIKIR = "Dzikir"
+private const val CATEGORY_TILAWAH = "Tilawah"
+private const val CATEGORY_SHOLAT_TARAWIH = "Sholat Tarawih"
+private const val CATEGORY_PUASA_WAJIB = "Puasa Wajib"
+private const val CATEGORY_PREFIX_PUASA = "Puasa"
+
 data class CategoryCardData(
     val name: String,
     val icon: String? = null,
@@ -105,20 +118,23 @@ data class CategoryCardData(
 )
 
 private val categoryCards = listOf(
-    CategoryCardData("Sholat", iconRes = R.drawable.card_icon_sholat, gradientStart = EmeraldDark, gradientEnd = Emerald),
-    CategoryCardData("Puasa", iconRes = R.drawable.card_icon_puasa, gradientStart = PurpleStart, gradientEnd = PurpleEnd),
-    CategoryCardData("Dzikir", iconRes = R.drawable.card__icon_dzikir, gradientStart = TealStart, gradientEnd = TealEnd),
-    CategoryCardData("Tilawah", iconRes = R.drawable.card_icon_tilawah, gradientStart = AmberStart, gradientEnd = AmberEnd)
+    CategoryCardData(CATEGORY_SHOLAT, iconRes = R.drawable.card_icon_sholat, gradientStart = EmeraldDark, gradientEnd = Emerald),
+    CategoryCardData(CATEGORY_PUASA, iconRes = R.drawable.card_icon_puasa, gradientStart = PurpleStart, gradientEnd = PurpleEnd),
+    CategoryCardData(CATEGORY_DZIKIR, iconRes = R.drawable.card__icon_dzikir, gradientStart = TealStart, gradientEnd = TealEnd),
+    CategoryCardData(CATEGORY_TILAWAH, iconRes = R.drawable.card_icon_tilawah, gradientStart = AmberStart, gradientEnd = AmberEnd)
 )
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
+    transientSnackbarMessage: String? = null,
+    onTransientSnackbarShown: () -> Unit = {},
     onNavigateToAddHabit: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     var showLocationPermissionBanner by rememberSaveable { mutableStateOf(false) }
     var showLocationPermissionDialog by rememberSaveable { mutableStateOf(false) }
     var showLocationServiceDialog by rememberSaveable { mutableStateOf(false) }
@@ -175,6 +191,24 @@ fun HomeScreen(
         }
     }
 
+    LaunchedEffect(transientSnackbarMessage) {
+        val message = transientSnackbarMessage ?: return@LaunchedEffect
+        toastMessage = message
+    }
+
+    LaunchedEffect(uiState.snackbarMessage) {
+        val message = uiState.snackbarMessage ?: return@LaunchedEffect
+        toastMessage = message
+    }
+
+    val toastTone = if (
+        toastMessage == transientSnackbarMessage && !transientSnackbarMessage.isNullOrBlank()
+    ) {
+        AhaToastTone.SUCCESS
+    } else {
+        AhaToastTone.AUTO
+    }
+
     DisposableEffect(lifecycleOwner, locationPermission.isGranted) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -187,41 +221,65 @@ fun HomeScreen(
 
     val notificationPermission = rememberNotificationPermissionState()
 
-    HomeScreenContent(
-        uiState = uiState,
-        locationPermissionGranted = locationPermission.isGranted,
-        showLocationPermissionBanner = showLocationPermissionBanner && !locationPermission.isGranted,
-        notificationPermissionGranted = notificationPermission.isGranted,
-        onRequestLocationPermission = {
-            showLocationPermissionDialog = true
-            hasPromptedLocationPermission = true
-            locationPermission.requestPermission()
-        },
-        onRequestNotificationPermission = notificationPermission.requestPermission,
-        onRefresh = { viewModel.refreshData() },
-        onRefreshLocation = {
-            if (!locationPermission.isGranted) {
-                showLocationPermissionBanner = true
+    Box(modifier = Modifier.fillMaxSize()) {
+        HomeScreenContent(
+            uiState = uiState,
+            locationPermissionGranted = locationPermission.isGranted,
+            showLocationPermissionBanner = showLocationPermissionBanner && !locationPermission.isGranted,
+            notificationPermissionGranted = notificationPermission.isGranted,
+            onRequestLocationPermission = {
                 showLocationPermissionDialog = true
                 hasPromptedLocationPermission = true
                 locationPermission.requestPermission()
-            } else if (!LocationHelper.isLocationEnabled(context)) {
-                showLocationServiceDialog = true
-                hasPromptedLocationService = true
-                viewModel.refreshLocation(force = true)
-            } else {
-                viewModel.refreshLocation(force = true)
-            }
-        },
-        onToggleHabitCompletion = viewModel::toggleHabitCompletion,
-        onToggleHabitReminder = viewModel::toggleReminderEnabled,
-        onNavigateToAddHabit = onNavigateToAddHabit,
-        onSelectMainCategory = viewModel::selectMainCategory,
-        onSelectSubTab = viewModel::selectSubTab,
-        onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
-        onToggleSunnahReminder = viewModel::toggleSunnahReminder,
-        onDeleteSunnah = viewModel::removeSunnahHabit
-    )
+            },
+            onRequestNotificationPermission = notificationPermission.requestPermission,
+            onRefresh = { viewModel.refreshData() },
+            onRefreshLocation = {
+                if (!locationPermission.isGranted) {
+                    showLocationPermissionBanner = true
+                    showLocationPermissionDialog = true
+                    hasPromptedLocationPermission = true
+                    locationPermission.requestPermission()
+                } else if (!LocationHelper.isLocationEnabled(context)) {
+                    showLocationServiceDialog = true
+                    hasPromptedLocationService = true
+                    viewModel.refreshLocation(force = true)
+                } else {
+                    viewModel.refreshLocation(force = true)
+                }
+            },
+            onToggleHabitCompletion = viewModel::toggleHabitCompletion,
+            onToggleHabitReminder = viewModel::toggleReminderEnabled,
+            onNavigateToAddHabit = onNavigateToAddHabit,
+            onSelectMainCategory = viewModel::selectMainCategory,
+            onSelectSubTab = viewModel::selectSubTab,
+            onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
+            onToggleSunnahReminder = viewModel::toggleSunnahReminder,
+            onDeleteSunnah = viewModel::removeSunnahHabit
+        )
+
+        AhaToastHost(
+            message = toastMessage,
+            tone = toastTone,
+            onDismissed = {
+                if (toastMessage == transientSnackbarMessage) {
+                    onTransientSnackbarShown()
+                }
+                if (toastMessage == uiState.snackbarMessage) {
+                    viewModel.clearSnackbar()
+                }
+                toastMessage = null
+            },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+
+        AhaLoadingOverlay(
+            visible = uiState.isLoading,
+            message = stringResource(R.string.home_loading_message)
+        )
+    }
 
     if (showLocationPermissionDialog && !locationPermission.isGranted) {
         AlertDialog(
@@ -362,9 +420,6 @@ fun HomeScreenContent(
     onDeleteSunnah: (String) -> Unit = {}
 ) {
     if (uiState.isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Emerald)
-        }
         return
     }
 
@@ -477,16 +532,16 @@ fun HomeScreenContent(
                         uiState.subTabCategories.getOrNull(uiState.selectedSubTabIndex)
                     RamadanUnifiedHabitCard(
                         puasaHabit = if (
-                            uiState.selectedMainCategory == "Puasa" &&
-                            selectedSubCategory == "Puasa Wajib"
+                            uiState.selectedMainCategory == CATEGORY_PUASA &&
+                            selectedSubCategory == CATEGORY_PUASA_WAJIB
                         ) {
                             uiState.ramadanPuasaHabit
                         } else {
                             null
                         },
                         tarawihHabit = if (
-                            uiState.selectedMainCategory == "Sholat" &&
-                            selectedSubCategory == "Sholat Tarawih"
+                            uiState.selectedMainCategory == CATEGORY_SHOLAT &&
+                            selectedSubCategory == CATEGORY_SHOLAT_TARAWIH
                         ) {
                             uiState.ramadanTarawihHabit
                         } else {
@@ -548,7 +603,7 @@ fun SunnahHabitCard(
         stringResource(R.string.home_not_completed_cd)
     }
     val backgroundColor by animateColorAsState(
-        targetValue = if (sunnahHabit.isCompletedToday) MaterialTheme.colorScheme.primaryContainer
+        targetValue = if (sunnahHabit.isCompletedToday) MaterialTheme.colorScheme.surfaceVariant
         else MaterialTheme.colorScheme.surface,
         label = "sunnahBgColor"
     )
@@ -579,14 +634,23 @@ fun SunnahHabitCard(
             }
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = if (sunnahHabit.isCompletedToday) Emerald.copy(alpha = 0.15f) else EmeraldLight,
+                color = when (sunnahHabit.category) {
+                    SunnahCategoryType.PUASA -> WarningAmber.copy(alpha = 0.12f)
+                    SunnahCategoryType.SHOLAT -> InfoBlue.copy(alpha = 0.12f)
+                },
                 modifier = Modifier.size(48.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Image(
                         painter = painterResource(id = iconRes),
                         contentDescription = sunnahHabit.name,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(24.dp),
+                        colorFilter = ColorFilter.tint(
+                            when (sunnahHabit.category) {
+                                SunnahCategoryType.PUASA -> WarningAmber
+                                SunnahCategoryType.SHOLAT -> Emerald
+                            }
+                        )
                     )
                 }
             }
@@ -604,11 +668,11 @@ fun SunnahHabitCard(
                 Text(
                     text = sunnahHabit.frequencyLabel,
                     fontSize = 12.sp,
-                    color = Gray500
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 sunnahHabit.rakaat?.let { rakaat ->
                     Text(
-                        text = stringResource(R.string.home_rakaat_format, rakaat),
+                        text = pluralStringResource(R.plurals.home_rakaat_format, rakaat, rakaat),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -618,14 +682,14 @@ fun SunnahHabitCard(
                         Icon(
                             imageVector = Icons.Outlined.AccessTime,
                             contentDescription = stringResource(R.string.home_reminder_time_cd),
-                            tint = Gray500,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(12.dp)
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
                             text = sunnahHabit.reminderTime,
                             fontSize = 12.sp,
-                            color = Gray500
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -639,9 +703,9 @@ fun SunnahHabitCard(
                     .clip(CircleShape)
                     .then(
                         if (sunnahHabit.isCompletedToday) {
-                            Modifier.background(Emerald, CircleShape)
+                            Modifier.background(InfoBlue, CircleShape)
                         } else {
-                            Modifier.border(2.dp, Emerald, CircleShape)
+                            Modifier.border(2.dp, InfoBlue, CircleShape)
                         }
                     )
                     .semantics {
@@ -682,7 +746,7 @@ fun PermissionBanner(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = GoldLight)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
         Row(
             modifier = Modifier
@@ -726,7 +790,7 @@ fun SyncStatusBanner(message: String) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = EmeraldLight)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
             modifier = Modifier
@@ -811,44 +875,48 @@ fun HomeHeader(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = gregorianDate, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f))
-                Text(text = "\u2022", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f), fontSize = 12.sp)
-                Text(text = hijriDate, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f))
+                Text(text = gregorianDate, fontSize = 13.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f))
+                Text(
+                    text = stringResource(R.string.home_date_separator),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f),
+                    fontSize = 13.sp
+                )
+                Text(text = hijriDate, fontSize = 13.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f))
             }
 
             // Location with refresh button
             Spacer(modifier = Modifier.height(4.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
                     imageVector = Icons.Outlined.LocationOn,
                     contentDescription = stringResource(R.string.home_location_cd),
-                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                    modifier = Modifier.size(12.dp)
+                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                    modifier = Modifier.size(14.dp)
                 )
                 Text(
                     text = location,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
                 )
                 if (isLocationLoading) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(12.dp),
+                        modifier = Modifier.size(14.dp),
                         strokeWidth = 1.5.dp,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
                     )
                 } else {
                     IconButton(
                         onClick = onRefreshLocation,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,
                             contentDescription = stringResource(R.string.home_refresh_location_cd),
-                            tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                            modifier = Modifier.size(14.dp)
+                            tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.92f),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -856,8 +924,8 @@ fun HomeHeader(
             if (prayerTimeStatusText.isNotBlank()) {
                 Text(
                     text = prayerTimeStatusText,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
                 )
             }
 
@@ -1162,8 +1230,8 @@ fun RamadanUnifiedHabitCard(
         tarawihHabit?.let { add(it) }
     }
     if (habits.isEmpty()) return
-    val hasPuasa = habits.any { it.category == "Puasa Wajib" }
-    val hasTarawih = habits.any { it.category == "Sholat Tarawih" }
+    val hasPuasa = habits.any { it.category == CATEGORY_PUASA_WAJIB }
+    val hasTarawih = habits.any { it.category == CATEGORY_SHOLAT_TARAWIH }
     val titleText = when {
         hasPuasa && !hasTarawih -> stringResource(R.string.home_ramadan_unified_title_puasa)
         hasTarawih && !hasPuasa -> stringResource(R.string.home_ramadan_unified_title_tarawih)
@@ -1191,8 +1259,8 @@ fun RamadanUnifiedHabitCard(
                 RamadanUnifiedHabitRow(
                     habit = habit,
                     displayName = when (habit.category) {
-                        "Puasa Wajib" -> stringResource(R.string.home_ramadan_unified_puasa_label)
-                        "Sholat Tarawih" -> stringResource(R.string.home_ramadan_unified_tarawih_label)
+                        CATEGORY_PUASA_WAJIB -> stringResource(R.string.home_ramadan_unified_puasa_label)
+                        CATEGORY_SHOLAT_TARAWIH -> stringResource(R.string.home_ramadan_unified_tarawih_label)
                         else -> habit.name
                     },
                     onToggleHabitCompletion = { onToggleHabitCompletion(habit) },
@@ -1232,7 +1300,7 @@ private fun RamadanUnifiedHabitRow(
     ) {
         Surface(
             shape = RoundedCornerShape(10.dp),
-            color = if (habit.isCompleted) Emerald.copy(alpha = 0.15f) else EmeraldLight,
+            color = habitIconContainerColor(habit),
             modifier = Modifier.size(38.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -1275,7 +1343,7 @@ private fun RamadanUnifiedHabitRow(
                     Icons.Outlined.NotificationsOff
                 },
                 contentDescription = reminderStateDescription,
-                tint = if (habit.isReminderEnabled) Emerald else Gray400,
+                tint = if (habit.isReminderEnabled) Emerald else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -1288,9 +1356,9 @@ private fun RamadanUnifiedHabitRow(
                 .clip(CircleShape)
                 .then(
                     if (habit.isCompleted) {
-                        Modifier.background(Emerald, CircleShape)
+                        Modifier.background(InfoBlue, CircleShape)
                     } else {
-                        Modifier.border(2.dp, Emerald, CircleShape)
+                        Modifier.border(2.dp, InfoBlue, CircleShape)
                     }
                 )
                 .semantics {
@@ -1334,7 +1402,7 @@ fun HabitSectionHeader(completedCount: Int, totalCount: Int) {
         )
         Surface(
             shape = RoundedCornerShape(50),
-            color = GoldLight
+            color = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Text(
                 text = stringResource(R.string.home_habit_progress_format, completedCount, totalCount),
@@ -1372,8 +1440,8 @@ fun HomeHabitItem(
 
     val backgroundColor by animateColorAsState(
         targetValue = when {
-            habit.isCompleted -> MaterialTheme.colorScheme.primaryContainer
-            isCurrentPrayer -> EmeraldLight
+            habit.isCompleted -> MaterialTheme.colorScheme.surfaceVariant
+            isCurrentPrayer -> MaterialTheme.colorScheme.surfaceVariant
             else -> MaterialTheme.colorScheme.surface
         },
         label = "bgColor"
@@ -1402,7 +1470,7 @@ fun HomeHabitItem(
                     modifier = Modifier
                         .width(3.dp)
                         .fillMaxHeight()
-                        .background(Emerald)
+                        .background(InfoBlue)
                 )
             }
 
@@ -1415,7 +1483,7 @@ fun HomeHabitItem(
                 // Icon
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = if (habit.isCompleted) Emerald.copy(alpha = 0.15f) else EmeraldLight,
+                    color = habitIconContainerColor(habit),
                     modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -1464,8 +1532,7 @@ fun HomeHabitItem(
 
                 // Bell icon
                 IconButton(
-                    onClick = onToggleReminder,
-                    modifier = Modifier.size(28.dp)
+                    onClick = onToggleReminder
                 ) {
                     Icon(
                         imageVector = if (habit.isReminderEnabled) {
@@ -1474,7 +1541,7 @@ fun HomeHabitItem(
                             Icons.Outlined.NotificationsOff
                         },
                         contentDescription = reminderStateDescription,
-                        tint = if (habit.isReminderEnabled) Emerald else Gray400,
+                        tint = if (habit.isReminderEnabled) Emerald else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -1489,9 +1556,9 @@ fun HomeHabitItem(
                         .clip(CircleShape)
                     .then(
                         if (habit.isCompleted) {
-                            Modifier.background(Emerald, CircleShape)
+                            Modifier.background(InfoBlue, CircleShape)
                         } else {
-                            Modifier.border(2.dp, Emerald, CircleShape)
+                            Modifier.border(2.dp, InfoBlue, CircleShape)
                         }
                     )
                     .semantics {
@@ -1520,6 +1587,14 @@ fun HomeHabitItem(
     }
 }
 
+private fun habitIconContainerColor(habit: Habit): Color {
+    return if (habit.category.startsWith(CATEGORY_PREFIX_PUASA, ignoreCase = true)) {
+        WarningAmber.copy(alpha = 0.12f)
+    } else {
+        InfoBlue.copy(alpha = 0.12f)
+    }
+}
+
 private fun getHabitItemIcon(habit: Habit): ImageVector {
     return when {
         habit.icon == "sunrise" -> Icons.Filled.WbSunny
@@ -1534,7 +1609,7 @@ private fun getHabitItemIcon(habit: Habit): ImageVector {
         habit.icon == "\uD83C\uDF19" -> Icons.Filled.DarkMode // crescent moon
         habit.icon == "\uD83C\uDF1C" -> Icons.Filled.DarkMode // moon face
         habit.icon == "\uD83C\uDF7D\uFE0F" -> Icons.Filled.Restaurant // plate
-        habit.category.startsWith("Puasa", ignoreCase = true) -> Icons.Filled.Restaurant
+        habit.category.startsWith(CATEGORY_PREFIX_PUASA, ignoreCase = true) -> Icons.Filled.Restaurant
         else -> Icons.Outlined.AccessTime
     }
 }
@@ -1610,7 +1685,7 @@ fun EmptyHabitState(onAddHabitClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Filled.Inbox,
                 contentDescription = stringResource(R.string.home_empty_habit_cd),
-                tint = Gray500,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(48.dp)
             )
             Text(
@@ -1646,14 +1721,14 @@ fun IslamicMotivationCard(quote: String, source: String) {
             .fillMaxWidth()
             .padding(horizontal = 20.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = GoldLight)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "\"$quote\"",
+                text = stringResource(R.string.home_quote_format, quote),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontStyle = FontStyle.Italic

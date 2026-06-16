@@ -72,3 +72,49 @@ Fields:
 - Client app: tidak boleh `write` koleksi `fardhu_defaults`
 - User sunnah data: hanya owner (`request.auth.uid == userId`)
 
+## 5) Seed Koleksi Konten Home (`hadith_contents` dan `surah_verses`)
+
+File seed:
+- `hadith_contents.seed.json`
+- `surah_verses.seed.json`
+
+Script seed:
+- `seed-islamic-content.mjs`
+
+Environment variable (sama seperti seed fardhu):
+
+```powershell
+$env:FIREBASE_PROJECT_ID="<your-project-id>"
+$env:FIREBASE_SERVICE_ACCOUNT_PATH="C:\path\to\service-account.json"
+```
+
+Run:
+
+```bash
+node seed-islamic-content.mjs
+```
+
+Atau via npm script:
+
+```bash
+npm run seed:islamic-content
+```
+
+Menjalankan semua seed sekaligus (`fardhu_defaults` + konten Home):
+
+```bash
+npm run seed:all
+```
+
+Struktur field dokumen:
+
+Collection `hadith_contents`:
+- `text` (String)
+- `source` (String)
+- `updatedAt` (ISO String)
+
+Collection `surah_verses`:
+- `surahName` (String)
+- `ayahNumber` (Number)
+- `translation` (String)
+- `updatedAt` (ISO String)

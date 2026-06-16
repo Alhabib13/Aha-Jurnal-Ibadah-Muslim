@@ -1,5 +1,7 @@
 package com.islami.Aha.data.repository
 
+import com.islami.Aha.data.local.AppDatabase
+import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.UserHabitDao
 import com.islami.Aha.data.model.UserHabitEntity
 import com.islami.Aha.domain.model.SunnahHabit
@@ -28,13 +30,21 @@ class UserHabitRepositoryTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var repository: UserHabitRepository
+    private lateinit var mockDatabase: AppDatabase
     private lateinit var mockDao: UserHabitDao
+    private lateinit var mockHabitCompletionDao: HabitCompletionDao
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        mockDatabase = mockk(relaxed = true)
         mockDao = mockk(relaxed = true)
-        repository = UserHabitRepository(mockDao)
+        mockHabitCompletionDao = mockk(relaxed = true)
+        repository = UserHabitRepository(
+            appDatabase = mockDatabase,
+            userHabitDao = mockDao,
+            habitCompletionDao = mockHabitCompletionDao
+        )
     }
 
     @After

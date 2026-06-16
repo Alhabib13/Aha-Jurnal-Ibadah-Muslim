@@ -66,6 +66,12 @@ object NotificationScheduler {
     const val KEY_NOTIFICATION_SOUND = "notification_sound_option"
     const val KEY_NOTIFICATION_VIBRATION = "notification_vibration_enabled"
 
+    // SharedPreferences registry: habitId → unique sequential requestCode.
+    // Collision-free karena setiap habitId dapat integer unik yang di-increment.
+    private const val PREFS_REQUEST_CODES = "notification_request_codes"
+    private const val KEY_NEXT_CODE = "_next_code"
+    private const val NEXT_CODE_INITIAL = 1
+
     private fun debugLog(message: String) {
         if (Log.isLoggable(TAG, Log.DEBUG)) {
             Log.d(TAG, message)
@@ -73,10 +79,36 @@ object NotificationScheduler {
     }
 
     /**
-     * Generate a stable, positive request code from a habit ID string.
-     * Uses a simple FNV-1a-inspired hash for better distribution than String.hashCode().
+     * Kembalikan requestCode yang sudah tersimpan untuk [habitId], atau buat baru
+     * secara sequential jika belum ada. Dijamin collision-free karena setiap
+     * habitId mendapat integer unik yang di-increment — tidak ada dua habitId
+     * yang berbagi requestCode yang sama.
      */
-    fun stableRequestCode(habitId: String): Int {
+    @Synchronized
+    private fun getOrAssignRequestCode(context: Context, habitId: String): Int {
+        val prefs = context.getSharedPreferences(PREFS_REQUEST_CODES, Context.MODE_PRIVATE)
+        val existing = prefs.getInt(habitId, -1)
+        if (existing != -1) return existing
+        val next = prefs.getInt(KEY_NEXT_CODE, NEXT_CODE_INITIAL)
+        prefs.edit()
+            .putInt(habitId, next)
+            .putInt(KEY_NEXT_CODE, next + 1)
+            .apply()
+        debugLog("Assigned new requestCode=$next for habitId=$habitId")
+        return next
+    }
+
+    /**
+     * Stable notification ID untuk ditampilkan di status bar.
+     * Consistent per habitId — tidak berubah antar sesi.
+     */
+    fun notificationId(habitId: String): Int = legacyHashCode(habitId)
+
+    /**
+     * FNV-1a hash — hanya dipakai sebagai fallback untuk cancel alarm lama
+     * yang dijadwalkan sebelum migrasi ke registry SharedPreferences.
+     */
+    private fun legacyHashCode(habitId: String): Int {
         var hash = 0x811c9dc5.toInt()
         for (c in habitId) {
             hash = hash xor c.code
@@ -213,7 +245,7 @@ object NotificationScheduler {
             putExtra("minute", minute)
         }
 
-        val requestCode = stableRequestCode(habitId)
+        val requestCode = getOrAssignRequestCode(context, habitId)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -261,15 +293,30 @@ object NotificationScheduler {
 
     fun cancelHabitReminder(context: Context, habitId: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(context, NotificationReceiver::class.java)
-        val requestCode = stableRequestCode(habitId)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            requestCode,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        alarmManager.cancel(pendingIntent)
-        debugLog("Alarm cancelled for habitId=$habitId")
+        val prefs = context.getSharedPreferences(PREFS_REQUEST_CODES, Context.MODE_PRIVATE)
+        val storedCode = prefs.getInt(habitId, -1)
+
+        fun cancelCode(code: Int) {
+            val intent = Intent(context, NotificationReceiver::class.java)
+            val pi = PendingIntent.getBroadcast(
+                context,
+                code,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pi)
+        }
+
+        if (storedCode != -1) {
+            // Kode baru dari registry — path normal
+            cancelCode(storedCode)
+        } else {
+            // Migrasi: alarm lama dijadwalkan dengan kode hash sebelum registry ada
+            cancelCode(legacyHashCode(habitId))
+        }
+
+        // Hapus dari registry sehingga habitId yang sama bisa mendapat kode baru jika dijadwal ulang
+        prefs.edit().remove(habitId).apply()
+        debugLog("Alarm cancelled for habitId=$habitId (code=${if (storedCode != -1) storedCode else "legacy"})")
     }
 }

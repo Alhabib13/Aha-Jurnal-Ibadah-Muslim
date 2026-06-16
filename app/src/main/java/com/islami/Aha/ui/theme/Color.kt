@@ -32,7 +32,7 @@ val TextTertiary = Color(0xFF8899AA)       // Teks tersier
 // Gray Scale
 val Gray900 = Color(0xFF1A2B3C)
 val Gray800 = Color(0xFF2D3E50)
-val Gray700 = Color(0xFF3D5166)
+val Gray700 = Color(0xFF3A4B5C)
 val Gray600 = Color(0xFF4E6479)
 val Gray500 = Color(0xFF6B7B8D)
 val Gray400 = Color(0xFF8899AA)
@@ -64,10 +64,10 @@ val TextTertiaryDark = Color(0xFF6B7B8D)
 // SEMANTIC COLORS
 // ============================================================================
 val SuccessGreen = Color(0xFF10B981)
-val WarningAmber = Color(0xFFF59E0B)
+val WarningAmber = Color(0xFF14A87D)
 val WarningYellow = Color(0xFFF59E0B)      // Alias for WarningAmber
 val ErrorRed = Color(0xFFE74C3C)
-val InfoBlue = Color(0xFF3B82F6)
+val InfoBlue = Color(0xFF14A87D)
 
 // ============================================================================
 // CATEGORY GRADIENT COLORS

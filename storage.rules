@@ -1,0 +1,11 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Firebase Storage tidak digunakan oleh app ini.
+    // Avatar disimpan sebagai base64 di Firestore, bukan di Storage.
+    // Semua akses ditutup untuk mencegah upload file berbahaya.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

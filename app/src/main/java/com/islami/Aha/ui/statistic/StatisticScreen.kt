@@ -31,7 +31,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -107,7 +109,7 @@ fun StatisticScreenContent(uiState: StatisticUiState) {
             // 6. Category Stats
             item {
                 Text(
-                    text = "Statistik per Kategori",
+                    text = stringResource(R.string.statistic_category_title),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -148,15 +150,33 @@ fun StatisticHeader(currentDate: String) {
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "Statistik",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ShowChart,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.statistic_screen_title),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = stringResource(R.string.statistic_header_subtitle),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             Surface(
                 shape = RoundedCornerShape(14.dp),
@@ -168,24 +188,24 @@ fun StatisticHeader(currentDate: String) {
                         .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     Text(
-                        text = "Tanggal Aktif",
+                        text = stringResource(R.string.statistic_active_date_title),
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimary,
                         fontSize = 14.sp
                     )
                     Text(
-                        text = if (currentDate.isNotEmpty()) currentDate else "Tanggal aktif tidak tersedia",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                        text = if (currentDate.isNotEmpty()) currentDate else stringResource(R.string.statistic_active_date_unavailable),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.92f)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Ringkasan progres ibadah Anda",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f),
+                text = stringResource(R.string.statistic_header_summary),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
                 modifier = Modifier.padding(top = 6.dp)
             )
         }
@@ -217,19 +237,19 @@ fun ProgressCard(completed: Int, total: Int, percentage: Int) {
             ) {
                 Column {
                     Text(
-                        text = "Progress Hari Ini",
+                        text = stringResource(R.string.statistic_today_progress_title),
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "$completed dari $total",
+                        text = stringResource(R.string.statistic_today_progress_format, completed, total),
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                     Text(
-                        text = "ibadah selesai",
+                        text = stringResource(R.string.statistic_today_progress_suffix),
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                     )
@@ -274,7 +294,7 @@ fun ProgressCard(completed: Int, total: Int, percentage: Int) {
                         )
                     }
                     Text(
-                        text = "$percentage%",
+                        text = stringResource(R.string.statistic_percent_format, percentage),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary
@@ -297,19 +317,19 @@ fun SummaryCardsRow(totalCompleted: Int, longestStreak: Int, averagePerDay: Floa
         SummaryCard(
             icon = Icons.Filled.CheckCircle,
             value = "$totalCompleted",
-            label = "Total\nSelesai",
-            backgroundColor = Emerald
+            label = stringResource(R.string.statistic_summary_total_label),
+            backgroundColor = InfoBlue
         )
         SummaryCard(
             icon = Icons.Filled.LocalFireDepartment,
             value = "$longestStreak",
-            label = "Streak\nTerpjg",
+            label = stringResource(R.string.statistic_summary_streak_label),
             backgroundColor = Gold
         )
         SummaryCard(
             icon = Icons.Filled.BarChart,
             value = String.format(Locale.getDefault(), "%.1f", averagePerDay),
-            label = "Rata-\nrata/hr",
+            label = stringResource(R.string.statistic_summary_avg_label),
             backgroundColor = Color(0xFF17A2B8)
         )
     }
@@ -364,7 +384,7 @@ fun WeeklyHeatmap(weeklyStats: List<DailyStatistic>) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Progress Minggu Ini",
+                text = stringResource(R.string.statistic_weekly_progress_title),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -429,6 +449,23 @@ fun HeatmapCell(day: DailyStatistic) {
 
 @Composable
 fun StreakCards(currentStreak: Int, longestStreak: Int) {
+    val isDarkTheme = isSystemInDarkTheme()
+    val streakContainerColor = if (isDarkTheme) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        GoldLight
+    }
+    val streakSupportColor = if (isDarkTheme) {
+        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.82f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val streakValueColor = if (isDarkTheme) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -438,7 +475,7 @@ fun StreakCards(currentStreak: Int, longestStreak: Int) {
         Card(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = GoldLight)
+            colors = CardDefaults.cardColors(containerColor = streakContainerColor)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -448,22 +485,26 @@ fun StreakCards(currentStreak: Int, longestStreak: Int) {
                     Icon(
                         imageVector = Icons.Filled.LocalFireDepartment,
                         contentDescription = null,
-                        tint = Gray700,
+                        tint = streakSupportColor,
                         modifier = Modifier.size(14.dp)
                     )
-                    Text(text = "Streak", fontSize = 13.sp, color = Gray700)
+                    Text(
+                        text = stringResource(R.string.statistic_streak_label),
+                        fontSize = 13.sp,
+                        color = streakSupportColor
+                    )
                 }
                 Text(
-                    text = "Saat Ini",
+                    text = stringResource(R.string.statistic_streak_current),
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = streakSupportColor
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "$currentStreak hari",
+                    text = pluralStringResource(R.plurals.statistic_streak_days_format, currentStreak, currentStreak),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = streakValueColor
                 )
             }
         }
@@ -480,19 +521,23 @@ fun StreakCards(currentStreak: Int, longestStreak: Int) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ShowChart,
                         contentDescription = null,
-                        tint = Gray700,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(14.dp)
                     )
-                    Text(text = "Streak", fontSize = 13.sp, color = Gray700)
+                    Text(
+                        text = stringResource(R.string.statistic_streak_label),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 Text(
-                    text = "Terpanjang",
+                    text = stringResource(R.string.statistic_streak_longest),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "$longestStreak hari",
+                    text = pluralStringResource(R.plurals.statistic_streak_days_format, longestStreak, longestStreak),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -531,7 +576,7 @@ fun CategoryStatCard(category: CategoryStatistic, modifier: Modifier = Modifier)
                     )
                 }
                 Text(
-                    text = "${category.percentage}%",
+                    text = stringResource(R.string.statistic_percent_format, category.percentage),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Emerald
@@ -546,12 +591,16 @@ fun CategoryStatCard(category: CategoryStatistic, modifier: Modifier = Modifier)
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "${category.completedCount}/${category.totalCount} minggu ini",
+                    text = stringResource(
+                        R.string.statistic_category_weekly_format,
+                        category.completedCount,
+                        category.totalCount
+                    ),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "${category.streak} hari",
+                    text = pluralStringResource(R.plurals.statistic_streak_days_format, category.streak, category.streak),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -610,14 +659,14 @@ fun ComingSoonCard() {
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    text = "Statistik Dzikir & Tilawah",
+                    text = stringResource(R.string.statistic_coming_soon_title),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
-                text = "akan tersedia segera!",
+                text = stringResource(R.string.statistic_coming_soon_desc),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -667,7 +716,7 @@ private fun CategoryStatIcon(iconKey: String) {
             Icon(
                 painter = painterResource(id = R.drawable.masjid),
                 contentDescription = stringResource(R.string.home_mosque_cd),
-                tint = Color.Black,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(20.dp)
             )
         }

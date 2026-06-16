@@ -11,6 +11,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.islami.Aha.BuildConfig
 import com.islami.Aha.R
 import com.islami.Aha.MainActivity
 import java.util.Locale
@@ -23,6 +24,12 @@ class NotificationReceiver : BroadcastReceiver() {
         private const val SUMMARY_NOTIFICATION_ID = 777001
     }
 
+    private fun debugLog(message: String) {
+        if (BuildConfig.DEBUG && Log.isLoggable(TAG, Log.DEBUG)) {
+            Log.d(TAG, message)
+        }
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         val habitId = intent.getStringExtra("habit_id") ?: return
         val habitName = intent.getStringExtra("habit_name")
@@ -30,10 +37,10 @@ class NotificationReceiver : BroadcastReceiver() {
         val hour = intent.getIntExtra("hour", -1)
         val minute = intent.getIntExtra("minute", -1)
 
-        Log.d(TAG, "onReceive: habitId=$habitId, habitName=$habitName, hour=$hour, minute=$minute")
+        debugLog("onReceive: habitId=$habitId, habitName=$habitName, hour=$hour, minute=$minute")
 
         if (!NotificationScheduler.isGlobalNotificationEnabled(context)) {
-            Log.d(TAG, "Global notification disabled, skipping receiver execution")
+            debugLog("Global notification disabled, skipping receiver execution")
             return
         }
 
@@ -63,7 +70,7 @@ class NotificationReceiver : BroadcastReceiver() {
         }
         val contentPendingIntent = PendingIntent.getActivity(
             context,
-            NotificationScheduler.stableRequestCode(habitId),
+            NotificationScheduler.notificationId(habitId),
             openAppIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -104,7 +111,7 @@ class NotificationReceiver : BroadcastReceiver() {
         val notification = notificationBuilder.build()
 
         val notificationManager = context.getSystemService(NotificationManager::class.java)
-        notificationManager.notify(NotificationScheduler.stableRequestCode(habitId), notification)
+        notificationManager.notify(NotificationScheduler.notificationId(habitId), notification)
         val summaryNotification = NotificationCompat.Builder(context, NotificationScheduler.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_nav_notification)
             .setContentTitle(notificationTitle)
@@ -115,7 +122,7 @@ class NotificationReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
         notificationManager.notify(SUMMARY_NOTIFICATION_ID, summaryNotification)
-        Log.d(TAG, "Notification shown for '$habitName'")
+        debugLog("Notification shown for '$habitName'")
 
         // Reschedule for next day
         rescheduleAlarm(context, habitId, habitName, hour, minute)
@@ -136,8 +143,7 @@ class NotificationReceiver : BroadcastReceiver() {
                 hour = hour,
                 minute = minute
             )
-            Log.d(
-                TAG,
+            debugLog(
                 String.format(
                     Locale.ROOT,
                     "Rescheduled for next day: '%s' at %02d:%02d",

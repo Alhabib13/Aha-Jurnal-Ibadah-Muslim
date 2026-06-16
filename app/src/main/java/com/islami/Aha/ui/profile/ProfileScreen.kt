@@ -1,6 +1,7 @@
 package com.islami.Aha.ui.profile
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -24,24 +26,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AdminPanelSettings
-import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,228 +56,362 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.islami.Aha.R
+import com.islami.Aha.ui.components.AhaLoadingOverlay
+import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.Emerald
 import com.islami.Aha.ui.theme.EmeraldDark
-import com.islami.Aha.ui.theme.Gray500
 import com.islami.Aha.ui.theme.HabitIslamiTheme
 
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
     onNavigateToSettings: () -> Unit,
-    onNavigateToAdmin: () -> Unit,
-    onNavigateToLogin: () -> Unit,
-    onLogout: () -> Unit
+    onNavigateToLogin: () -> Unit
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
-    var showAvatarOptions by remember { mutableStateOf(false) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
+    var showEditProfileModal by remember { mutableStateOf(false) }
+    var pendingAvatarUri by remember { mutableStateOf<Uri?>(null) }
+
     val avatarPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             }
-            viewModel.updateAvatar(uri.toString())
+            pendingAvatarUri = uri
         }
     }
 
     LaunchedEffect(uiState.snackbarMessage) {
         uiState.snackbarMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearSnackbar()
+            toastMessage = message
         }
     }
 
     ProfileScreenContent(
         uiState = uiState,
-        snackbarHostState = snackbarHostState,
+        toastMessage = toastMessage,
+        onToastDismissed = {
+            toastMessage = null
+            viewModel.clearSnackbar()
+        },
         onNavigateToSettings = onNavigateToSettings,
-        onNavigateToAdmin = onNavigateToAdmin,
         onNavigateToLogin = onNavigateToLogin,
-        onAvatarEditClick = {
-            showAvatarOptions = true
-        }
+        onEditProfileClick = { showEditProfileModal = true }
     )
 
-    if (showAvatarOptions) {
-        AvatarOptionsDialog(
-            hasAvatar = !uiState.userInfo.avatarUri.isNullOrBlank(),
-            onPickFromGallery = {
-                showAvatarOptions = false
-                avatarPickerLauncher.launch(arrayOf("image/*"))
-            },
-            onRemoveAvatar = {
-                showAvatarOptions = false
+    if (showEditProfileModal) {
+        EditProfileDialog(
+            userInfo = uiState.userInfo,
+            pendingAvatarUri = pendingAvatarUri,
+            canChangeUsername = uiState.canChangeUsername,
+            daysUntilUsernameChange = uiState.daysUntilUsernameChange,
+            isSaving = uiState.isSavingAvatar || uiState.isSavingUsername,
+            onPickPhoto = { avatarPickerLauncher.launch(arrayOf("image/*")) },
+            onRemovePhoto = {
+                pendingAvatarUri = null
                 viewModel.clearAvatar()
+                showEditProfileModal = false
             },
-            onDismiss = { showAvatarOptions = false }
+            onSave = { newAvatarUri, newUsername ->
+                showEditProfileModal = false
+                pendingAvatarUri = null
+                newAvatarUri?.let { viewModel.updateAvatar(it.toString()) }
+                newUsername?.let { viewModel.updateUsername(it) }
+            },
+            onDismiss = {
+                showEditProfileModal = false
+                pendingAvatarUri = null
+            }
         )
     }
 }
 
 @Composable
-private fun AvatarOptionsDialog(
-    hasAvatar: Boolean,
-    onPickFromGallery: () -> Unit,
-    onRemoveAvatar: () -> Unit,
+private fun EditProfileDialog(
+    userInfo: UserInfo,
+    pendingAvatarUri: Uri?,
+    canChangeUsername: Boolean,
+    daysUntilUsernameChange: Int,
+    isSaving: Boolean,
+    onPickPhoto: () -> Unit,
+    onRemovePhoto: () -> Unit,
+    onSave: (newAvatarUri: Uri?, newUsername: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Foto Profil",
-                fontWeight = FontWeight.SemiBold
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(
-                    onClick = onPickFromGallery,
+    var nameInput by remember(userInfo.name) { mutableStateOf(userInfo.name) }
+    val hasAvatarChange = pendingAvatarUri != null
+    val hasNameChange = nameInput.trim().isNotBlank() &&
+        nameInput.trim() != userInfo.name &&
+        canChangeUsername
+    val canSave = (hasAvatarChange || hasNameChange) && !isSaving
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(R.string.profile_edit_profile_title),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(20.dp))
+
+                // Preview foto
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("Pilih dari Galeri")
+                    when {
+                        pendingAvatarUri != null -> {
+                            coil.compose.AsyncImage(
+                                model = pendingAvatarUri,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Emerald)
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.profile_photo_new_badge),
+                                    fontSize = 9.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        !userInfo.avatarUri.isNullOrBlank() -> {
+                            val bytes = remember(userInfo.avatarUri) {
+                                if (userInfo.avatarUri.startsWith("data:image")) {
+                                    android.util.Base64.decode(
+                                        userInfo.avatarUri.substringAfter("base64,"),
+                                        android.util.Base64.DEFAULT
+                                    )
+                                } else null
+                            }
+                            if (bytes != null) {
+                                coil.compose.AsyncImage(
+                                    model = bytes,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Text(userInfo.avatarInitial, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Emerald)
+                            }
+                        }
+                        else -> Text(userInfo.avatarInitial, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Emerald)
+                    }
                 }
-                if (hasAvatar) {
-                    TextButton(
-                        onClick = onRemoveAvatar,
+
+                Spacer(Modifier.height(10.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onPickPhoto) {
+                        Text(
+                            text = stringResource(R.string.profile_pick_photo_action),
+                            color = Emerald,
+                            fontSize = 13.sp
+                        )
+                    }
+                    if (!userInfo.avatarUri.isNullOrBlank() || pendingAvatarUri != null) {
+                        TextButton(onClick = onRemovePhoto) {
+                            Text(
+                                text = stringResource(R.string.profile_remove_photo_action),
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                Text(
+                    text = stringResource(R.string.profile_username_label),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = nameInput,
+                    onValueChange = { nameInput = it },
+                    placeholder = { Text(userInfo.name) },
+                    singleLine = true,
+                    enabled = canChangeUsername,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        if (canSave) onSave(
+                            if (hasAvatarChange) pendingAvatarUri else null,
+                            if (hasNameChange) nameInput.trim() else null
+                        )
+                    })
+                )
+
+                if (!canChangeUsername) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.profile_username_locked_days_format,
+                            daysUntilUsernameChange,
+                            daysUntilUsernameChange
+                        ),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(
+                        onClick = {
+                            onSave(
+                                if (hasAvatarChange) pendingAvatarUri else null,
+                                if (hasNameChange) nameInput.trim() else null
+                            )
+                        },
+                        enabled = canSave
                     ) {
                         Text(
-                            text = "Hapus Foto",
-                            color = MaterialTheme.colorScheme.error
+                            stringResource(R.string.common_save),
+                            color = if (canSave) Emerald else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Tutup", color = Gray500)
-            }
         }
-    )
+    }
 }
 
 @Composable
 fun ProfileScreenContent(
     uiState: ProfileUiState,
-    snackbarHostState: SnackbarHostState,
+    toastMessage: String?,
+    onToastDismissed: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToAdmin: () -> Unit,
     onNavigateToLogin: () -> Unit,
-    onAvatarEditClick: () -> Unit
+    onEditProfileClick: () -> Unit = {}
 ) {
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState) { data ->
-                Snackbar(snackbarData = data)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { _: PaddingValues ->
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Emerald)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
-            ) {
-                if (uiState.isSaving) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background
+        ) { _: PaddingValues ->
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Emerald)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
+                ) {
                     item {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = Emerald,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        ProfileHeader(
+                            userInfo = uiState.userInfo,
+                            totalHabits = uiState.totalHabits,
+                            totalCompleted = uiState.totalCompleted,
+                            currentStreak = uiState.currentStreak,
+                            isSavingAvatar = uiState.isSavingAvatar,
+                            onSettingsClick = onNavigateToSettings,
+                            onLoginClick = onNavigateToLogin,
+                            onEditProfileClick = onEditProfileClick
                         )
                     }
-                }
 
-                item {
-                    ProfileHeader(
-                        userInfo = uiState.userInfo,
-                        totalHabits = uiState.totalHabits,
-                        totalCompleted = uiState.totalCompleted,
-                        currentStreak = uiState.currentStreak,
-                        onSettingsClick = onNavigateToSettings,
-                        onLoginClick = onNavigateToLogin,
-                        onAvatarEditClick = onAvatarEditClick
-                    )
-                }
+                    item { Spacer(modifier = Modifier.height(20.dp)) }
 
-                item { Spacer(modifier = Modifier.height(20.dp)) }
+                    item {
+                        Text(
+                            text = stringResource(R.string.profile_achievement_title),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
 
-                item {
-                    Text(
-                        text = "\uD83C\uDFC6 Pencapaian Saya",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
+                    item {
+                        AchievementsGrid(achievements = uiState.achievements)
+                    }
 
-                item {
-                    AchievementsGrid(achievements = uiState.achievements)
-                }
+                    item { Spacer(modifier = Modifier.height(24.dp)) }
 
-                item { Spacer(modifier = Modifier.height(24.dp)) }
-
-                item {
-                    ActivityOverviewCard(
-                        sholatCount = uiState.sholatCount,
-                        puasaCount = uiState.puasaCount,
-                        reminderCount = uiState.reminderCount
-                    )
-                }
-
-                if (uiState.userInfo.isLoggedIn) {
-                    if (uiState.isAdmin) {
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            OutlinedButton(
-                                onClick = onNavigateToAdmin,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp)
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.AdminPanelSettings,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Panel Admin", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
+                    item {
+                        ActivityOverviewCard(
+                            sholatCount = uiState.sholatCount,
+                            puasaCount = uiState.puasaCount,
+                            reminderCount = uiState.reminderCount
+                        )
                     }
                 }
             }
         }
+
+        AhaToastHost(
+            message = toastMessage,
+            onDismissed = onToastDismissed,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+
+        AhaLoadingOverlay(
+            visible = uiState.isSavingAvatar || uiState.isSavingUsername,
+            message = stringResource(R.string.profile_loading_message)
+        )
     }
 }
 
@@ -286,12 +421,13 @@ fun ProfileHeader(
     totalHabits: Int,
     totalCompleted: Int,
     currentStreak: Int,
+    isSavingAvatar: Boolean = false,
     onSettingsClick: () -> Unit,
     onLoginClick: () -> Unit,
-    onAvatarEditClick: () -> Unit
+    onEditProfileClick: () -> Unit = {}
 ) {
     val avatarSize = 88.dp
-    val displayName = if (userInfo.isLoggedIn) userInfo.name else "Tamu"
+    val displayName = if (userInfo.isLoggedIn) userInfo.name else stringResource(R.string.profile_guest_name)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(
@@ -323,26 +459,41 @@ fun ProfileHeader(
                         modifier = Modifier.align(Alignment.CenterStart)
                     ) {
                         Text(
-                            text = "Login",
+                            text = stringResource(R.string.profile_login_button),
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp
                         )
                     }
                 }
 
-                Text(
-                    text = "Profil",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.align(Alignment.Center)
-                )
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.profile_title),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
 
                 IconButton(
                     onClick = onSettingsClick,
                     modifier = Modifier.align(Alignment.CenterEnd)
                 ) {
-                    Icon(Icons.Outlined.Settings, "Pengaturan", tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(
+                        imageVector = Icons.Outlined.Settings,
+                        contentDescription = stringResource(R.string.profile_settings_cd),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
 
@@ -353,8 +504,7 @@ fun ProfileHeader(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(avatarSize),
+                    modifier = Modifier.size(avatarSize),
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
@@ -366,8 +516,16 @@ fun ProfileHeader(
                         contentAlignment = Alignment.Center
                     ) {
                         if (userInfo.isLoggedIn && userInfo.avatarUri != null) {
+                            val imageModel = remember(userInfo.avatarUri) {
+                                if (userInfo.avatarUri.startsWith("data:image")) {
+                                    val base64Data = userInfo.avatarUri.substringAfter("base64,")
+                                    android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                                } else {
+                                    userInfo.avatarUri
+                                }
+                            }
                             coil.compose.AsyncImage(
-                                model = userInfo.avatarUri,
+                                model = imageModel,
                                 contentDescription = stringResource(R.string.profile_photo_cd),
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -376,7 +534,7 @@ fun ProfileHeader(
                             )
                         } else {
                             Text(
-                                text = if (userInfo.isLoggedIn) userInfo.avatarInitial else "Tamu",
+                                text = if (userInfo.isLoggedIn) userInfo.avatarInitial else stringResource(R.string.profile_guest_name),
                                 fontSize = if (userInfo.isLoggedIn) 28.sp else 20.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Emerald
@@ -384,23 +542,48 @@ fun ProfileHeader(
                         }
                     }
 
-                    if (userInfo.isLoggedIn) {
+                    // Loading overlay saat upload foto
+                    if (isSavingAvatar) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp),
+                                color = androidx.compose.ui.graphics.Color.White,
+                                strokeWidth = 3.dp
+                            )
+                        }
+                    }
+
+                    // Tombol edit profil (sembunyikan saat loading avatar)
+                    if (userInfo.isLoggedIn && !isSavingAvatar) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .size(26.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surface)
-                                .border(1.dp, MaterialTheme.colorScheme.onPrimary, CircleShape)
-                                .clickable { onAvatarEditClick() },
+                                .offset(x = 11.dp, y = 11.dp)
+                                .size(48.dp)
+                                .clickable { onEditProfileClick() },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CameraAlt,
-                                contentDescription = stringResource(R.string.profile_edit_photo_cd),
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(15.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(1.dp, MaterialTheme.colorScheme.onPrimary, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Edit,
+                                    contentDescription = stringResource(R.string.profile_edit_profile_cd),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -419,7 +602,7 @@ fun ProfileHeader(
                     Text(
                         text = userInfo.email,
                         fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.88f)
                     )
                 }
             }
@@ -441,9 +624,9 @@ fun ProfileHeader(
                     .padding(vertical = 20.dp, horizontal = 16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                ProfileStat(value = "$totalHabits", label = "Kebiasaan")
-                ProfileStat(value = "$totalCompleted", label = "Selesai")
-                ProfileStat(value = "$currentStreak", label = "Streak")
+                ProfileStat(value = "$totalHabits", label = stringResource(R.string.profile_stat_habits))
+                ProfileStat(value = "$totalCompleted", label = stringResource(R.string.profile_stat_completed))
+                ProfileStat(value = "$currentStreak", label = stringResource(R.string.profile_stat_streak))
             }
         }
     }
@@ -540,14 +723,14 @@ fun AchievementCard(achievement: Achievement, modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(6.dp))
             if (achievement.isUnlocked) {
                 Text(
-                    text = "\u2705 Tercapai!",
+                    text = stringResource(R.string.profile_achievement_reached),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Emerald
                 )
             } else {
                 Text(
-                    text = "\uD83D\uDD12 Belum",
+                    text = stringResource(R.string.profile_achievement_not_yet),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -571,17 +754,17 @@ fun ActivityOverviewCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "\uD83D\uDEE0\uFE0F Aktivitas & Pengingat",
+                text = stringResource(R.string.profile_activity_title),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(12.dp))
-            ProfileInfoRow(label = "Habit Sholat Sunnah", value = "$sholatCount")
+            ProfileInfoRow(label = stringResource(R.string.profile_activity_sholat), value = "$sholatCount")
             Spacer(modifier = Modifier.height(10.dp))
-            ProfileInfoRow(label = "Habit Puasa Sunnah", value = "$puasaCount")
+            ProfileInfoRow(label = stringResource(R.string.profile_activity_puasa), value = "$puasaCount")
             Spacer(modifier = Modifier.height(10.dp))
-            ProfileInfoRow(label = "Pengingat Aktif", value = "$reminderCount")
+            ProfileInfoRow(label = stringResource(R.string.profile_activity_reminder), value = "$reminderCount")
         }
     }
 }
@@ -638,11 +821,11 @@ fun ProfileScreenPreview() {
                     bestCategory = "Sholat Fardhu"
                 )
             ),
-            snackbarHostState = remember { SnackbarHostState() },
+            toastMessage = null,
+            onToastDismissed = {},
             onNavigateToSettings = {},
-            onNavigateToAdmin = {},
             onNavigateToLogin = {},
-            onAvatarEditClick = {}
+            onEditProfileClick = {}
         )
     }
 }

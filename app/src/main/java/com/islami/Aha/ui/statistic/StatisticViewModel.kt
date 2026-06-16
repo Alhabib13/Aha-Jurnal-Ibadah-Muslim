@@ -2,7 +2,7 @@ package com.islami.Aha.ui.statistic
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.islami.Aha.data.repository.AdminConfigRepository
+import com.islami.Aha.data.repository.FeatureConfigRepository
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
 import com.islami.Aha.data.model.DailyCompletionCount
@@ -58,13 +58,14 @@ class StatisticViewModel @Inject constructor(
     private val habitCompletionDao: HabitCompletionDao,
     private val habitDao: HabitDao,
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
-    private val adminConfigRepository: AdminConfigRepository
+    private val featureConfigRepository: FeatureConfigRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StatisticUiState())
     val uiState: StateFlow<StatisticUiState> = _uiState.asStateFlow()
 
     init {
+        featureConfigRepository.refresh()
         loadStatistics()
     }
 
@@ -75,7 +76,7 @@ class StatisticViewModel @Inject constructor(
             combine(
                 habitDao.getHabits(),
                 sunnahHabitSharedViewModel.sunnahHabits,
-                adminConfigRepository.featureConfig
+                featureConfigRepository.featureConfig
             ) { habits, sunnahHabits, config ->
                 Triple(habits, sunnahHabits, config)
             }.collect { (habits, sunnahHabits, config) ->

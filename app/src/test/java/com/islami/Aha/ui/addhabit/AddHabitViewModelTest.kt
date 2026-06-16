@@ -1,11 +1,10 @@
 package com.islami.Aha.ui.addhabit
 
 import android.content.Context
+import com.islami.Aha.data.local.AppDatabase
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.UserHabitDao
-import com.islami.Aha.data.model.UserHabitEntity
 import com.islami.Aha.data.repository.UserHabitRepository
-import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.shared.SunnahHabitSharedViewModel
 import io.mockk.every
 import io.mockk.mockk
@@ -30,6 +29,7 @@ class AddHabitViewModelTest {
     private lateinit var viewModel: AddHabitViewModel
     private lateinit var sharedViewModel: SunnahHabitSharedViewModel
     private lateinit var mockContext: Context
+    private lateinit var mockAppDatabase: AppDatabase
     private lateinit var mockDao: UserHabitDao
     private lateinit var mockHabitCompletionDao: HabitCompletionDao
 
@@ -37,12 +37,17 @@ class AddHabitViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         mockContext = mockk(relaxed = true)
+        mockAppDatabase = mockk(relaxed = true)
         mockDao = mockk(relaxed = true)
         mockHabitCompletionDao = mockk(relaxed = true)
         every { mockDao.getAllHabits() } returns flowOf(emptyList())
         every { mockDao.getHabitCount() } returns flowOf(0)
-        val repository = UserHabitRepository(mockDao)
-        sharedViewModel = SunnahHabitSharedViewModel(mockHabitCompletionDao, repository)
+        val repository = UserHabitRepository(
+            appDatabase = mockAppDatabase,
+            userHabitDao = mockDao,
+            habitCompletionDao = mockHabitCompletionDao
+        )
+        sharedViewModel = SunnahHabitSharedViewModel(repository)
         viewModel = AddHabitViewModel(mockContext, sharedViewModel)
     }
 

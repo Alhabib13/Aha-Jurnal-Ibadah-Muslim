@@ -38,6 +38,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import com.islami.Aha.R
+import com.islami.Aha.ui.components.AhaLoadingOverlay
+import com.islami.Aha.ui.components.AhaToastTone
+import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.*
 
 @Composable
@@ -51,6 +54,7 @@ fun RegisterScreen(
     val uiState by viewModel.registerState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     val googleSignInClient = remember(context) { createGoogleSignInClient(context) }
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -73,33 +77,59 @@ fun RegisterScreen(
         }
     }
 
-    RegisterScreenContent(
-        uiState = uiState,
-        onNameChange = viewModel::onRegisterNameChange,
-        onEmailChange = viewModel::onRegisterEmailChange,
-        onPasswordChange = viewModel::onRegisterPasswordChange,
-        onConfirmPasswordChange = viewModel::onRegisterConfirmPasswordChange,
-        onTogglePasswordVisibility = viewModel::toggleRegisterPasswordVisibility,
-        onToggleConfirmPasswordVisibility = viewModel::toggleRegisterConfirmPasswordVisibility,
-        onRegisterClick = {
-            focusManager.clearFocus()
-            viewModel.register()
-        },
-        onGoogleRegisterClick = {
-            focusManager.clearFocus()
-            val client = googleSignInClient
-            if (client == null) {
-                viewModel.onGoogleRegisterUnavailable()
-            } else {
-                client.signOut().addOnCompleteListener {
-                    googleSignInLauncher.launch(client.signInIntent)
+    LaunchedEffect(uiState.errorMessage) {
+        toastMessage = uiState.errorMessage
+    }
+
+    val toastTone = if (!uiState.errorMessage.isNullOrBlank() && toastMessage == uiState.errorMessage) {
+        AhaToastTone.ERROR
+    } else {
+        AhaToastTone.AUTO
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        RegisterScreenContent(
+            uiState = uiState,
+            onNameChange = viewModel::onRegisterNameChange,
+            onEmailChange = viewModel::onRegisterEmailChange,
+            onPasswordChange = viewModel::onRegisterPasswordChange,
+            onConfirmPasswordChange = viewModel::onRegisterConfirmPasswordChange,
+            onTogglePasswordVisibility = viewModel::toggleRegisterPasswordVisibility,
+            onToggleConfirmPasswordVisibility = viewModel::toggleRegisterConfirmPasswordVisibility,
+            onRegisterClick = {
+                focusManager.clearFocus()
+                viewModel.register()
+            },
+            onGoogleRegisterClick = {
+                focusManager.clearFocus()
+                val client = googleSignInClient
+                if (client == null) {
+                    viewModel.onGoogleRegisterUnavailable()
+                } else {
+                    client.signOut().addOnCompleteListener {
+                        googleSignInLauncher.launch(client.signInIntent)
+                    }
                 }
-            }
-        },
-        onLoginClick = onNavigateToLogin,
-        onPrivacyPolicyClick = onPrivacyPolicyClick,
-        onTermsClick = onTermsClick
-    )
+            },
+            onLoginClick = onNavigateToLogin,
+            onPrivacyPolicyClick = onPrivacyPolicyClick,
+            onTermsClick = onTermsClick
+        )
+
+        AhaToastHost(
+            message = toastMessage,
+            tone = toastTone,
+            onDismissed = { toastMessage = null },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+        )
+
+        AhaLoadingOverlay(
+            visible = uiState.isLoading,
+            message = stringResource(R.string.auth_register_loading)
+        )
+    }
 }
 
 @Composable
@@ -132,7 +162,7 @@ fun RegisterScreenContent(
             Surface(
                 modifier = Modifier.size(72.dp),
                 shape = RoundedCornerShape(18.dp),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 4.dp
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -158,7 +188,7 @@ fun RegisterScreenContent(
             Text(
                 text = stringResource(R.string.auth_register_subtitle),
                 fontSize = 14.sp,
-                color = Gray500,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
@@ -274,7 +304,7 @@ fun RegisterScreenContent(
                     colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f))
                 ) {
                     Text(
-                        text = uiState.errorMessage!!,
+                        text = uiState.errorMessage ?: "",
                         fontSize = 13.sp,
                         color = ErrorRed,
                         modifier = Modifier.padding(12.dp),
@@ -334,7 +364,11 @@ fun RegisterScreenContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
-                Text(text = stringResource(R.string.auth_or_separator), fontSize = 14.sp, color = Gray400)
+                Text(
+                    text = stringResource(R.string.auth_or_separator),
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Gray200)
             }
 
@@ -350,7 +384,7 @@ fun RegisterScreenContent(
             Text(
                 text = stringResource(R.string.auth_register_google_hint),
                 fontSize = 12.sp,
-                color = Gray500
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -361,7 +395,7 @@ fun RegisterScreenContent(
             Text(
                 text = stringResource(R.string.auth_register_terms_prefix),
                 fontSize = 12.sp,
-                color = Gray500,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
@@ -380,7 +414,11 @@ fun RegisterScreenContent(
                         color = Emerald
                     )
                 }
-                Text(text = stringResource(R.string.auth_and), fontSize = 12.sp, color = Gray500)
+                Text(
+                    text = stringResource(R.string.auth_and),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 TextButton(
                     onClick = onPrivacyPolicyClick,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
@@ -394,7 +432,7 @@ fun RegisterScreenContent(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ================================================================
             // FOOTER
@@ -403,7 +441,11 @@ fun RegisterScreenContent(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = stringResource(R.string.auth_have_account), fontSize = 14.sp, color = Gray500)
+                Text(
+                    text = stringResource(R.string.auth_have_account),
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 TextButton(
                     onClick = onLoginClick,
                     contentPadding = PaddingValues(0.dp)

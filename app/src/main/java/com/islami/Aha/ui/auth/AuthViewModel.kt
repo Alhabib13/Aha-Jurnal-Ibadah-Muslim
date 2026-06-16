@@ -25,7 +25,8 @@ data class LoginUiState(
     val passwordError: String? = null,
     val loginSuccess: Boolean = false,
     val errorMessage: String? = null,
-    val infoMessage: String? = null
+    val infoMessage: String? = null,
+    val showForgotPassword: Boolean = false
 )
 
 data class RegisterUiState(
@@ -79,7 +80,8 @@ class AuthViewModel @Inject constructor(
                 emailError = null,
                 passwordError = null,
                 errorMessage = null,
-                infoMessage = null
+                infoMessage = null,
+                showForgotPassword = false
             )
         }
     }
@@ -91,7 +93,8 @@ class AuthViewModel @Inject constructor(
                 emailError = null,
                 passwordError = null,
                 errorMessage = null,
-                infoMessage = null
+                infoMessage = null,
+                showForgotPassword = false
             )
         }
     }
@@ -119,7 +122,11 @@ class AuthViewModel @Inject constructor(
             when (val result = authRepository.login(currentState.email, currentState.password)) {
                 is AuthResult.Success -> {
                     _loginState.update {
-                        it.copy(isLoading = false, loginSuccess = true)
+                        it.copy(
+                            isLoading = false,
+                            loginSuccess = true,
+                            showForgotPassword = false
+                        )
                     }
                 }
                 is AuthResult.Error -> {
@@ -130,10 +137,15 @@ class AuthViewModel @Inject constructor(
                                 isLoading = false,
                                 emailError = credentialMessage,
                                 passwordError = credentialMessage,
-                                errorMessage = credentialMessage
+                                errorMessage = credentialMessage,
+                                showForgotPassword = true
                             )
                         } else {
-                            it.copy(isLoading = false, errorMessage = result.message)
+                            it.copy(
+                                isLoading = false,
+                                errorMessage = result.message,
+                                showForgotPassword = false
+                            )
                         }
                     }
                 }
@@ -167,7 +179,14 @@ class AuthViewModel @Inject constructor(
         val currentState = _loginState.value
         val emailError = validateEmail(currentState.email)
         if (emailError != null) {
-            _loginState.update { it.copy(emailError = emailError, errorMessage = null, infoMessage = null) }
+            _loginState.update {
+                it.copy(
+                    emailError = emailError,
+                    errorMessage = null,
+                    infoMessage = null,
+                    showForgotPassword = false
+                )
+            }
             return
         }
 
@@ -178,14 +197,17 @@ class AuthViewModel @Inject constructor(
                 _loginState.update {
                     it.copy(
                         isLoading = false,
-                        infoMessage = text(R.string.auth_info_reset_password_sent)
+                        infoMessage = text(R.string.auth_info_reset_password_sent),
+                        showForgotPassword = true
                     )
                 }
             } else {
                 _loginState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = text(R.string.auth_error_reset_password_failed)
+                        errorMessage = result.exceptionOrNull()?.message
+                            ?: text(R.string.auth_error_reset_password_failed),
+                        showForgotPassword = true
                     )
                 }
             }

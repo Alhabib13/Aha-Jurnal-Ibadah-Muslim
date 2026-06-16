@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,10 +25,13 @@ import javax.inject.Singleton
 class UserHabitRepository @Inject constructor(
     private val appDatabase: AppDatabase,
     private val userHabitDao: UserHabitDao,
-    private val habitCompletionDao: HabitCompletionDao
+    private val habitCompletionDao: HabitCompletionDao,
+    private val completionSyncRepository: CompletionSyncRepository
 ) {
     companion object {
         private const val MIN_SYNC_INTERVAL_MS = 30_000L
+        private const val HABIT_SYNC_FAILED_NOTICE =
+            "Sinkronisasi ibadah sunnah ke cloud belum berhasil."
     }
 
     private val firebaseAuth: FirebaseAuth? by lazy {
@@ -94,6 +98,20 @@ class UserHabitRepository @Inject constructor(
         }
         val entity = updatedEntity ?: return null
         syncUpsertToCloud(entity)
+        // Sync completion record ke Firestore
+        val wasCompletedNow = entity.completedDateKey == DateUtils.getTodayKey()
+        if (wasCompletedNow) {
+            completionSyncRepository.syncAdd(
+                HabitCompletionRecord(
+                    habitKey = "sunnah_${entity.id}",
+                    dateKey = DateUtils.getTodayKey(),
+                    category = toSunnahCompletionCategory(entity.category),
+                    source = "SUNNAH"
+                )
+            )
+        } else {
+            completionSyncRepository.syncDelete("sunnah_${entity.id}", DateUtils.getTodayKey())
+        }
         return entity.toDomain()
     }
 
@@ -110,13 +128,17 @@ class UserHabitRepository @Inject constructor(
         return userHabitDao.getActiveReminderHabits().map { it.toDomain() }
     }
 
-    suspend fun syncFromCloudIfLoggedIn() {
-        syncMutex.withLock {
-            val now = System.currentTimeMillis()
-            if (now - lastSyncAtMs < MIN_SYNC_INTERVAL_MS) return
+    suspend fun clearLocalHabitsForGuestMode() {
+        userHabitDao.deleteAll()
+    }
 
-            val uid = firebaseAuth?.currentUser?.uid ?: return
-            val cloud = firestore ?: return
+    suspend fun syncFromCloudIfLoggedIn(): CloudSyncStatus {
+        return syncMutex.withLock {
+            val now = System.currentTimeMillis()
+            if (now - lastSyncAtMs < MIN_SYNC_INTERVAL_MS) return CloudSyncStatus.success()
+
+            val uid = firebaseAuth?.currentUser?.uid ?: return CloudSyncStatus.success()
+            val cloud = firestore ?: return CloudSyncStatus.success()
             lastSyncAtMs = now
 
             val snapshot = runCatching {
@@ -128,7 +150,7 @@ class UserHabitRepository @Inject constructor(
             }.getOrElse { error ->
                 lastSyncAtMs = 0L
                 FirebaseCrashlytics.getInstance().recordException(error)
-                return
+                return error.toCloudSyncFailure(HABIT_SYNC_FAILED_NOTICE)
             }
 
             val entities = snapshot.documents.mapNotNull { doc ->
@@ -171,6 +193,7 @@ class UserHabitRepository @Inject constructor(
             if (!snapshot.metadata.isFromCache) {
                 val idsToDelete = mutableListOf<String>()
                 val pendingUpload = linkedMapOf<String, UserHabitEntity>()
+                var changedCount = 0
 
                 localSnapshot.forEach { local ->
                     val remote = remoteById[local.id]
@@ -191,19 +214,31 @@ class UserHabitRepository @Inject constructor(
 
                 if (idsToDelete.isNotEmpty()) {
                     userHabitDao.deleteHabitsByIds(idsToDelete)
+                    changedCount += idsToDelete.size
                 }
 
                 pendingUpload.values.forEach { local ->
-                    syncUpsertToCloud(local)
+                    val syncStatus = syncUpsertToCloud(local)
+                    if (syncStatus.hasIssue) {
+                        lastSyncAtMs = 0L
+                        return syncStatus.copy(changedCount = changedCount)
+                    }
+                    changedCount += syncStatus.changedCount
                 }
+
+                return CloudSyncStatus.success(
+                    changedCount = remoteToApplyLocally.size + changedCount
+                )
             }
+
+            return CloudSyncStatus.success(changedCount = remoteToApplyLocally.size)
         }
     }
 
-    private suspend fun syncUpsertToCloud(entity: UserHabitEntity) {
-        val uid = firebaseAuth?.currentUser?.uid ?: return
-        val cloud = firestore ?: return
-        runCatching {
+    private suspend fun syncUpsertToCloud(entity: UserHabitEntity): CloudSyncStatus {
+        val uid = firebaseAuth?.currentUser?.uid ?: return CloudSyncStatus.success()
+        val cloud = firestore ?: return CloudSyncStatus.success()
+        return runCatching {
             cloud.collection("users")
                 .document(uid)
                 .collection("sunnah_habits")
@@ -223,8 +258,10 @@ class UserHabitRepository @Inject constructor(
                 )
                 .await()
             userHabitDao.markHabitSynced(entity.id, entity.updatedAt)
-        }.onFailure { error ->
+            CloudSyncStatus.success(changedCount = 1)
+        }.getOrElse { error ->
             FirebaseCrashlytics.getInstance().recordException(error)
+            error.toCloudSyncFailure(HABIT_SYNC_FAILED_NOTICE)
         }
     }
 
@@ -249,6 +286,25 @@ class UserHabitRepository @Inject constructor(
             SunnahCategoryType.PUASA.name -> "Puasa Sunnah"
             else -> "Sunnah"
         }
+    }
+
+    private fun Throwable.toCloudSyncFailure(defaultMessage: String): CloudSyncStatus {
+        val retryable = isLikelyNetworkIssue()
+        return CloudSyncStatus.failure(
+            message = if (retryable) CompletionSyncRepository.OFFLINE_SYNC_NOTICE else defaultMessage,
+            shouldRetry = retryable
+        )
+    }
+
+    private fun Throwable.isLikelyNetworkIssue(): Boolean {
+        if (this is IOException) return true
+        val messageText = message?.lowercase().orEmpty()
+        return "network" in messageText ||
+            "timeout" in messageText ||
+            "timed out" in messageText ||
+            "unable to resolve host" in messageText ||
+            "failed to connect" in messageText ||
+            "unavailable" in messageText
     }
 }
 
