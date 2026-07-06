@@ -15,13 +15,7 @@ internal fun createGoogleSignInClient(context: Context): GoogleSignInClient? {
 }
 
 private fun resolveGoogleWebClientId(context: Context): String? {
-    val resId = context.resources.getIdentifier(
-        "default_web_client_id",
-        "string",
-        context.packageName
-    )
-    if (resId == 0) return null
-    val value = context.getString(resId).trim()
+    val value = context.getString(com.islami.Aha.R.string.default_web_client_id).trim()
     if (value.isBlank()) return null
     if (value.equals("default_web_client_id", ignoreCase = true)) return null
     return value
