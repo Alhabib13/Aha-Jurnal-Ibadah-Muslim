@@ -291,6 +291,10 @@ class AuthRepository @Inject constructor(
             IllegalStateException("User tidak login")
         )
         return runCatching {
+            // Refresh token terlebih dahulu untuk memastikan token tidak kadaluarsa (expired)
+            // Ini mencegah kegagalan hapus data atau crash karena Firebase Auth Token Expired
+            user.getIdToken(true).await()
+            
             ensureRecentLoginForDelete(user)
             deleteAccountSafely(user)
         }.recoverCatching { error ->
