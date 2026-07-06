@@ -23,3 +23,5 @@ app/src/prod/google-services.json
 secrets/
 *.json.key
 app/schemas/
+node_modules/
+*.png
