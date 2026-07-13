@@ -475,7 +475,7 @@ fun WeeklyHeatmap(
                         day = day, 
                         modifier = Modifier
                             .weight(1f)
-                            .clickable(enabled = day.dateKey.isNotEmpty()) {
+                            .clickable(enabled = day.dateKey.isNotEmpty() && !day.isHaidh) {
                                 onDayClicked(day.dateKey)
                             }
                     )
