@@ -2,61 +2,151 @@
   {
     "id": "surah_001",
     "surahName": "Al-Baqarah",
+    "ayahNumber": 43,
+    "translation": "Dan dirikanlah salat, tunaikanlah zakat dan rukuklah beserta orang-orang yang rukuk."
+  },
+  {
+    "id": "surah_002",
+    "surahName": "Al-Baqarah",
+    "ayahNumber": 45,
+    "translation": "Jadikanlah sabar dan salat sebagai penolongmu."
+  },
+  {
+    "id": "surah_003",
+    "surahName": "Al-Baqarah",
+    "ayahNumber": 152,
+    "translation": "Maka ingatlah kepada-Ku, Aku pun akan ingat kepadamu. Bersyukurlah kepada-Ku, dan janganlah kamu ingkar."
+  },
+  {
+    "id": "surah_004",
+    "surahName": "Al-Baqarah",
+    "ayahNumber": 238,
+    "translation": "Peliharalah semua salat(mu), dan (peliharalah) salat wustha. Berdirilah untuk Allah (dalam salatmu) dengan khusyuk."
+  },
+  {
+    "id": "surah_005",
+    "surahName": "Al-Baqarah",
     "ayahNumber": 286,
     "translation": "Allah tidak membebani seseorang melainkan sesuai dengan kesanggupannya."
   },
   {
-    "id": "surah_002",
-    "surahName": "Al-Insyirah",
-    "ayahNumber": 6,
-    "translation": "Sesungguhnya bersama kesulitan ada kemudahan."
-  },
-  {
-    "id": "surah_003",
-    "surahName": "Ar-Rad",
-    "ayahNumber": 28,
-    "translation": "Hanya dengan mengingat Allah hati menjadi tenteram."
-  },
-  {
-    "id": "surah_004",
+    "id": "surah_006",
     "surahName": "Ali Imran",
     "ayahNumber": 139,
-    "translation": "Janganlah kamu merasa lemah dan bersedih hati, kamu paling tinggi derajatnya jika beriman."
-  },
-  {
-    "id": "surah_005",
-    "surahName": "At-Talaq",
-    "ayahNumber": 3,
-    "translation": "Barang siapa bertawakal kepada Allah, niscaya Allah akan mencukupkan kebutuhannya."
-  },
-  {
-    "id": "surah_006",
-    "surahName": "Al-Ankabut",
-    "ayahNumber": 69,
-    "translation": "Orang-orang yang bersungguh-sungguh di jalan Kami, pasti Kami tunjukkan jalan-jalan Kami."
+    "translation": "Janganlah kamu bersikap lemah, dan janganlah (pula) kamu bersedih hati, padahal kamulah orang-orang yang paling tinggi (derajatnya), jika kamu orang-orang yang beriman."
   },
   {
     "id": "surah_007",
-    "surahName": "Yunus",
-    "ayahNumber": 57,
-    "translation": "Wahai manusia, sungguh telah datang kepadamu pelajaran dari Tuhanmu, penyembuh bagi penyakit dalam dada."
+    "surahName": "An-Nisa",
+    "ayahNumber": 103,
+    "translation": "Sesungguhnya salat itu adalah fardhu yang ditentukan waktunya atas orang-orang yang beriman."
   },
   {
     "id": "surah_008",
-    "surahName": "Al-Maidah",
-    "ayahNumber": 2,
-    "translation": "Tolong-menolonglah kamu dalam kebajikan dan takwa."
+    "surahName": "Al-An'am",
+    "ayahNumber": 162,
+    "translation": "Katakanlah: sesungguhnya salatku, ibadahku, hidupku dan matiku hanyalah untuk Allah, Tuhan semesta alam."
   },
   {
     "id": "surah_009",
-    "surahName": "Az-Zumar",
-    "ayahNumber": 53,
-    "translation": "Jangan berputus asa dari rahmat Allah."
+    "surahName": "Al-A'raf",
+    "ayahNumber": 205,
+    "translation": "Dan sebutlah (nama) Tuhanmu dalam hatimu dengan merendahkan diri dan rasa takut, dan dengan tidak mengeraskan suara, di waktu pagi dan petang."
   },
   {
     "id": "surah_010",
-    "surahName": "Al-Furqan",
-    "ayahNumber": 70,
-    "translation": "Allah mengganti keburukan mereka dengan kebaikan."
+    "surahName": "Al-Anfal",
+    "ayahNumber": 2,
+    "translation": "Sesungguhnya orang-orang yang beriman ialah mereka yang bila disebut nama Allah gemetarlah hati mereka, dan apabila dibacakan ayat-ayat-Nya bertambahlah iman mereka."
+  },
+  {
+    "id": "surah_011",
+    "surahName": "Ar-Ra'd",
+    "ayahNumber": 28,
+    "translation": "(Yaitu) orang-orang yang beriman dan hati mereka menjadi tenteram dengan mengingat Allah. Ingatlah, hanya dengan mengingati Allah-lah hati menjadi tenteram."
+  },
+  {
+    "id": "surah_012",
+    "surahName": "Ibrahim",
+    "ayahNumber": 7,
+    "translation": "Sesungguhnya jika kamu bersyukur, pasti Kami akan menambah (nikmat) kepadamu, dan jika kamu mengingkari (nikmat-Ku), maka sesungguhnya azab-Ku sangat pedih."
+  },
+  {
+    "id": "surah_013",
+    "surahName": "Al-Hijr",
+    "ayahNumber": 98,
+    "translation": "Maka bertasbihlah dengan memuji Tuhanmu dan jadilah kamu di antara orang-orang yang bersujud (salat)."
+  },
+  {
+    "id": "surah_014",
+    "surahName": "Al-Isra",
+    "ayahNumber": 79,
+    "translation": "Dan pada sebagian malam hari bersembahyang tahajudlah kamu sebagai suatu ibadah tambahan bagimu; mudah-mudahan Tuhan-mu mengangkat kamu ke tempat yang terpuji."
+  },
+  {
+    "id": "surah_015",
+    "surahName": "Thaha",
+    "ayahNumber": 14,
+    "translation": "Sesungguhnya Aku ini adalah Allah, tidak ada Tuhan (yang hak) selain Aku, maka sembahlah Aku dan dirikanlah salat untuk mengingat Aku."
+  },
+  {
+    "id": "surah_016",
+    "surahName": "Al-Anbiya",
+    "ayahNumber": 73,
+    "translation": "Dan Kami wahyukan kepada mereka berbuat kebaikan, mendirikan salat, menunaikan zakat, dan hanya kepada Kamilah mereka selalu menyembah."
+  },
+  {
+    "id": "surah_017",
+    "surahName": "Al-Hajj",
+    "ayahNumber": 77,
+    "translation": "Hai orang-orang yang beriman, rukuklah kamu, sujudlah kamu, sembahlah Tuhanmu dan perbuatlah kebajikan, supaya kamu mendapat kemenangan."
+  },
+  {
+    "id": "surah_018",
+    "surahName": "Al-Mu'minun",
+    "ayahNumber": 1,
+    "translation": "Sesungguhnya beruntunglah orang-orang yang beriman, (yaitu) orang-orang yang khusyuk dalam salatnya."
+  },
+  {
+    "id": "surah_019",
+    "surahName": "An-Nur",
+    "ayahNumber": 37,
+    "translation": "Laki-laki yang tidak dilalaikan oleh perniagaan dan tidak (pula) oleh jual beli dari mengingati Allah, dan (dari) mendirikan salat."
+  },
+  {
+    "id": "surah_020",
+    "surahName": "Al-Ankabut",
+    "ayahNumber": 45,
+    "translation": "Bacalah apa yang telah diwahyukan kepadamu, yaitu Al Kitab (Al Quran) dan dirikanlah salat. Sesungguhnya salat itu mencegah dari (perbuatan-perbuatan) keji dan mungkar."
+  },
+  {
+    "id": "surah_021",
+    "surahName": "Al-Ankabut",
+    "ayahNumber": 69,
+    "translation": "Dan orang-orang yang berjihad untuk (mencari keridhaan) Kami, benar-benar akan Kami tunjukkan kepada mereka jalan-jalan Kami."
+  },
+  {
+    "id": "surah_022",
+    "surahName": "Az-Zumar",
+    "ayahNumber": 9,
+    "translation": "(Apakah kamu hai orang musyrik yang lebih beruntung) ataukah orang yang beribadah di waktu-waktu malam dengan sujud dan berdiri, sedang ia takut kepada (azab) akhirat."
+  },
+  {
+    "id": "surah_023",
+    "surahName": "Ghafir",
+    "ayahNumber": 60,
+    "translation": "Dan Tuhanmu berfirman: Berdoalah kepada-Ku, niscaya akan Kuperkenankan bagimu."
+  },
+  {
+    "id": "surah_024",
+    "surahName": "Adz-Dzariyat",
+    "ayahNumber": 56,
+    "translation": "Dan Aku tidak menciptakan jin dan manusia melainkan supaya mereka mengabdi (menyembah) kepada-Ku."
+  },
+  {
+    "id": "surah_025",
+    "surahName": "Al-Muzzammil",
+    "ayahNumber": 8,
+    "translation": "Sebutlah nama Tuhanmu, dan beribadahlah kepada-Nya dengan penuh ketekunan."
   }
 ]
