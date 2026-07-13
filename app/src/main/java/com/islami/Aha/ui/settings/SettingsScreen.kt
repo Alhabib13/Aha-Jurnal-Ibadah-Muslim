@@ -109,7 +109,9 @@ fun SettingsScreen(
         onShowTimeFormatDialog = viewModel::showTimeFormatDialog,
         onHideTimeFormatDialog = viewModel::hideTimeFormatDialog,
         onSetTimeFormat = viewModel::setTimeFormat,
-        onToggleDarkMode = viewModel::toggleDarkMode,
+        onShowThemeModeDialog = viewModel::showThemeModeDialog,
+        onHideThemeModeDialog = viewModel::hideThemeModeDialog,
+        onSetThemeMode = viewModel::setThemeMode,
         onToggleNotification = viewModel::toggleNotification,
         onNotificationSoundClick = viewModel::onNotificationSoundClick,
         onHideNotificationSoundDialog = viewModel::hideNotificationSoundDialog,
@@ -182,7 +184,9 @@ fun SettingsScreenContent(
     onShowTimeFormatDialog: () -> Unit,
     onHideTimeFormatDialog: () -> Unit,
     onSetTimeFormat: (TimeFormatOption) -> Unit,
-    onToggleDarkMode: () -> Unit,
+    onShowThemeModeDialog: () -> Unit,
+    onHideThemeModeDialog: () -> Unit,
+    onSetThemeMode: (ThemeMode) -> Unit,
     onToggleNotification: () -> Unit,
     onNotificationSoundClick: () -> Unit,
     onHideNotificationSoundDialog: () -> Unit,
@@ -251,17 +255,16 @@ fun SettingsScreenContent(
                 )
             }
 
-            // Mode Gelap
+            // Mode Tema
             item {
                 Spacer(modifier = Modifier.height(8.dp))
-                SettingsToggleItem(
+                SettingsClickableItem(
                     icon = Icons.Outlined.DarkMode,
                     iconBackground = CategoryPuasaStart.copy(alpha = 0.1f),
                     iconTint = CategoryPuasaStart,
                     title = stringResource(R.string.settings_dark_mode_title),
-                    subtitle = stringResource(R.string.settings_dark_mode_subtitle),
-                    isChecked = uiState.darkModeEnabled,
-                    onToggle = onToggleDarkMode
+                    subtitle = uiState.themeMode.displayName,
+                    onClick = onShowThemeModeDialog
                 )
             }
 
@@ -508,6 +511,14 @@ fun SettingsScreenContent(
             currentFormat = uiState.selectedTimeFormat,
             onSelect = onSetTimeFormat,
             onDismiss = onHideTimeFormatDialog
+        )
+    }
+
+    if (uiState.showThemeModeDialog) {
+        ThemeModeSelectionDialog(
+            currentMode = uiState.themeMode,
+            onSelect = onSetThemeMode,
+            onDismiss = onHideThemeModeDialog
         )
     }
 
@@ -1029,6 +1040,59 @@ fun TimeFormatSelectionDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp)
+    )
+}
+
+@Composable
+fun ThemeModeSelectionDialog(
+    currentMode: ThemeMode,
+    onSelect: (ThemeMode) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.settings_dark_mode_title),
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
+        text = {
+            Column {
+                ThemeMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(mode) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = mode == currentMode,
+                            onClick = { onSelect(mode) },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = Emerald
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = mode.displayName,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             }

@@ -20,7 +20,9 @@ import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.islami.Aha.ui.theme.ThemeManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -405,15 +407,23 @@ fun WeeklyHeatmap(weeklyStats: List<DailyStatistic>) {
 
 @Composable
 fun HeatmapCell(day: DailyStatistic, modifier: Modifier = Modifier) {
-    val bgColor = when {
-        day.completedCount >= 8 -> MaterialTheme.colorScheme.primary
-        day.completedCount in 4..7 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-        day.completedCount in 1..3 -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
+    val themeMode = ThemeManager.themeMode.collectAsState().value
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = when (themeMode) {
+        com.islami.Aha.ui.theme.ThemeMode.LIGHT -> false
+        com.islami.Aha.ui.theme.ThemeMode.DARK -> true
+        com.islami.Aha.ui.theme.ThemeMode.SYSTEM -> isSystemDark
     }
+    
+    val bgColor = when {
+        day.completedCount >= 8 -> if (isDark) EmeraldMuted else EmeraldDark
+        day.completedCount in 4..7 -> if (isDark) EmeraldMuted.copy(alpha = 0.5f) else Emerald
+        day.completedCount in 1..3 -> if (isDark) EmeraldMuted.copy(alpha = 0.15f) else Emerald.copy(alpha = 0.2f)
+        else -> if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant
+    }
+    
     val textColor = when {
-        day.completedCount >= 4 -> MaterialTheme.colorScheme.onPrimary
-        day.completedCount in 1..3 -> MaterialTheme.colorScheme.onPrimaryContainer
+        day.completedCount >= 1 -> if (isDark) androidx.compose.ui.graphics.Color.White else (if (day.completedCount >= 4) androidx.compose.ui.graphics.Color.White else EmeraldDark)
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -430,7 +440,7 @@ fun HeatmapCell(day: DailyStatistic, modifier: Modifier = Modifier) {
                 .then(
                     if (day.isToday) Modifier.border(
                         2.dp,
-                        MaterialTheme.colorScheme.primary,
+                        if (isDark) EmeraldMuted else Emerald,
                         RoundedCornerShape(8.dp)
                     ) else Modifier
                 ),
@@ -456,7 +466,14 @@ fun HeatmapCell(day: DailyStatistic, modifier: Modifier = Modifier) {
 
 @Composable
 fun StreakCards(currentStreak: Int, longestStreak: Int) {
-    val isDarkTheme = isSystemInDarkTheme()
+    val themeMode = ThemeManager.themeMode.collectAsState().value
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkTheme = when (themeMode) {
+        com.islami.Aha.ui.theme.ThemeMode.LIGHT -> false
+        com.islami.Aha.ui.theme.ThemeMode.DARK -> true
+        com.islami.Aha.ui.theme.ThemeMode.SYSTEM -> isSystemDark
+    }
+    
     val streakContainerColor = if (isDarkTheme) {
         MaterialTheme.colorScheme.secondaryContainer
     } else {
@@ -586,7 +603,7 @@ fun CategoryStatCard(category: CategoryStatistic, modifier: Modifier = Modifier)
                     text = stringResource(R.string.statistic_percent_format, category.percentage),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = Emerald
                 )
             }
 
@@ -727,9 +744,9 @@ private fun CategoryStatIcon(iconKey: String) {
                 modifier = Modifier.size(20.dp)
             )
         }
-        "sun", "☀️" -> Icon(Icons.Filled.WbSunny, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-        "plate", "🍽️" -> Icon(Icons.Filled.Restaurant, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-        "moon", "🌙" -> Icon(Icons.Filled.DarkMode, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-        else -> Icon(Icons.Filled.BarChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        "sun", "\u2600\uFE0F" -> Icon(Icons.Filled.WbSunny, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
+        "plate", "\uD83C\uDF7D\uFE0F" -> Icon(Icons.Filled.Restaurant, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
+        "moon", "\uD83C\uDF19" -> Icon(Icons.Filled.DarkMode, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
+        else -> Icon(Icons.Filled.BarChart, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
     }
 }

@@ -52,7 +52,7 @@ data class SettingsUiState(
     // Umum
     val location: String = "Jakarta",
     val selectedTimeFormat: TimeFormatOption = TimeFormatOption.HOUR_24,
-    val darkModeEnabled: Boolean = false,
+    val themeMode: com.islami.Aha.ui.theme.ThemeMode = com.islami.Aha.ui.theme.ThemeMode.SYSTEM,
     val isLoggedIn: Boolean = false,
     val userEmail: String = "",
 
@@ -65,6 +65,7 @@ data class SettingsUiState(
     // Dialog states
     val showLocationDialog: Boolean = false,
     val showTimeFormatDialog: Boolean = false,
+    val showThemeModeDialog: Boolean = false,
     val showNotificationSoundDialog: Boolean = false,
     val showChangePasswordDialog: Boolean = false,
     val showAccountSecurityDialog: Boolean = false,
@@ -89,7 +90,9 @@ data class SettingsUiState(
 
     // Snackbar
     val snackbarMessage: String? = null
-)
+) {
+    fun isSecurityActionInProgress() = isRefreshingSecurityStatus || isSendingVerificationEmail || isSendingResetPasswordEmail
+}
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -110,7 +113,7 @@ class SettingsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(
         SettingsUiState(
-            darkModeEnabled = ThemeManager.isDarkMode.value,
+            themeMode = ThemeManager.themeMode.value,
             isLoggedIn = authRepository.isLoggedIn,
             userEmail = authRepository.currentUser?.email.orEmpty(),
             notificationEnabled = sharedPreferences.getBoolean(
@@ -155,9 +158,17 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun toggleDarkMode() {
-        ThemeManager.toggleDarkMode()
-        _uiState.update { it.copy(darkModeEnabled = ThemeManager.isDarkMode.value) }
+    fun showThemeModeDialog() {
+        _uiState.update { it.copy(showThemeModeDialog = true) }
+    }
+
+    fun hideThemeModeDialog() {
+        _uiState.update { it.copy(showThemeModeDialog = false) }
+    }
+
+    fun setThemeMode(mode: com.islami.Aha.ui.theme.ThemeMode) {
+        ThemeManager.setThemeMode(mode)
+        _uiState.update { it.copy(themeMode = mode, showThemeModeDialog = false) }
     }
 
     // === Notifikasi ===

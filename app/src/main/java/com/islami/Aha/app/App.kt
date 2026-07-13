@@ -21,9 +21,15 @@ import com.islami.Aha.ui.theme.ThemeManager
 
 @Composable
 fun AhaApp() {
-    val isDarkMode by ThemeManager.isDarkMode.collectAsStateWithLifecycle()
+    val themeMode by ThemeManager.themeMode.collectAsStateWithLifecycle()
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkTheme = when (themeMode) {
+        com.islami.Aha.ui.theme.ThemeMode.LIGHT -> false
+        com.islami.Aha.ui.theme.ThemeMode.DARK -> true
+        com.islami.Aha.ui.theme.ThemeMode.SYSTEM -> isSystemDark
+    }
 
-    HabitIslamiTheme(darkTheme = isDarkMode) {
+    HabitIslamiTheme(darkTheme = isDarkTheme) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
