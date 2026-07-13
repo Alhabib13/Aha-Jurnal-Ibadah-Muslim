@@ -27,8 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -106,8 +108,9 @@ fun AddHabitScreenContent(
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
             bottomBar = {
-                Surface(
-                    modifier = Modifier
+                if (!uiState.isHaidhMode) {
+                    Surface(
+                        modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding(),
                     color = MaterialTheme.colorScheme.surface,
@@ -147,6 +150,7 @@ fun AddHabitScreenContent(
                         }
                     }
                 }
+                }
             },
             containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
@@ -157,6 +161,35 @@ fun AddHabitScreenContent(
                     .verticalScroll(scrollState)
             ) {
                 AddHabitHeader(onNavigateBack = onNavigateBack)
+                
+                if (uiState.isHaidhMode) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 64.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_flower),
+                            contentDescription = "Cuti Ibadah",
+                            tint = Color(0xFFF48FB1),
+                            modifier = Modifier.size(80.dp)
+                        )
+                        Text(
+                            text = "Mode Cuti Ibadah Aktif",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "Maaf, Anda tidak dapat menambahkan jadwal Sholat atau Puasa Sunnah saat mode cuti sedang aktif.",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
                 Column(
                     modifier = Modifier
                         .padding(horizontal = 16.dp, vertical = 16.dp),
@@ -310,10 +343,11 @@ fun AddHabitScreenContent(
                 )
 
                 // Bottom spacer so content isn't hidden behind save button
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
+                Spacer(modifier = Modifier.height(80.dp))
             }
-        }
+        } // End of else block
+    }
+}
 
         AhaLoadingOverlay(
             visible = uiState.isSaving,
