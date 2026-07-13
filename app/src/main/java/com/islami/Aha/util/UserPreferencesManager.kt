@@ -34,6 +34,7 @@ object UserPreferencesManager {
         _isJumatEnabled.value = sharedPreferences.getBoolean(KEY_JUMAT_ENABLED, false)
         _isHaidhMode.value = sharedPreferences.getBoolean(KEY_HAIDH_MODE, false)
         _hasSeenPrompt.value = sharedPreferences.getBoolean(KEY_SEEN_PROMPT, false)
+        syncHaidhDates()
     }
 
     fun setHasSeenPrompt() {
@@ -60,6 +61,17 @@ object UserPreferencesManager {
     
     fun getHaidhDates(): Set<String> {
         return prefs?.getStringSet(KEY_HAIDH_DATES, emptySet()) ?: emptySet()
+    }
+    
+    fun syncHaidhDates() {
+        if (_isHaidhMode.value) {
+            val dateKey = DateUtils.getTodayKey()
+            val dates = getHaidhDates().toMutableSet()
+            if (!dates.contains(dateKey)) {
+                dates.add(dateKey)
+                prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, dates)?.apply()
+            }
+        }
     }
     
     fun setHaidhMode(enabled: Boolean) {
