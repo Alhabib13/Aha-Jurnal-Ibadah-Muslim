@@ -241,7 +241,7 @@ fun NotificationScreenContent(
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     HabitReminderCard(
                                         habit = habit,
-                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        globalEnabled = uiState.globalNotificationEnabled && !isHaidhMode,
                                         onToggle = { onToggleReminder(habit) }
                                     )
                                 }
@@ -262,7 +262,7 @@ fun NotificationScreenContent(
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     HabitReminderCard(
                                         habit = habit,
-                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        globalEnabled = uiState.globalNotificationEnabled && !isHaidhMode,
                                         onToggle = { onToggleReminder(habit) }
                                     )
                                 }
@@ -271,7 +271,7 @@ fun NotificationScreenContent(
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     SunnahHabitReminderCard(
                                         sunnahHabit = sunnahHabit,
-                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        globalEnabled = uiState.globalNotificationEnabled && !isHaidhMode,
                                         onToggleReminder = { onToggleSunnahReminder(sunnahHabit) },
                                         onDelete = { onDeleteSunnahClick(sunnahHabit) },
                                         onEdit = { onEditSunnahClick(sunnahHabit) }
@@ -294,7 +294,7 @@ fun NotificationScreenContent(
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     HabitReminderCard(
                                         habit = habit,
-                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        globalEnabled = uiState.globalNotificationEnabled && !isHaidhMode,
                                         onToggle = { onToggleReminder(habit) }
                                     )
                                 }
@@ -315,7 +315,7 @@ fun NotificationScreenContent(
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     HabitReminderCard(
                                         habit = habit,
-                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        globalEnabled = uiState.globalNotificationEnabled && !isHaidhMode,
                                         onToggle = { onToggleReminder(habit) }
                                     )
                                 }
@@ -324,7 +324,7 @@ fun NotificationScreenContent(
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     SunnahHabitReminderCard(
                                         sunnahHabit = sunnahHabit,
-                                        globalEnabled = uiState.globalNotificationEnabled,
+                                        globalEnabled = uiState.globalNotificationEnabled && !isHaidhMode,
                                         onToggleReminder = { onToggleSunnahReminder(sunnahHabit) },
                                         onDelete = { onDeleteSunnahClick(sunnahHabit) },
                                         onEdit = { onEditSunnahClick(sunnahHabit) }
@@ -660,7 +660,8 @@ fun SunnahHabitReminderCard(
     globalEnabled: Boolean,
     onToggleReminder: () -> Unit,
     onDelete: () -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    isHaidhMode: Boolean = false
 ) {
     val isEffectivelyEnabled = globalEnabled && sunnahHabit.reminderEnabled
     val cardAlpha by animateFloatAsState(targetValue = if (globalEnabled) 1f else 0.6f, label = "")
@@ -749,12 +750,13 @@ fun SunnahHabitReminderCard(
 
             IconButton(
                 onClick = onEdit,
+                enabled = globalEnabled,
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Edit,
                     contentDescription = stringResource(R.string.notification_edit_cd),
-                    tint = Gray500,
+                    tint = if (globalEnabled) Gray500 else Gray300,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -762,12 +764,13 @@ fun SunnahHabitReminderCard(
             // Delete button
             IconButton(
                 onClick = onDelete,
+                enabled = globalEnabled,
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Delete,
                     contentDescription = stringResource(R.string.notification_delete_cd),
-                    tint = ErrorRed.copy(alpha = 0.7f),
+                    tint = if (globalEnabled) ErrorRed.copy(alpha = 0.7f) else Gray300,
                     modifier = Modifier.size(20.dp)
                 )
             }
