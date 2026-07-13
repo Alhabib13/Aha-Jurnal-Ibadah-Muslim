@@ -281,6 +281,43 @@ fun HomeScreen(
         )
     }
 
+    if (uiState.showGenderPrompt) {
+        AlertDialog(
+            onDismissRequest = { /* forced setup */ },
+            title = {
+                Text(
+                    text = "Sesuaikan Layar Ibadahmu \u2699\uFE0F",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Text(
+                    text = "Agar Aha dapat mengatur otomatis jadwal Salat Jumat (bagi laki-laki) dan Mode Cuti Ibadah (bagi perempuan), silakan pilih profil Anda:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.setGenderProfile(com.islami.Aha.util.GenderProfile.MALE) }
+                ) {
+                    Text("Laki-laki \uD83D\uDC73\uD83C\uDFFB\u200D\u2642\uFE0F", color = Emerald)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.setGenderProfile(com.islami.Aha.util.GenderProfile.FEMALE) }
+                ) {
+                    Text("Perempuan \uD83E\uDDF5", color = Emerald)
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
     if (showLocationPermissionDialog && !locationPermission.isGranted) {
         AlertDialog(
             onDismissRequest = {

@@ -51,6 +51,8 @@ import java.util.Date
 import java.util.Locale
 import java.text.SimpleDateFormat
 import javax.inject.Inject
+import com.islami.Aha.util.UserPreferencesManager
+import com.islami.Aha.util.GenderProfile
 
 data class HomeUiState(
     val isLoading: Boolean = true,
@@ -89,7 +91,9 @@ data class HomeUiState(
     val snackbarMessage: String? = null,
     val showSyncNotice: Boolean = false,
     val syncNoticeMessage: String = "",
-    val isRamadanMonth: Boolean = DateUtils.isRamadanMonth()
+    val isRamadanMonth: Boolean = DateUtils.isRamadanMonth(),
+    val showGenderPrompt: Boolean = false,
+    val isJumatEnabled: Boolean = false
 ) {
     private val selectedSubCategory: String?
         get() = subTabCategories.getOrNull(selectedSubTabIndex)
@@ -149,6 +153,12 @@ data class HomeUiState(
     val isComingSoon: Boolean
         get() = selectedMainCategory in comingSoonCategories
 
+    val isFriday: Boolean
+        get() {
+            val calendar = Calendar.getInstance()
+            return calendar.get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY
+        }
+
     val filteredHabits: List<Habit>
         get() {
             if (isComingSoon) return emptyList()
@@ -158,6 +168,12 @@ data class HomeUiState(
                 if (it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled)) return@filter false
                 if (it.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled)) return@filter false
                 true
+            }.map { habit ->
+                if (isJumatEnabled && isFriday && habit.name == "Dzuhur") {
+                    habit.copy(name = "Salat Jumat")
+                } else {
+                    habit
+                }
             }
         }
 
@@ -298,6 +314,17 @@ class HomeViewModel @Inject constructor(
         loadHabits()
         startPeriodicHomeUpdates()
         loadDailyIslamicContent()
+        
+        viewModelScope.launch {
+            UserPreferencesManager.gender.collect { gender ->
+                _uiState.update { it.copy(showGenderPrompt = gender == GenderProfile.UNSPECIFIED) }
+            }
+        }
+        viewModelScope.launch {
+            UserPreferencesManager.isJumatEnabled.collect { enabled ->
+                _uiState.update { it.copy(isJumatEnabled = enabled) }
+            }
+        }
         refreshLocation()
 
         // Observe changes from SunnahHabitSharedViewModel
@@ -847,6 +874,10 @@ class HomeViewModel @Inject constructor(
 
     fun selectMainCategory(category: String) {
         _uiState.update { it.copy(selectedMainCategory = category, selectedSubTabIndex = 0) }
+    }
+    
+    fun setGenderProfile(profile: GenderProfile) {
+        UserPreferencesManager.setGender(profile)
     }
 
     fun selectSubTab(index: Int) {

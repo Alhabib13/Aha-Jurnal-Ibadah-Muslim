@@ -9,6 +9,7 @@ import com.islami.Aha.data.repository.UserHabitRepository
 import com.islami.Aha.ui.theme.ThemeManager
 import com.islami.Aha.util.NotificationScheduler
 import com.islami.Aha.util.SecurePrefsProvider
+import com.islami.Aha.util.UserPreferencesManager
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
@@ -60,6 +61,7 @@ class AhaApplication : Application() {
         FirebaseCrashlytics.getInstance().log("AhaApplication started")
         val prefs = SecurePrefsProvider.get(this)
         ThemeManager.init(prefs)
+        UserPreferencesManager.init(prefs)
         NotificationScheduler.createNotificationChannel(this)
         restoreAlarms()
     }
