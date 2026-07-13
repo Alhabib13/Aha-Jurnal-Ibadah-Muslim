@@ -269,7 +269,8 @@ class HomeViewModel @Inject constructor(
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
     private val featureConfigRepository: FeatureConfigRepository,
     private val dailyIslamicContentRepository: DailyIslamicContentRepository,
-    private val completionSyncRepository: CompletionSyncRepository
+    private val completionSyncRepository: CompletionSyncRepository,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
@@ -905,17 +906,31 @@ class HomeViewModel @Inject constructor(
     fun setGenderProfile(profile: GenderProfile) {
         viewModelScope.launch {
             UserPreferencesManager.setGender(profile)
+            authRepository.syncUserPreferences(
+                gender = profile.name,
+                isHaidhMode = UserPreferencesManager.isHaidhMode.value
+            )
         }
     }
 
     fun toggleHaidhMode(enabled: Boolean) {
         viewModelScope.launch {
             UserPreferencesManager.setHaidhMode(enabled)
+            authRepository.syncUserPreferences(
+                gender = UserPreferencesManager.gender.value.name,
+                isHaidhMode = enabled
+            )
         }
     }
     
     fun dismissGenderPrompt() {
-        UserPreferencesManager.setHasSeenPrompt()
+        viewModelScope.launch {
+            UserPreferencesManager.setHasSeenPrompt()
+            authRepository.syncUserPreferences(
+                gender = UserPreferencesManager.gender.value.name,
+                isHaidhMode = UserPreferencesManager.isHaidhMode.value
+            )
+        }
     }
 
     fun selectSubTab(index: Int) {
@@ -1128,6 +1143,29 @@ class HomeViewModel @Inject constructor(
                     completionSyncRepository.restoreFromCloud(),
                     completionSyncRepository.syncPendingRecords()
                 )
+                
+                val prefsResult = authRepository.fetchUserPreferences()
+                val prefs = prefsResult.getOrNull()?.takeIf { it.isNotEmpty() }
+                if (prefs != null) {
+                    val genderStr = prefs["genderProfile"] as? String
+                    if (genderStr != null) {
+                        runCatching { com.islami.Aha.util.GenderProfile.valueOf(genderStr) }.getOrNull()?.let { profile ->
+                            UserPreferencesManager.setGender(profile)
+                        }
+                    }
+                    val isHaidh = prefs["isHaidhMode"] as? Boolean
+                    if (isHaidh != null) {
+                        UserPreferencesManager.setHaidhMode(isHaidh)
+                    }
+                    UserPreferencesManager.setHasSeenPrompt()
+                } else if (UserPreferencesManager.gender.value != com.islami.Aha.util.GenderProfile.UNSPECIFIED) {
+                    // Local has data but cloud doesn't (or fetch failed), sync up to cloud
+                    authRepository.syncUserPreferences(
+                        gender = UserPreferencesManager.gender.value.name,
+                        isHaidhMode = UserPreferencesManager.isHaidhMode.value
+                    )
+                }
+                
                 syncTodayCompletionsToUiState()
                 val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
                 if (firstIssue.isNullOrBlank()) {

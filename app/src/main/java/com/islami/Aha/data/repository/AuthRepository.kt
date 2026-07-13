@@ -211,6 +211,35 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    suspend fun syncUserPreferences(gender: String, isHaidhMode: Boolean): Result<Unit> {
+        val user = firebaseAuth.currentUser ?: return Result.success(Unit)
+        return runCatching {
+            firestore?.collection("users")?.document(user.uid)
+                ?.collection("meta")?.document("profile")
+                ?.set(
+                    mapOf(
+                        "genderProfile" to gender,
+                        "isHaidhMode" to isHaidhMode,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )?.await()
+            Unit
+        }.onFailure { error ->
+            FirebaseCrashlytics.getInstance().recordException(error)
+        }
+    }
+
+    suspend fun fetchUserPreferences(): Result<Map<String, Any>?> {
+        val user = firebaseAuth.currentUser ?: return Result.failure(IllegalStateException("User tidak login"))
+        return runCatching {
+            val doc = firestore?.collection("users")?.document(user.uid)
+                ?.collection("meta")?.document("profile")
+                ?.get()?.await()
+            doc?.data
+        }
+    }
+
     suspend fun sendPasswordReset(email: String): Result<Unit> {
         return runCatching {
             firebaseAuth.sendPasswordResetEmail(email).await()

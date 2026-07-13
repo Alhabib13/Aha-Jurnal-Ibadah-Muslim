@@ -181,9 +181,15 @@ class SettingsViewModel @Inject constructor(
     fun hideGenderDialog() { _uiState.update { it.copy(showGenderDialog = false) } }
 
     fun setGenderProfile(profile: com.islami.Aha.util.GenderProfile) {
-        com.islami.Aha.util.UserPreferencesManager.setGender(profile)
-        hideGenderDialog()
-        showSnackbar("Profil ibadah berhasil diperbarui")
+        viewModelScope.launch {
+            com.islami.Aha.util.UserPreferencesManager.setGender(profile)
+            authRepository.syncUserPreferences(
+                gender = profile.name,
+                isHaidhMode = com.islami.Aha.util.UserPreferencesManager.isHaidhMode.value
+            )
+            hideGenderDialog()
+            showSnackbar("Profil ibadah berhasil diperbarui")
+        }
     }
 
     fun setThemeMode(mode: com.islami.Aha.ui.theme.ThemeMode) {
