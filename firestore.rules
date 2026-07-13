@@ -17,15 +17,11 @@ service cloud.firestore {
   }
 
   function validProfileWrite(data) {
-    return data.keys().hasOnly([
-             "name", "email", "avatarBase64", "updatedAt", "lastUsernameChangedAt",
-             "genderProfile", "isHaidhMode", "haidhDates"
-           ])
-        && data.name is string
-        && data.name.size() > 0
-        && data.name.size() <= 100
-        && data.email is string
-        && data.email.size() <= 254
+    return (!("name" in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 100))
+        && (!("email" in data) || (data.email is string && data.email.size() <= 254))
+        && (!("genderProfile" in data) || data.genderProfile is string)
+        && (!("isHaidhMode" in data) || data.isHaidhMode is bool)
+        && (!("haidhDates" in data) || data.haidhDates is list)
         && (
              !("avatarBase64" in data) ||
              data.avatarBase64 == null ||
@@ -128,9 +124,7 @@ service cloud.firestore {
                     && validProfileWrite(request.resource.data);
       allow update: if isOwner(userId)
                     && docId == "profile"
-                    && validProfileWrite(request.resource.data)
-                    && request.resource.data.diff(resource.data).changedKeys()
-                      .hasOnly(["name", "email", "avatarBase64", "updatedAt", "lastUsernameChangedAt", "genderProfile", "isHaidhMode", "haidhDates"]);
+                    && validProfileWrite(request.resource.data);
       allow delete: if isOwner(userId);
     }
 
