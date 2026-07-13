@@ -37,6 +37,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -392,10 +393,10 @@ fun WeeklyHeatmap(weeklyStats: List<DailyStatistic>) {
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
             ) {
                 weeklyStats.forEach { day ->
-                    HeatmapCell(day = day)
+                    HeatmapCell(day = day, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -403,29 +404,33 @@ fun WeeklyHeatmap(weeklyStats: List<DailyStatistic>) {
 }
 
 @Composable
-fun HeatmapCell(day: DailyStatistic) {
+fun HeatmapCell(day: DailyStatistic, modifier: Modifier = Modifier) {
     val bgColor = when {
-        day.completedCount >= 8 -> EmeraldDark
-        day.completedCount in 4..7 -> Emerald
-        day.completedCount in 1..3 -> EmeraldLight
+        day.completedCount >= 8 -> MaterialTheme.colorScheme.primary
+        day.completedCount in 4..7 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+        day.completedCount in 1..3 -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.surfaceVariant
     }
     val textColor = when {
         day.completedCount >= 4 -> MaterialTheme.colorScheme.onPrimary
-        day.completedCount in 1..3 -> EmeraldDark
+        day.completedCount in 1..3 -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .fillMaxWidth()
+                .aspectRatio(1f)
                 .clip(RoundedCornerShape(8.dp))
                 .background(bgColor)
                 .then(
                     if (day.isToday) Modifier.border(
                         2.dp,
-                        Emerald,
+                        MaterialTheme.colorScheme.primary,
                         RoundedCornerShape(8.dp)
                     ) else Modifier
                 ),
@@ -433,16 +438,18 @@ fun HeatmapCell(day: DailyStatistic) {
         ) {
             Text(
                 text = "${day.completedCount}",
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = textColor
             )
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = day.dayName,
             fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -579,7 +586,7 @@ fun CategoryStatCard(category: CategoryStatistic, modifier: Modifier = Modifier)
                     text = stringResource(R.string.statistic_percent_format, category.percentage),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Emerald
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
 
@@ -720,9 +727,9 @@ private fun CategoryStatIcon(iconKey: String) {
                 modifier = Modifier.size(20.dp)
             )
         }
-        "sun", "\u2600\uFE0F" -> Icon(Icons.Filled.WbSunny, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
-        "plate", "\uD83C\uDF7D\uFE0F" -> Icon(Icons.Filled.Restaurant, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
-        "moon", "\uD83C\uDF19" -> Icon(Icons.Filled.DarkMode, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
-        else -> Icon(Icons.Filled.BarChart, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
+        "sun", "☀️" -> Icon(Icons.Filled.WbSunny, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        "plate", "🍽️" -> Icon(Icons.Filled.Restaurant, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        "moon", "🌙" -> Icon(Icons.Filled.DarkMode, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        else -> Icon(Icons.Filled.BarChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
     }
 }
