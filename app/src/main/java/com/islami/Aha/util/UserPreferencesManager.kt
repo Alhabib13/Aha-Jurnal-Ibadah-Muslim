@@ -61,4 +61,18 @@ object UserPreferencesManager {
         _isHaidhMode.value = enabled
         prefs?.edit()?.putBoolean(KEY_HAIDH_MODE, enabled)?.apply()
     }
+    
+    fun clearAll() {
+        _gender.value = GenderProfile.UNSPECIFIED
+        _isJumatEnabled.value = false
+        _isHaidhMode.value = false
+        _hasSeenPrompt.value = false
+        prefs?.edit()?.apply {
+            remove(KEY_GENDER)
+            remove(KEY_JUMAT_ENABLED)
+            remove(KEY_HAIDH_MODE)
+            remove(KEY_SEEN_PROMPT)
+            apply()
+        }
+    }
 }

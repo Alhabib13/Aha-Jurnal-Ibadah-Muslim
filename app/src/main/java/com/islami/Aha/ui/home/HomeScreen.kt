@@ -130,7 +130,8 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     transientSnackbarMessage: String? = null,
     onTransientSnackbarShown: () -> Unit = {},
-    onNavigateToAddHabit: () -> Unit
+    onNavigateToAddHabit: () -> Unit,
+    onNavigateToSettings: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -252,6 +253,7 @@ fun HomeScreen(
             onToggleHabitCompletion = viewModel::toggleHabitCompletion,
             onToggleHabitReminder = viewModel::toggleReminderEnabled,
             onNavigateToAddHabit = onNavigateToAddHabit,
+            onNavigateToSettings = onNavigateToSettings,
             onSelectMainCategory = viewModel::selectMainCategory,
             onSelectSubTab = viewModel::selectSubTab,
             onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
@@ -295,96 +297,43 @@ fun HomeScreen(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "Sesuaikan Layar Ibadahmu \u2728",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Atur Layar Ibadahmu Yuk!",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Pilih profil Anda agar kami dapat menampilkan otomatis jadwal Salat Jumat (bagi laki-laki) atau Mode Cuti (bagi perempuan).",
+                        text = "Bantu kami menyesuaikan aplikasi ini khusus untukmu. Pilih Profil Ibadahmu sekarang untuk mengaktifkan jadwal Salat Jumat atau Mode Cuti (bagi perempuan).",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     
-                    Row(
+                    Button(
+                        onClick = { 
+                            viewModel.dismissGenderPrompt()
+                            onNavigateToSettings() 
+                        },
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        colors = ButtonDefaults.buttonColors(containerColor = Emerald)
                     ) {
-                        // Male Card
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(0.85f)
-                                .clickable { viewModel.setGenderProfile(com.islami.Aha.util.GenderProfile.MALE) },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize().padding(12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_gender_male),
-                                    contentDescription = "Laki-laki",
-                                    modifier = Modifier.size(56.dp),
-                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "Laki-laki",
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                        
-                        // Female Card
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(0.85f)
-                                .clickable { viewModel.setGenderProfile(com.islami.Aha.util.GenderProfile.FEMALE) },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize().padding(12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_gender_female),
-                                    contentDescription = "Perempuan",
-                                    modifier = Modifier.size(56.dp),
-                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "Perempuan",
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
+                        Text("Atur Sekarang", color = Color.White)
                     }
                     
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     androidx.compose.material3.TextButton(
                         onClick = { viewModel.dismissGenderPrompt() },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Nanti Saja (Atur di Pengaturan)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Nanti Saja", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -523,6 +472,7 @@ fun HomeScreenContent(
     onToggleHabitCompletion: (Habit) -> Unit,
     onToggleHabitReminder: (Habit) -> Unit,
     onNavigateToAddHabit: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onSelectMainCategory: (String) -> Unit,
     onSelectSubTab: (Int) -> Unit,
     onToggleSunnahCompletion: (String) -> Unit = {},
@@ -1859,52 +1809,11 @@ fun IslamicMotivationCard(quote: String, source: String) {
 @Composable
 fun HomeScreenPreview() {
     HabitIslamiTheme {
-        HomeScreenContent(
-            uiState = HomeUiState(
-                isLoading = false,
-                isLoggedIn = true,
-                userName = "Ahmad",
-                currentTime = "14:30",
-                gregorianDate = "23 Mei 2024",
-                hijriDate = "15 Dzulqa'dah 1445 H",
-                location = "Jakarta",
-                nextPrayerName = "Ashar",
-                nextPrayerTimeRemaining = "40 menit lagi",
-                nextPrayerProgress = 0.6f,
-                selectedMainCategory = "Sholat",
-                selectedSubTabIndex = 0,
-                allHabits = listOf(
-                    Habit(1, "Sholat Subuh", "Sholat Fardhu", "sunrise", "", true, time = "04:30"),
-                    Habit(2, "Sholat Dzuhur", "Sholat Fardhu", "sun", "", true, time = "11:55"),
-                    Habit(3, "Sholat Ashar", "Sholat Fardhu", "cloud", "", false, time = "15:10"),
-                    Habit(4, "Sholat Maghrib", "Sholat Fardhu", "moon", "", false, time = "18:00"),
-                    Habit(5, "Sholat Isya", "Sholat Fardhu", "moon", "", false, time = "19:15")
-                ),
-                sunnahHabits = listOf( // Added for preview
-                    SunnahHabit(
-                        name = "Dhuha",
-                        category = SunnahCategoryType.SHOLAT,
-                        frequencyLabel = "Setiap hari",
-                        reminderEnabled = true,
-                        reminderTime = "06:00"
-                    ),
-                    SunnahHabit(
-                        name = "Puasa Senin Kamis",
-                        category = SunnahCategoryType.PUASA,
-                        frequencyLabel = "Hari: Sen • Kam",
-                        reminderEnabled = false,
-                        reminderTime = null
-                    )
-                ),
-                motivationalQuote = "Amalan yang paling dicintai oleh Allah adalah yang paling konsisten.",
-                quoteSource = "- HR. Bukhari"
-            ),
-            onToggleHabitCompletion = {},
-            onToggleHabitReminder = {},
+        HomeScreen(
+            transientSnackbarMessage = null,
+            onTransientSnackbarShown = {},
             onNavigateToAddHabit = {},
-            onSelectMainCategory = {},
-            onSelectSubTab = {},
-            onToggleSunnahCompletion = {}
+            onNavigateToSettings = {}
         )
     }
 }

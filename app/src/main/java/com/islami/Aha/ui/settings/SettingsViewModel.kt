@@ -473,6 +473,7 @@ class SettingsViewModel @Inject constructor(
             habitCompletionDao.deleteAll()
             habitDao.resetTrackerState()
         }
+        com.islami.Aha.util.UserPreferencesManager.clearAll()
     }
 
     fun confirmDeleteAccount(onSuccess: () -> Unit) {

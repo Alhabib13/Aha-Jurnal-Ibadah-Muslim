@@ -117,7 +117,8 @@ fun AhaNavHost(
                 onTransientSnackbarShown = {
                     backStackEntry.savedStateHandle.remove<String>(TRANSIENT_SNACKBAR_KEY)
                 },
-                onNavigateToAddHabit = { navController.navigate(Screen.AddHabit.route) }
+                onNavigateToAddHabit = { navController.navigate(Screen.AddHabit.route) },
+                onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
             )
         }
 
