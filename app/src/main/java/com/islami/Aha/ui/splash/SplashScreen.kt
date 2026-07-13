@@ -185,6 +185,7 @@ fun SplashScreenContent() {
             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
                 .padding(bottom = 32.dp)
         )
     }
