@@ -1154,7 +1154,7 @@ fun SubTabRow(
                     shape = RoundedCornerShape(50),
                     color = if (isSelected) Emerald else Color.Transparent,
                     border = if (!isSelected) {
-                        androidx.compose.foundation.BorderStroke(1.dp, Emerald.copy(alpha = 0.5f))
+                        androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     } else null
                 ) {
                     Text(
@@ -1164,7 +1164,7 @@ fun SubTabRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Emerald,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 10.dp, vertical = 9.dp)
@@ -1201,7 +1201,7 @@ fun SubTabRow(
                 shape = RoundedCornerShape(50),
                 color = if (isSelected) Emerald else Color.Transparent,
                 border = if (!isSelected) {
-                    androidx.compose.foundation.BorderStroke(1.dp, Emerald.copy(alpha = 0.5f))
+                    androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 } else null
             ) {
                 Text(
@@ -1210,7 +1210,7 @@ fun SubTabRow(
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Emerald,
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
