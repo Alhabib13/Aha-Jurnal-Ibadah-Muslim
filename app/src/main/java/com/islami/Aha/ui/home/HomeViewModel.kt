@@ -116,10 +116,10 @@ data class HomeUiState(
         get() {
             return buildList {
                 if (isPuasaRamadanContext && puasaWajibRamadanEnabled) {
-                    ramadanPuasaHabit?.let { add(it) }
+                    ramadanPuasaHabit?.takeIf { !isHaidhMode || it.isCompleted }?.let { add(it) }
                 }
                 if (isTarawihContext && sholatTarawihEnabled) {
-                    ramadanTarawihHabit?.let { add(it) }
+                    ramadanTarawihHabit?.takeIf { !isHaidhMode || it.isCompleted }?.let { add(it) }
                 }
             }
         }
@@ -171,8 +171,7 @@ data class HomeUiState(
                 if (habit.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled)) return@filter false
                 
                 if (isHaidhMode) {
-                    val isWajib = habit.category == "Sholat Fardhu" || habit.category == "Puasa Wajib"
-                    if (isWajib && !habit.isCompleted) return@filter false
+                    if (!habit.isCompleted) return@filter false
                 }
                 
                 true
