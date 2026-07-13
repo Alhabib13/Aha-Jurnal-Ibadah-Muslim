@@ -72,9 +72,11 @@ fun StatisticScreen(viewModel: StatisticViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedPastDate by viewModel.selectedPastDate.collectAsStateWithLifecycle()
     val pastDayHabits by viewModel.pastDayHabits.collectAsStateWithLifecycle()
+    val isHaidhMode by com.islami.Aha.util.UserPreferencesManager.isHaidhMode.collectAsStateWithLifecycle()
 
     StatisticScreenContent(
         uiState = uiState,
+        isHaidhMode = isHaidhMode,
         onDayClicked = viewModel::onDayClicked
     )
 
@@ -98,6 +100,7 @@ fun StatisticScreen(viewModel: StatisticViewModel = hiltViewModel()) {
 @Composable
 fun StatisticScreenContent(
     uiState: StatisticUiState,
+    isHaidhMode: Boolean = false,
     onDayClicked: (String) -> Unit = {}
 ) {
     if (uiState.isLoading) {
@@ -115,12 +118,13 @@ fun StatisticScreenContent(
             // 1. Header
             item { StatisticHeader(currentDate = uiState.currentDate) }
 
-            // 2. Progress Card
+            // 2. Today's Progress
             item {
                 ProgressCard(
                     completed = uiState.todayCompleted,
                     total = uiState.todayTotal,
-                    percentage = uiState.todayPercentage
+                    percentage = uiState.todayPercentage,
+                    isHaidhMode = isHaidhMode
                 )
             }
 
@@ -256,7 +260,13 @@ fun StatisticHeader(currentDate: String) {
 }
 
 @Composable
-fun ProgressCard(completed: Int, total: Int, percentage: Int) {
+fun ProgressCard(completed: Int, total: Int, percentage: Int, isHaidhMode: Boolean = false) {
+    val containerBrush = if (isHaidhMode) {
+        Brush.horizontalGradient(colors = listOf(androidx.compose.ui.graphics.Color(0xFFF48FB1), androidx.compose.ui.graphics.Color(0xFFF06292)))
+    } else {
+        Brush.horizontalGradient(colors = listOf(EmeraldDark, Emerald))
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -266,11 +276,7 @@ fun ProgressCard(completed: Int, total: Int, percentage: Int) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(EmeraldDark, Emerald)
-                    )
-                )
+                .background(brush = containerBrush)
                 .padding(24.dp)
         ) {
             Row(
@@ -279,69 +285,93 @@ fun ProgressCard(completed: Int, total: Int, percentage: Int) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text(
-                        text = stringResource(R.string.statistic_today_progress_title),
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.statistic_today_progress_format, completed, total),
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                    Text(
-                        text = stringResource(R.string.statistic_today_progress_suffix),
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                    )
+                    if (isHaidhMode) {
+                        Text(
+                            text = "Mode Cuti Ibadah",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Bebas Tugas",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.statistic_today_progress_title),
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.statistic_today_progress_format, completed, total),
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Text(
+                            text = stringResource(R.string.statistic_today_progress_suffix),
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                        )
+                    }
                 }
 
-                // Circular progress ring
+                // Circular progress ring or Haidh Flower
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(90.dp)
                 ) {
-                    val progress = percentage / 100f
-                    val onPrimary = MaterialTheme.colorScheme.onPrimary
-                    androidx.compose.foundation.Canvas(modifier = Modifier.size(80.dp)) {
-                        val strokeWidth = 8.dp.toPx()
-                        val diameter = size.minDimension
-                        val radius = (diameter - strokeWidth) / 2
-                        val topLeft = Offset(
-                            (size.width - diameter + strokeWidth) / 2,
-                            (size.height - diameter + strokeWidth) / 2
+                    if (isHaidhMode) {
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(id = R.drawable.ic_flower),
+                            contentDescription = "Cuti",
+                            modifier = Modifier.size(60.dp),
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary)
                         )
-                        val arcSize = Size(diameter - strokeWidth, diameter - strokeWidth)
+                    } else {
+                        val progress = percentage / 100f
+                        val onPrimary = MaterialTheme.colorScheme.onPrimary
+                        androidx.compose.foundation.Canvas(modifier = Modifier.size(80.dp)) {
+                            val strokeWidth = 8.dp.toPx()
+                            val diameter = size.minDimension
+                            val radius = (diameter - strokeWidth) / 2
+                            val topLeft = Offset(
+                                (size.width - diameter + strokeWidth) / 2,
+                                (size.height - diameter + strokeWidth) / 2
+                            )
+                            val arcSize = Size(diameter - strokeWidth, diameter - strokeWidth)
 
-                        // Track
-                        drawArc(
-                            color = onPrimary.copy(alpha = 0.3f),
-                            startAngle = -90f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = arcSize,
-                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                        )
-                        // Progress
-                        drawArc(
-                            color = onPrimary,
-                            startAngle = -90f,
-                            sweepAngle = 360f * progress,
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = arcSize,
-                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                            // Track
+                            drawArc(
+                                color = onPrimary.copy(alpha = 0.3f),
+                                startAngle = -90f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                topLeft = topLeft,
+                                size = arcSize,
+                                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                            )
+                            // Progress
+                            drawArc(
+                                color = onPrimary,
+                                startAngle = -90f,
+                                sweepAngle = 360f * progress,
+                                useCenter = false,
+                                topLeft = topLeft,
+                                size = arcSize,
+                                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.statistic_percent_format, percentage),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                     }
-                    Text(
-                        text = stringResource(R.string.statistic_percent_format, percentage),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
                 }
             }
         }
@@ -451,24 +481,26 @@ fun WeeklyHeatmap(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = painterResource(id = R.drawable.ic_flower),
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp),
-                    colorFilter = ColorFilter.tint(androidx.compose.ui.graphics.Color(0xFFF48FB1))
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Cuti Ibadah",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (weeklyStats.any { it.isHaidh }) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(id = R.drawable.ic_flower),
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        colorFilter = ColorFilter.tint(androidx.compose.ui.graphics.Color(0xFFF48FB1))
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Cuti Ibadah",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
