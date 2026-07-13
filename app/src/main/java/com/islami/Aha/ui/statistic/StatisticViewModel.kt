@@ -19,12 +19,23 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
+
+data class PastDayHabitItem(
+    val habitKey: String, // e.g. "default_1" or "sunnah_abc"
+    val name: String,
+    val isCompleted: Boolean,
+    val category: String,
+    val isSunnah: Boolean
+)
 
 data class DailyStatistic(
     val dayName: String,
     val completedCount: Int,
-    val isToday: Boolean = false
+    val isToday: Boolean = false,
+    val dateKey: String = ""
 )
 
 data class CategoryStatistic(
@@ -63,6 +74,12 @@ class StatisticViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(StatisticUiState())
     val uiState: StateFlow<StatisticUiState> = _uiState.asStateFlow()
+
+    private val _selectedPastDate = MutableStateFlow<String?>(null)
+    val selectedPastDate: StateFlow<String?> = _selectedPastDate.asStateFlow()
+
+    private val _pastDayHabits = MutableStateFlow<List<PastDayHabitItem>>(emptyList())
+    val pastDayHabits: StateFlow<List<PastDayHabitItem>> = _pastDayHabits.asStateFlow()
 
     init {
         featureConfigRepository.refresh()
@@ -205,7 +222,8 @@ class StatisticViewModel @Inject constructor(
             DailyStatistic(
                 dayName = dayName,
                 completedCount = countsByDate[key] ?: 0,
-                isToday = key == todayKey
+                isToday = key == todayKey,
+                dateKey = key
             )
         }
     }
@@ -237,5 +255,71 @@ class StatisticViewModel @Inject constructor(
             }
         }
         return longest
+    }
+
+    fun onDayClicked(dateKey: String) {
+        _selectedPastDate.value = dateKey
+        loadPastDayHabits(dateKey)
+    }
+
+    fun dismissPastDayPopup() {
+        _selectedPastDate.value = null
+        _pastDayHabits.value = emptyList()
+    }
+
+    private fun loadPastDayHabits(dateKey: String) {
+        viewModelScope.launch {
+            val fardhuHabits = habitDao.getHabits().firstOrNull() ?: emptyList()
+            val sunnahHabitsList = sunnahHabitSharedViewModel.sunnahHabits.value
+            val completions = habitCompletionDao.getRecordsForDate(dateKey)
+            val completedKeys = completions.map { it.habitKey }.toSet()
+
+            val items = mutableListOf<PastDayHabitItem>()
+            fardhuHabits.forEach { habit ->
+                val key = "default_${habit.id}"
+                items.add(PastDayHabitItem(
+                    habitKey = key,
+                    name = habit.name,
+                    isCompleted = completedKeys.contains(key),
+                    category = habit.category,
+                    isSunnah = false
+                ))
+            }
+            sunnahHabitsList.forEach { sunnah ->
+                val key = "sunnah_${sunnah.id}"
+                items.add(PastDayHabitItem(
+                    habitKey = key,
+                    name = sunnah.name,
+                    isCompleted = completedKeys.contains(key),
+                    category = sunnah.category.name,
+                    isSunnah = true
+                ))
+            }
+            // Sort items logically if needed (e.g. by category)
+            _pastDayHabits.value = items.sortedBy { it.category }
+        }
+    }
+
+    fun togglePastDayHabitCompletion(item: PastDayHabitItem) {
+        val dateKey = _selectedPastDate.value ?: return
+        viewModelScope.launch {
+            val willComplete = !item.isCompleted
+            if (willComplete) {
+                habitCompletionDao.insert(
+                    com.islami.Aha.data.model.HabitCompletionRecord(
+                        habitKey = item.habitKey,
+                        dateKey = dateKey,
+                        category = item.category,
+                        source = if (item.isSunnah) "SUNNAH" else "DEFAULT"
+                    )
+                )
+            } else {
+                habitCompletionDao.deleteByHabitAndDate(item.habitKey, dateKey)
+            }
+            // Reload the list to reflect changes
+            loadPastDayHabits(dateKey)
+            // Reload statistics since a past record changed
+            loadStatistics()
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.islami.Aha.ui.statistic
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -47,6 +48,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 // Category gradient pairs
@@ -57,14 +65,40 @@ private val categoryGradients = listOf(
     listOf(Color(0xFFEA580C), Color(0xFFFB923C))   // Puasa Sunnah - orange
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticScreen(viewModel: StatisticViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    StatisticScreenContent(uiState = uiState)
+    val selectedPastDate by viewModel.selectedPastDate.collectAsStateWithLifecycle()
+    val pastDayHabits by viewModel.pastDayHabits.collectAsStateWithLifecycle()
+
+    StatisticScreenContent(
+        uiState = uiState,
+        onDayClicked = viewModel::onDayClicked
+    )
+
+    if (selectedPastDate != null) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = viewModel::dismissPastDayPopup,
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            PastDayHabitsList(
+                dateKey = selectedPastDate!!,
+                habits = pastDayHabits,
+                onToggle = viewModel::togglePastDayHabitCompletion,
+                onDismiss = viewModel::dismissPastDayPopup
+            )
+        }
+    }
 }
 
 @Composable
-fun StatisticScreenContent(uiState: StatisticUiState) {
+fun StatisticScreenContent(
+    uiState: StatisticUiState,
+    onDayClicked: (String) -> Unit = {}
+) {
     if (uiState.isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Emerald)
@@ -99,7 +133,12 @@ fun StatisticScreenContent(uiState: StatisticUiState) {
             }
 
             // 4. Weekly Heatmap
-            item { WeeklyHeatmap(weeklyStats = uiState.weeklyStats) }
+            item { 
+                WeeklyHeatmap(
+                    weeklyStats = uiState.weeklyStats,
+                    onDayClicked = onDayClicked
+                ) 
+            }
 
             // 5. Streak Cards
             item {
@@ -377,7 +416,10 @@ fun SummaryCard(icon: ImageVector, value: String, label: String, backgroundColor
 }
 
 @Composable
-fun WeeklyHeatmap(weeklyStats: List<DailyStatistic>) {
+fun WeeklyHeatmap(
+    weeklyStats: List<DailyStatistic>,
+    onDayClicked: (String) -> Unit = {}
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -398,7 +440,14 @@ fun WeeklyHeatmap(weeklyStats: List<DailyStatistic>) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
             ) {
                 weeklyStats.forEach { day ->
-                    HeatmapCell(day = day, modifier = Modifier.weight(1f))
+                    HeatmapCell(
+                        day = day, 
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(enabled = day.dateKey.isNotEmpty()) {
+                                onDayClicked(day.dateKey)
+                            }
+                    )
                 }
             }
         }
@@ -748,5 +797,80 @@ private fun CategoryStatIcon(iconKey: String) {
         "plate", "\uD83C\uDF7D\uFE0F" -> Icon(Icons.Filled.Restaurant, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
         "moon", "\uD83C\uDF19" -> Icon(Icons.Filled.DarkMode, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
         else -> Icon(Icons.Filled.BarChart, contentDescription = null, tint = Emerald, modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+fun PastDayHabitsList(
+    dateKey: String,
+    habits: List<PastDayHabitItem>,
+    onToggle: (PastDayHabitItem) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val dateDisplay = runCatching {
+        val parsed = LocalDate.parse(dateKey)
+        parsed.format(DateTimeFormatter.ofPattern("EEEE, dd MMM yyyy", Locale.forLanguageTag("id-ID")))
+    }.getOrDefault(dateKey)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .padding(bottom = 32.dp)
+    ) {
+        Text(
+            text = "Riwayat Ibadah",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = dateDisplay,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (habits.isEmpty()) {
+            Text(
+                text = "Tidak ada ibadah yang tercatat.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        } else {
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(habits) { habit ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .clickable { onToggle(habit) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = habit.name,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = habit.category,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Checkbox(
+                            checked = habit.isCompleted,
+                            onCheckedChange = { onToggle(habit) }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
