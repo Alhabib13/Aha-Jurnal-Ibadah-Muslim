@@ -1730,13 +1730,13 @@ fun IslamicMotivationCard(quote: String, source: String) {
             Text(
                 text = stringResource(R.string.home_quote_format, quote),
                 fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f),
                 fontStyle = FontStyle.Italic
             )
             Text(
                 text = source,
                 fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.End,
                 modifier = Modifier.fillMaxWidth()
