@@ -287,6 +287,7 @@ class HomeViewModel @Inject constructor(
                 completionSyncRepository.restoreFromCloud(),
                 completionSyncRepository.syncPendingRecords()
             )
+            syncTodayCompletionsToUiState()
             val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
             if (firstIssue.isNullOrBlank()) {
                 clearSyncNotice()
@@ -372,6 +373,23 @@ class HomeViewModel @Inject constructor(
     override fun onCleared() {
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(authPrefsListener)
         super.onCleared()
+    }
+
+    private suspend fun syncTodayCompletionsToUiState() {
+        val todayKey = DateUtils.getTodayKey()
+        val todayRecords = appDatabase.habitCompletionDao().getRecordsForDate(todayKey)
+        val completedHabitKeys = todayRecords.map { it.habitKey }.toSet()
+
+        appDatabase.withTransaction {
+            val allHabits = habitDao.getHabitsSnapshot()
+            for (habit in allHabits) {
+                val habitKey = "default_${habit.id}"
+                val isCompletedInDb = completedHabitKeys.contains(habitKey)
+                if (habit.isCompleted != isCompletedInDb) {
+                    habitDao.updateHabit(habit.copy(isCompleted = isCompletedInDb))
+                }
+            }
+        }
     }
 
     private fun restorePrayerTimeSyncState() {
@@ -1025,11 +1043,30 @@ class HomeViewModel @Inject constructor(
         } else {
             ""
         }
+        val wasLoggedIn = _uiState.value.isLoggedIn
         _uiState.update {
             it.copy(
                 isLoggedIn = isLoggedIn,
                 userName = userName
             )
+        }
+
+        if (!wasLoggedIn && isLoggedIn) {
+            launchSafely("syncCloudDataOnLogin") {
+                handleAccountBoundaryBeforeSync()
+                val syncStatuses = listOf(
+                    sunnahHabitSharedViewModel.syncFromCloudIfLoggedInAwait(),
+                    completionSyncRepository.restoreFromCloud(),
+                    completionSyncRepository.syncPendingRecords()
+                )
+                syncTodayCompletionsToUiState()
+                val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
+                if (firstIssue.isNullOrBlank()) {
+                    clearSyncNotice()
+                } else {
+                    showSyncNotice(firstIssue)
+                }
+            }
         }
     }
 
