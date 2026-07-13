@@ -53,6 +53,7 @@ data class SettingsUiState(
     val location: String = "Jakarta",
     val selectedTimeFormat: TimeFormatOption = TimeFormatOption.HOUR_24,
     val themeMode: com.islami.Aha.ui.theme.ThemeMode = com.islami.Aha.ui.theme.ThemeMode.SYSTEM,
+    val genderProfile: com.islami.Aha.util.GenderProfile = com.islami.Aha.util.GenderProfile.UNSPECIFIED,
     val isLoggedIn: Boolean = false,
     val userEmail: String = "",
 
@@ -66,6 +67,7 @@ data class SettingsUiState(
     val showLocationDialog: Boolean = false,
     val showTimeFormatDialog: Boolean = false,
     val showThemeModeDialog: Boolean = false,
+    val showGenderDialog: Boolean = false,
     val showNotificationSoundDialog: Boolean = false,
     val showChangePasswordDialog: Boolean = false,
     val showAccountSecurityDialog: Boolean = false,
@@ -126,6 +128,14 @@ class SettingsViewModel @Inject constructor(
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            com.islami.Aha.util.UserPreferencesManager.gender.collect { gender ->
+                _uiState.update { it.copy(genderProfile = gender) }
+            }
+        }
+    }
+
     // === Umum ===
 
     fun showLocationDialog() {
@@ -158,12 +168,16 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun showThemeModeDialog() {
-        _uiState.update { it.copy(showThemeModeDialog = true) }
-    }
+    fun showThemeModeDialog() { _uiState.update { it.copy(showThemeModeDialog = true) } }
+    fun hideThemeModeDialog() { _uiState.update { it.copy(showThemeModeDialog = false) } }
 
-    fun hideThemeModeDialog() {
-        _uiState.update { it.copy(showThemeModeDialog = false) }
+    fun showGenderDialog() { _uiState.update { it.copy(showGenderDialog = true) } }
+    fun hideGenderDialog() { _uiState.update { it.copy(showGenderDialog = false) } }
+
+    fun setGenderProfile(profile: com.islami.Aha.util.GenderProfile) {
+        com.islami.Aha.util.UserPreferencesManager.setGender(profile)
+        hideGenderDialog()
+        showSnackbar("Profil ibadah berhasil diperbarui")
     }
 
     fun setThemeMode(mode: com.islami.Aha.ui.theme.ThemeMode) {
@@ -426,12 +440,24 @@ class SettingsViewModel @Inject constructor(
             verificationCooldownJob?.cancel()
             clearTrackedDataForGuestMode()
             authRepository.logout()
+            val user = authRepository.currentUser
+            val prefs = com.islami.Aha.util.SecurePrefsProvider.get(appContext)
+            val formatStr = prefs.getString("time_format", TimeFormatOption.HOUR_24.name)
+            val format = runCatching { TimeFormatOption.valueOf(formatStr!!) }
+                .getOrDefault(TimeFormatOption.HOUR_24)
+
+            val soundStr = prefs.getString("notification_sound", NotificationScheduler.NotificationSoundOption.SYSTEM_DEFAULT.name)
+            val sound = runCatching { NotificationScheduler.NotificationSoundOption.valueOf(soundStr!!) }
+                .getOrDefault(NotificationScheduler.NotificationSoundOption.SYSTEM_DEFAULT)
+
             _uiState.update {
                 it.copy(
-                    isLoggedIn = false,
-                    userEmail = "",
-                    verificationResendCooldownSeconds = 0,
-                    isLoggingOut = false
+                    isLoggedIn = user != null,
+                    userEmail = user?.email ?: "",
+                    selectedTimeFormat = format,
+                    notificationSound = sound,
+                    isLoggingOut = false,
+                    verificationResendCooldownSeconds = 0
                 )
             }
             onSuccess()

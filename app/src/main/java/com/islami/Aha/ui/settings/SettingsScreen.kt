@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -167,7 +168,10 @@ fun SettingsScreen(
             viewModel.confirmReAuthDelete(password) {
                 onNavigateToLogin(null)
             }
-        }
+        },
+        onShowGenderDialog = viewModel::showGenderDialog,
+        onHideGenderDialog = viewModel::hideGenderDialog,
+        onSetGenderProfile = viewModel::setGenderProfile
     )
 }
 
@@ -187,6 +191,9 @@ fun SettingsScreenContent(
     onShowThemeModeDialog: () -> Unit,
     onHideThemeModeDialog: () -> Unit,
     onSetThemeMode: (ThemeMode) -> Unit,
+    onShowGenderDialog: () -> Unit,
+    onHideGenderDialog: () -> Unit,
+    onSetGenderProfile: (com.islami.Aha.util.GenderProfile) -> Unit,
     onToggleNotification: () -> Unit,
     onNotificationSoundClick: () -> Unit,
     onHideNotificationSoundDialog: () -> Unit,
@@ -265,6 +272,24 @@ fun SettingsScreenContent(
                     title = stringResource(R.string.settings_dark_mode_title),
                     subtitle = uiState.themeMode.displayName,
                     onClick = onShowThemeModeDialog
+                )
+            }
+
+            // Profil Ibadah (Gender)
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                val genderText = when (uiState.genderProfile) {
+                    com.islami.Aha.util.GenderProfile.MALE -> "Laki-laki (Jadwal Jumat Aktif)"
+                    com.islami.Aha.util.GenderProfile.FEMALE -> "Perempuan (Mode Cuti Aktif)"
+                    else -> "Belum Diatur"
+                }
+                SettingsClickableItem(
+                    icon = Icons.Outlined.Person,
+                    iconBackground = Emerald.copy(alpha = 0.1f),
+                    iconTint = Emerald,
+                    title = "Profil Ibadah",
+                    subtitle = genderText,
+                    onClick = onShowGenderDialog
                 )
             }
 
@@ -520,6 +545,113 @@ fun SettingsScreenContent(
             onSelect = onSetThemeMode,
             onDismiss = onHideThemeModeDialog
         )
+    }
+
+    if (uiState.showGenderDialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = onHideGenderDialog) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Profil Ibadah \u2728",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Pilih profil Anda untuk menyesuaikan otomatis jadwal Salat Jumat atau Mode Cuti.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(0.85f)
+                                .clickable { onSetGenderProfile(com.islami.Aha.util.GenderProfile.MALE) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.MALE) Emerald.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.MALE) Emerald else MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_gender_male),
+                                    contentDescription = "Laki-laki",
+                                    modifier = Modifier.size(56.dp),
+                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Laki-laki",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(0.85f)
+                                .clickable { onSetGenderProfile(com.islami.Aha.util.GenderProfile.FEMALE) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.FEMALE) Emerald.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.FEMALE) Emerald else MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_gender_female),
+                                    contentDescription = "Perempuan",
+                                    modifier = Modifier.size(56.dp),
+                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Perempuan",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    androidx.compose.material3.TextButton(
+                        onClick = onHideGenderDialog,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Batal", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
     }
 
     if (uiState.showNotificationSoundDialog) {
@@ -1687,6 +1819,9 @@ fun SettingsScreenPreview() {
             onShowThemeModeDialog = {},
             onHideThemeModeDialog = {},
             onSetThemeMode = {},
+            onShowGenderDialog = {},
+            onHideGenderDialog = {},
+            onSetGenderProfile = {},
             onToggleNotification = {},
             onNotificationSoundClick = {},
             onHideNotificationSoundDialog = {},

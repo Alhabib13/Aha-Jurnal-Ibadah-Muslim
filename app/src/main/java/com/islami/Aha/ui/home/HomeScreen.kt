@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
@@ -282,40 +283,112 @@ fun HomeScreen(
     }
 
     if (uiState.showGenderPrompt) {
-        AlertDialog(
-            onDismissRequest = { /* forced setup */ },
-            title = {
-                Text(
-                    text = "Sesuaikan Layar Ibadahmu \u2699\uFE0F",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            },
-            text = {
-                Text(
-                    text = "Agar Aha dapat mengatur otomatis jadwal Salat Jumat (bagi laki-laki) dan Mode Cuti Ibadah (bagi perempuan), silakan pilih profil Anda:",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = { viewModel.setGenderProfile(com.islami.Aha.util.GenderProfile.MALE) }
+        androidx.compose.ui.window.Dialog(onDismissRequest = { viewModel.dismissGenderPrompt() }) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Laki-laki \uD83D\uDC73\uD83C\uDFFB\u200D\u2642\uFE0F", color = Emerald)
+                    Text(
+                        text = "Sesuaikan Layar Ibadahmu \u2728",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Pilih profil Anda agar kami dapat menampilkan otomatis jadwal Salat Jumat (bagi laki-laki) atau Mode Cuti (bagi perempuan).",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Male Card
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(0.85f)
+                                .clickable { viewModel.setGenderProfile(com.islami.Aha.util.GenderProfile.MALE) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ic_gender_male),
+                                    contentDescription = "Laki-laki",
+                                    modifier = Modifier.size(56.dp),
+                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Laki-laki",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        
+                        // Female Card
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(0.85f)
+                                .clickable { viewModel.setGenderProfile(com.islami.Aha.util.GenderProfile.FEMALE) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ic_gender_female),
+                                    contentDescription = "Perempuan",
+                                    modifier = Modifier.size(56.dp),
+                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Perempuan",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    androidx.compose.material3.TextButton(
+                        onClick = { viewModel.dismissGenderPrompt() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Nanti Saja (Atur di Pengaturan)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = { viewModel.setGenderProfile(com.islami.Aha.util.GenderProfile.FEMALE) }
-                ) {
-                    Text("Perempuan \uD83E\uDDF5", color = Emerald)
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+            }
+        }
     }
 
     if (showLocationPermissionDialog && !locationPermission.isGranted) {

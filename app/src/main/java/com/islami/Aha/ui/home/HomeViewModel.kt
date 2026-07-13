@@ -316,8 +316,13 @@ class HomeViewModel @Inject constructor(
         loadDailyIslamicContent()
         
         viewModelScope.launch {
-            UserPreferencesManager.gender.collect { gender ->
-                _uiState.update { it.copy(showGenderPrompt = gender == GenderProfile.UNSPECIFIED) }
+            kotlinx.coroutines.flow.combine(
+                UserPreferencesManager.gender,
+                UserPreferencesManager.hasSeenPrompt
+            ) { gender, seen ->
+                gender == GenderProfile.UNSPECIFIED && !seen
+            }.collect { shouldShow ->
+                _uiState.update { it.copy(showGenderPrompt = shouldShow) }
             }
         }
         viewModelScope.launch {
@@ -878,6 +883,11 @@ class HomeViewModel @Inject constructor(
     
     fun setGenderProfile(profile: GenderProfile) {
         UserPreferencesManager.setGender(profile)
+        UserPreferencesManager.setHasSeenPrompt()
+    }
+    
+    fun dismissGenderPrompt() {
+        UserPreferencesManager.setHasSeenPrompt()
     }
 
     fun selectSubTab(index: Int) {
