@@ -18,7 +18,8 @@ service cloud.firestore {
 
   function validProfileWrite(data) {
     return data.keys().hasOnly([
-             "name", "email", "avatarBase64", "updatedAt", "lastUsernameChangedAt"
+             "name", "email", "avatarBase64", "updatedAt", "lastUsernameChangedAt",
+             "genderProfile", "isHaidhMode", "haidhDates"
            ])
         && data.name is string
         && data.name.size() > 0
@@ -129,7 +130,7 @@ service cloud.firestore {
                     && docId == "profile"
                     && validProfileWrite(request.resource.data)
                     && request.resource.data.diff(resource.data).changedKeys()
-                      .hasOnly(["name", "email", "avatarBase64", "updatedAt", "lastUsernameChangedAt"]);
+                      .hasOnly(["name", "email", "avatarBase64", "updatedAt", "lastUsernameChangedAt", "genderProfile", "isHaidhMode", "haidhDates"]);
       allow delete: if isOwner(userId);
     }
 
