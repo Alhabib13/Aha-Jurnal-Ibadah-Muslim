@@ -70,6 +70,9 @@ data class HomeUiState(
     val prayerTimeSource: String = "DEFAULT",
     val prayerTimeLastSyncAtMs: Long = 0L,
     val prayerTimeStatusText: String = "",
+    val isJumatEnabled: Boolean = false,
+    val isHaidhMode: Boolean = false,
+    val genderProfile: GenderProfile = GenderProfile.UNSPECIFIED,
     val puasaWajibRamadanEnabled: Boolean = true,
     val ramadanScheduleByLocationEnabled: Boolean = true,
     val sholatTarawihEnabled: Boolean = true,
@@ -92,8 +95,7 @@ data class HomeUiState(
     val showSyncNotice: Boolean = false,
     val syncNoticeMessage: String = "",
     val isRamadanMonth: Boolean = DateUtils.isRamadanMonth(),
-    val showGenderPrompt: Boolean = false,
-    val isJumatEnabled: Boolean = false
+    val showGenderPrompt: Boolean = false
 ) {
     private val selectedSubCategory: String?
         get() = subTabCategories.getOrNull(selectedSubTabIndex)
@@ -163,10 +165,16 @@ data class HomeUiState(
         get() {
             if (isComingSoon) return emptyList()
             val subCategory = subTabCategories.getOrNull(selectedSubTabIndex) ?: return emptyList()
-            return allHabits.filter {
-                if (it.category != subCategory) return@filter false
-                if (it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled)) return@filter false
-                if (it.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled)) return@filter false
+            return allHabits.filter { habit ->
+                if (habit.category != subCategory) return@filter false
+                if (habit.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled)) return@filter false
+                if (habit.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled)) return@filter false
+                
+                if (isHaidhMode) {
+                    val isWajib = habit.category == "Sholat Fardhu" || habit.category == "Puasa Wajib"
+                    if (isWajib && !habit.isCompleted) return@filter false
+                }
+                
                 true
             }.map { habit ->
                 if (isJumatEnabled && isFriday && habit.name == "Dzuhur") {
@@ -182,9 +190,13 @@ data class HomeUiState(
             if (isComingSoon) return emptyList()
             return when {
                 selectedMainCategory == "Sholat" && selectedSubTabIndex == 1 ->
-                    sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
+                    sunnahHabits.filter { 
+                        if (isHaidhMode && !it.isCompletedToday) false else it.category == SunnahCategoryType.SHOLAT 
+                    }
                 selectedMainCategory == "Puasa" && selectedSubTabIndex == 1 ->
-                    sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
+                    sunnahHabits.filter { 
+                        if (isHaidhMode && !it.isCompletedToday) false else it.category == SunnahCategoryType.PUASA 
+                    }
                 else -> emptyList()
             }
         }
@@ -328,6 +340,16 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             UserPreferencesManager.isJumatEnabled.collect { enabled ->
                 _uiState.update { it.copy(isJumatEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            UserPreferencesManager.isHaidhMode.collect { enabled ->
+                _uiState.update { it.copy(isHaidhMode = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            UserPreferencesManager.gender.collect { gender ->
+                _uiState.update { it.copy(genderProfile = gender) }
             }
         }
         refreshLocation()
@@ -882,8 +904,15 @@ class HomeViewModel @Inject constructor(
     }
     
     fun setGenderProfile(profile: GenderProfile) {
-        UserPreferencesManager.setGender(profile)
-        UserPreferencesManager.setHasSeenPrompt()
+        viewModelScope.launch {
+            UserPreferencesManager.setGender(profile)
+        }
+    }
+
+    fun toggleHaidhMode(enabled: Boolean) {
+        viewModelScope.launch {
+            UserPreferencesManager.setHaidhMode(enabled)
+        }
     }
     
     fun dismissGenderPrompt() {

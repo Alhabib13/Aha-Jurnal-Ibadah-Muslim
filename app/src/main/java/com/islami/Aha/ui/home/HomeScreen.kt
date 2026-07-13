@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
@@ -254,6 +255,7 @@ fun HomeScreen(
             onToggleHabitReminder = viewModel::toggleReminderEnabled,
             onNavigateToAddHabit = onNavigateToAddHabit,
             onNavigateToSettings = onNavigateToSettings,
+            onToggleHaidhMode = viewModel::toggleHaidhMode,
             onSelectMainCategory = viewModel::selectMainCategory,
             onSelectSubTab = viewModel::selectSubTab,
             onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
@@ -473,6 +475,7 @@ fun HomeScreenContent(
     onToggleHabitReminder: (Habit) -> Unit,
     onNavigateToAddHabit: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onToggleHaidhMode: (Boolean) -> Unit,
     onSelectMainCategory: (String) -> Unit,
     onSelectSubTab: (Int) -> Unit,
     onToggleSunnahCompletion: (String) -> Unit = {},
@@ -512,7 +515,10 @@ fun HomeScreenContent(
                     ramadanIftarTime = uiState.ramadanIftarTime,
                     ramadanStatusText = uiState.ramadanStatusText,
                     isLocationLoading = uiState.isLocationLoading,
-                    onRefreshLocation = onRefreshLocation
+                    onRefreshLocation = onRefreshLocation,
+                    isHaidhMode = uiState.isHaidhMode,
+                    genderProfile = uiState.genderProfile,
+                    onToggleHaidhMode = onToggleHaidhMode
                 )
             }
 
@@ -613,7 +619,9 @@ fun HomeScreenContent(
                 }
             } else if (uiState.filteredHabits.isEmpty() && uiState.filteredSunnahHabits.isEmpty()) {
                 item {
-                    EmptyHabitState(onAddHabitClick = onNavigateToAddHabit)
+                    if (!uiState.isHaidhMode) {
+                        EmptyHabitState(onAddHabitClick = onNavigateToAddHabit)
+                    }
                 }
             } else {
                 // Seed habits (from Room DB)
@@ -639,12 +647,16 @@ fun HomeScreenContent(
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // Motivational Quote
+            // Motivational Quote or Haidh Card
             item {
-                IslamicMotivationCard(
-                    quote = uiState.motivationalQuote,
-                    source = uiState.quoteSource
-                )
+                if (uiState.isHaidhMode) {
+                    HaidhMotivationCard()
+                } else {
+                    IslamicMotivationCard(
+                        quote = uiState.motivationalQuote,
+                        source = uiState.quoteSource
+                    )
+                }
             }
         }
     }
@@ -899,7 +911,10 @@ fun HomeHeader(
     ramadanIftarTime: String = "",
     ramadanStatusText: String = "",
     isLocationLoading: Boolean = false,
-    onRefreshLocation: () -> Unit = {}
+    onRefreshLocation: () -> Unit = {},
+    isHaidhMode: Boolean = false,
+    genderProfile: com.islami.Aha.util.GenderProfile = com.islami.Aha.util.GenderProfile.UNSPECIFIED,
+    onToggleHaidhMode: (Boolean) -> Unit = {}
 ) {
     val greetingText = if (isLoggedIn && userName.isNotBlank()) {
         "Assalamu'alaikum, $userName \uD83D\uDC4B"
@@ -918,11 +933,52 @@ fun HomeHeader(
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 24.dp)
         ) {
-            Text(
-                text = greetingText,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = greetingText,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                )
+                
+                if (genderProfile == com.islami.Aha.util.GenderProfile.FEMALE) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(
+                                if (isHaidhMode) EmeraldDark.copy(alpha = 0.5f) else Color.Transparent, 
+                                RoundedCornerShape(12.dp)
+                            )
+                            .border(
+                                1.dp, 
+                                if (isHaidhMode) Color.Transparent else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f), 
+                                RoundedCornerShape(12.dp)
+                            )
+                            .clickable { onToggleHaidhMode(!isHaidhMode) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Mode Cuti",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Switch(
+                            checked = isHaidhMode,
+                            onCheckedChange = null,
+                            modifier = Modifier.height(16.dp).width(32.dp).scale(0.6f),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                checkedTrackColor = Emerald
+                            )
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = currentTime,
@@ -1789,17 +1845,57 @@ fun IslamicMotivationCard(quote: String, source: String) {
         ) {
             Text(
                 text = stringResource(R.string.home_quote_format, quote),
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f),
-                fontStyle = FontStyle.Italic
+                fontStyle = FontStyle.Italic,
+                fontWeight = FontWeight.Medium,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                lineHeight = 22.sp
             )
             Text(
                 text = source,
-                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
-                fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.End,
                 modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+fun HaidhMotivationCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = "Info",
+                    tint = Emerald,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Mode Cuti Ibadah Aktif",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+            Text(
+                text = "Saat ini kamu sedang dalam masa halangan (haidh). Kewajiban sholat dan puasamu untuk sementara digugurkan.\n\nJangan lupa matikan mode ini ketika sudah suci kembali ya, agar bisa mencatat amal ibadahmu lagi!",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f),
+                lineHeight = 20.sp
             )
         }
     }
