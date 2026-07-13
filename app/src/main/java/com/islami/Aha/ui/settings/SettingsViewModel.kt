@@ -49,11 +49,12 @@ enum class ImportMode(val displayName: String, val description: String) {
 }
 
 data class SettingsUiState(
-    // Umum
+    // Preferensi
+    val genderProfile: com.islami.Aha.util.GenderProfile = com.islami.Aha.util.GenderProfile.UNSPECIFIED,
+    val isHaidhMode: Boolean = false,
     val location: String = "Jakarta",
     val selectedTimeFormat: TimeFormatOption = TimeFormatOption.HOUR_24,
     val themeMode: com.islami.Aha.ui.theme.ThemeMode = com.islami.Aha.ui.theme.ThemeMode.SYSTEM,
-    val genderProfile: com.islami.Aha.util.GenderProfile = com.islami.Aha.util.GenderProfile.UNSPECIFIED,
     val isLoggedIn: Boolean = false,
     val userEmail: String = "",
 
@@ -132,6 +133,11 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             com.islami.Aha.util.UserPreferencesManager.gender.collect { gender ->
                 _uiState.update { it.copy(genderProfile = gender) }
+            }
+        }
+        viewModelScope.launch {
+            com.islami.Aha.util.UserPreferencesManager.isHaidhMode.collect { isHaidhMode ->
+                _uiState.update { it.copy(isHaidhMode = isHaidhMode) }
             }
         }
     }

@@ -227,6 +227,7 @@ fun SettingsScreenContent(
     onHideReAuthDialog: () -> Unit = {},
     onConfirmReAuthDelete: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
@@ -289,7 +290,17 @@ fun SettingsScreenContent(
                     iconTint = Emerald,
                     title = "Profil Ibadah",
                     subtitle = genderText,
-                    onClick = onShowGenderDialog
+                    onClick = {
+                        if (uiState.isHaidhMode) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "Matikan Mode Cuti Ibadah terlebih dahulu untuk mengubah profil.",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            onShowGenderDialog()
+                        }
+                    }
                 )
             }
 
