@@ -45,7 +45,12 @@ class BootCompletedReceiver : BroadcastReceiver() {
                     val userRepository = entryPoint.userHabitRepository()
                     val habitDao = entryPoint.habitDao()
 
+                    val isHaidh = com.islami.Aha.util.UserPreferencesManager.isHaidhMode.value
+                    
                     userRepository.getActiveReminderHabits().forEach { habit ->
+                        if (isHaidh && (habit.name.contains("Sholat", ignoreCase = true) || habit.name.contains("Puasa", ignoreCase = true))) {
+                            return@forEach // Skip schedule
+                        }
                         val parts = habit.reminderTime?.split(":") ?: return@forEach
                         if (parts.size == 2) {
                             val hour = parts[0].toIntOrNull() ?: return@forEach
@@ -61,6 +66,9 @@ class BootCompletedReceiver : BroadcastReceiver() {
                     }
 
                     habitDao.getActiveReminderHabits().forEach { habit ->
+                        if (isHaidh && (habit.name.contains("Sholat", ignoreCase = true) || habit.name.contains("Puasa", ignoreCase = true))) {
+                            return@forEach // Skip schedule
+                        }
                         val parts = habit.time.split(":")
                         if (parts.size == 2) {
                             val hour = parts[0].toIntOrNull() ?: return@forEach

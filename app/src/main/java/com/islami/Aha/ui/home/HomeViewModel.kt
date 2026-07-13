@@ -908,7 +908,8 @@ class HomeViewModel @Inject constructor(
             UserPreferencesManager.setGender(profile)
             authRepository.syncUserPreferences(
                 gender = profile.name,
-                isHaidhMode = UserPreferencesManager.isHaidhMode.value
+                isHaidhMode = UserPreferencesManager.isHaidhMode.value,
+                haidhDates = UserPreferencesManager.getHaidhDates().toList()
             )
         }
     }
@@ -918,7 +919,8 @@ class HomeViewModel @Inject constructor(
             UserPreferencesManager.setHaidhMode(enabled)
             authRepository.syncUserPreferences(
                 gender = UserPreferencesManager.gender.value.name,
-                isHaidhMode = enabled
+                isHaidhMode = enabled,
+                haidhDates = UserPreferencesManager.getHaidhDates().toList()
             )
         }
     }
@@ -928,7 +930,8 @@ class HomeViewModel @Inject constructor(
             UserPreferencesManager.setHasSeenPrompt()
             authRepository.syncUserPreferences(
                 gender = UserPreferencesManager.gender.value.name,
-                isHaidhMode = UserPreferencesManager.isHaidhMode.value
+                isHaidhMode = UserPreferencesManager.isHaidhMode.value,
+                haidhDates = UserPreferencesManager.getHaidhDates().toList()
             )
         }
     }
@@ -1157,12 +1160,17 @@ class HomeViewModel @Inject constructor(
                     if (isHaidh != null) {
                         UserPreferencesManager.setHaidhMode(isHaidh)
                     }
+                    val haidhDates = (prefs["haidhDates"] as? List<*>)?.mapNotNull { it as? String }
+                    if (haidhDates != null) {
+                        UserPreferencesManager.setHaidhDates(haidhDates)
+                    }
                     UserPreferencesManager.setHasSeenPrompt()
                 } else if (UserPreferencesManager.gender.value != com.islami.Aha.util.GenderProfile.UNSPECIFIED) {
                     // Local has data but cloud doesn't (or fetch failed), sync up to cloud
                     authRepository.syncUserPreferences(
                         gender = UserPreferencesManager.gender.value.name,
-                        isHaidhMode = UserPreferencesManager.isHaidhMode.value
+                        isHaidhMode = UserPreferencesManager.isHaidhMode.value,
+                        haidhDates = UserPreferencesManager.getHaidhDates().toList()
                     )
                 }
                 

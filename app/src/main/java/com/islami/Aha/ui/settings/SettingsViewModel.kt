@@ -185,7 +185,8 @@ class SettingsViewModel @Inject constructor(
             com.islami.Aha.util.UserPreferencesManager.setGender(profile)
             authRepository.syncUserPreferences(
                 gender = profile.name,
-                isHaidhMode = com.islami.Aha.util.UserPreferencesManager.isHaidhMode.value
+                isHaidhMode = com.islami.Aha.util.UserPreferencesManager.isHaidhMode.value,
+                haidhDates = com.islami.Aha.util.UserPreferencesManager.getHaidhDates().toList()
             )
             hideGenderDialog()
             showSnackbar("Profil ibadah berhasil diperbarui")

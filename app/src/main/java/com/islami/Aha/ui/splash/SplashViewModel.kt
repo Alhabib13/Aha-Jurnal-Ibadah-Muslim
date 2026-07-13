@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import com.islami.Aha.data.repository.AuthRepository
 
 /**
  * UI State untuk Splash Screen.
@@ -31,7 +34,10 @@ data class SplashUiState(
  * Untuk saat ini, logic login menggunakan dummy data.
  * Di production, akan membaca dari SharedPreferences atau DataStore.
  */
-class SplashViewModel : ViewModel() {
+@HiltViewModel
+class SplashViewModel @Inject constructor(
+    private val authRepository: AuthRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SplashUiState())
     val uiState: StateFlow<SplashUiState> = _uiState.asStateFlow()
@@ -51,6 +57,9 @@ class SplashViewModel : ViewModel() {
      */
     private fun startSplashTimer() {
         viewModelScope.launch {
+            // Restore Firebase session to SharedPreferences
+            authRepository.restoreSessionFromFirebase()
+            
             // Tampilkan splash selama durasi yang ditentukan
             delay(SPLASH_DURATION)
 

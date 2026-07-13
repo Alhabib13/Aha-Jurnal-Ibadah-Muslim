@@ -211,7 +211,7 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    suspend fun syncUserPreferences(gender: String, isHaidhMode: Boolean): Result<Unit> {
+    suspend fun syncUserPreferences(gender: String, isHaidhMode: Boolean, haidhDates: List<String>): Result<Unit> {
         val user = firebaseAuth.currentUser ?: return Result.success(Unit)
         return runCatching {
             firestore?.collection("users")?.document(user.uid)
@@ -220,6 +220,7 @@ class AuthRepository @Inject constructor(
                     mapOf(
                         "genderProfile" to gender,
                         "isHaidhMode" to isHaidhMode,
+                        "haidhDates" to haidhDates,
                         "updatedAt" to FieldValue.serverTimestamp()
                     ),
                     SetOptions.merge()
@@ -513,6 +514,15 @@ class AuthRepository @Inject constructor(
             .remove(KEY_LAST_ACTIVE_USER_UID)
             .remove(KEY_LAST_USERNAME_CHANGED)
             .apply()
+    }
+    
+    fun restoreSessionFromFirebase() {
+        val user = firebaseAuth.currentUser
+        if (user != null) {
+            syncToPreferences(user)
+        } else {
+            clearPreferences()
+        }
     }
 
     private fun syncToPreferences(user: FirebaseUser, displayName: String? = null) {

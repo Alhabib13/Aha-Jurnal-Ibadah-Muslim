@@ -88,6 +88,12 @@ object UserPreferencesManager {
         prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, dates)?.apply()
     }
     
+    fun setHaidhDates(dates: List<String>) {
+        val mergedDates = getHaidhDates().toMutableSet()
+        mergedDates.addAll(dates)
+        prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, mergedDates)?.apply()
+    }
+    
     fun clearAll() {
         _gender.value = GenderProfile.UNSPECIFIED
         _isJumatEnabled.value = false
