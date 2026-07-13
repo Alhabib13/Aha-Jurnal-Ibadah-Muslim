@@ -44,6 +44,14 @@ class NotificationReceiver : BroadcastReceiver() {
             return
         }
 
+        val prefs = com.islami.Aha.util.SecurePrefsProvider.get(context)
+        val isHaidhMode = prefs.getBoolean("haidh_mode", false)
+        if (isHaidhMode && (habitName.contains("Sholat", ignoreCase = true) || habitName.contains("Puasa", ignoreCase = true))) {
+            debugLog("Haidh mode is active, skipping notification for: $habitName")
+            rescheduleAlarm(context, habitId, habitName, hour, minute)
+            return
+        }
+
         // Check notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(

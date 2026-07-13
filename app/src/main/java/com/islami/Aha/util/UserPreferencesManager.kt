@@ -11,6 +11,7 @@ object UserPreferencesManager {
     private const val KEY_GENDER = "gender_profile"
     private const val KEY_JUMAT_ENABLED = "jumat_enabled"
     private const val KEY_HAIDH_MODE = "haidh_mode"
+    private const val KEY_HAIDH_DATES = "haidh_dates"
     private const val KEY_SEEN_PROMPT = "seen_gender_prompt"
     
     private val _gender = MutableStateFlow(GenderProfile.UNSPECIFIED)
@@ -57,9 +58,22 @@ object UserPreferencesManager {
         prefs?.edit()?.putBoolean(KEY_JUMAT_ENABLED, enabled)?.apply()
     }
     
+    fun getHaidhDates(): Set<String> {
+        return prefs?.getStringSet(KEY_HAIDH_DATES, emptySet()) ?: emptySet()
+    }
+    
     fun setHaidhMode(enabled: Boolean) {
         _isHaidhMode.value = enabled
         prefs?.edit()?.putBoolean(KEY_HAIDH_MODE, enabled)?.apply()
+        
+        val dateKey = DateUtils.getTodayKey()
+        val dates = getHaidhDates().toMutableSet()
+        if (enabled) {
+            dates.add(dateKey)
+        } else {
+            dates.remove(dateKey)
+        }
+        prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, dates)?.apply()
     }
     
     fun clearAll() {
@@ -71,6 +85,7 @@ object UserPreferencesManager {
             remove(KEY_GENDER)
             remove(KEY_JUMAT_ENABLED)
             remove(KEY_HAIDH_MODE)
+            remove(KEY_HAIDH_DATES)
             remove(KEY_SEEN_PROMPT)
             apply()
         }

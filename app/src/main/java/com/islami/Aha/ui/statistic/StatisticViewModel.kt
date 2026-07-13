@@ -35,7 +35,8 @@ data class DailyStatistic(
     val dayName: String,
     val completedCount: Int,
     val isToday: Boolean = false,
-    val dateKey: String = ""
+    val dateKey: String = "",
+    val isHaidh: Boolean = false
 )
 
 data class CategoryStatistic(
@@ -174,6 +175,8 @@ class StatisticViewModel @Inject constructor(
                     historicalTotal.toFloat() / activeDaysCount
                 } else 0f
 
+                val haidhDates = com.islami.Aha.util.UserPreferencesManager.getHaidhDates()
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -182,7 +185,7 @@ class StatisticViewModel @Inject constructor(
                         todayTotal = todayTotal,
                         todayPercentage = todayPercentage,
                         categoryStats = categoryStats,
-                        weeklyStats = generateWeeklyStats(last7DateKeys, dailyCounts),
+                        weeklyStats = generateWeeklyStats(last7DateKeys, dailyCounts, haidhDates),
                         currentStreak = currentStreak,
                         longestStreak = longestStreak,
                         totalCompleted = historicalTotal,
@@ -201,12 +204,13 @@ class StatisticViewModel @Inject constructor(
     }
 
     private fun generateWeeklyStats(
-        last7DateKeys: List<String>,
-        dailyCounts: List<DailyCompletionCount>
+        dateKeys: List<String>,
+        dailyCounts: List<DailyCompletionCount>,
+        haidhDates: Set<String>
     ): List<DailyStatistic> {
         val countsByDate = dailyCounts.associate { it.dateKey to it.count }
         val todayKey = DateUtils.getTodayKey()
-        return last7DateKeys.map { key ->
+        return dateKeys.map { key ->
             val dayName = runCatching {
                 val day = java.time.LocalDate.parse(key)
                 when (day.dayOfWeek) {
@@ -223,7 +227,8 @@ class StatisticViewModel @Inject constructor(
                 dayName = dayName,
                 completedCount = countsByDate[key] ?: 0,
                 isToday = key == todayKey,
-                dateKey = key
+                dateKey = key,
+                isHaidh = haidhDates.contains(key)
             )
         }
     }

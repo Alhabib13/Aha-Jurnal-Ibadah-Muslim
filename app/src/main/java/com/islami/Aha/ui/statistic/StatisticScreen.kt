@@ -31,6 +31,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -450,6 +451,25 @@ fun WeeklyHeatmap(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = R.drawable.ic_flower),
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    colorFilter = ColorFilter.tint(androidx.compose.ui.graphics.Color(0xFFF48FB1))
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Cuti Ibadah",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -465,6 +485,7 @@ fun HeatmapCell(day: DailyStatistic, modifier: Modifier = Modifier) {
     }
     
     val bgColor = when {
+        day.isHaidh -> androidx.compose.ui.graphics.Color(0xFFF48FB1)
         day.completedCount >= 8 -> if (isDark) EmeraldMuted else EmeraldDark
         day.completedCount in 4..7 -> if (isDark) EmeraldMuted.copy(alpha = 0.5f) else Emerald
         day.completedCount in 1..3 -> if (isDark) EmeraldMuted.copy(alpha = 0.15f) else Emerald.copy(alpha = 0.2f)
@@ -495,12 +516,21 @@ fun HeatmapCell(day: DailyStatistic, modifier: Modifier = Modifier) {
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "${day.completedCount}",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = textColor
-            )
+            if (day.isHaidh) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = R.drawable.ic_flower),
+                    contentDescription = "Cuti",
+                    modifier = Modifier.size(16.dp),
+                    colorFilter = ColorFilter.tint(androidx.compose.ui.graphics.Color.White)
+                )
+            } else {
+                Text(
+                    text = "${day.completedCount}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textColor
+                )
+            }
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(

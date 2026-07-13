@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,6 +46,7 @@ import com.islami.Aha.util.rememberNotificationPermissionState
 @Composable
 fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isHaidhMode by com.islami.Aha.util.UserPreferencesManager.isHaidhMode.collectAsStateWithLifecycle()
     val notificationPermission = rememberNotificationPermissionState()
     var toastMessage by remember { mutableStateOf<String?>(null) }
     val permissionMessage = stringResource(R.string.notification_permission_required_message)
@@ -71,6 +73,7 @@ fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
     Box(modifier = Modifier.fillMaxSize()) {
         NotificationScreenContent(
             uiState = uiState,
+            isHaidhMode = isHaidhMode,
             notificationPermissionGranted = notificationPermission.isGranted,
             onRequestNotificationPermission = requireNotificationPermissionBeforeEnable,
             onToggleGlobalNotification = {
@@ -130,6 +133,7 @@ fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
 @Composable
 fun NotificationScreenContent(
     uiState: NotificationUiState,
+    isHaidhMode: Boolean = false,
     notificationPermissionGranted: Boolean = true,
     onRequestNotificationPermission: () -> Unit = {},
     onToggleGlobalNotification: () -> Unit,
@@ -165,6 +169,35 @@ fun NotificationScreenContent(
                             isEnabled = uiState.globalNotificationEnabled,
                             onToggle = onToggleGlobalNotification
                         )
+                    }
+                    if (isHaidhMode) {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Info,
+                                        contentDescription = "Info",
+                                        tint = Emerald
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "Notifikasi pengingat ibadah wajib (Sholat & Puasa) sedang dijeda karena Mode Cuti Ibadah sedang aktif.",
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                        }
                     }
                     item {
                         Text(
