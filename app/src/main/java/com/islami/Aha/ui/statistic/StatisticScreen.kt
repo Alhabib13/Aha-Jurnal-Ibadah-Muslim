@@ -107,6 +107,38 @@ fun StatisticScreenContent(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Emerald)
         }
+    } else if (!isHaidhMode && uiState.totalCompleted == 0 && uiState.weeklyStats.all { it.completedCount == 0 }) {
+        // Empty State / "Error" State
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = R.drawable.ic_nav_statistic), // Icon statistik
+                    contentDescription = "No data",
+                    modifier = Modifier.size(120.dp),
+                    colorFilter = ColorFilter.tint(Color.Gray.copy(alpha = 0.5f))
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Belum Ada Data Riwayat",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Lakukan ibadah hari ini agar catatanmu muncul di sini.",
+                    fontSize = 14.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                )
+            }
+        }
     } else {
         LazyColumn(
             modifier = Modifier
@@ -508,7 +540,7 @@ fun WeeklyHeatmap(
 
 @Composable
 fun HeatmapCell(day: DailyStatistic, modifier: Modifier = Modifier) {
-    val themeMode = ThemeManager.themeMode.collectAsState().value
+    val themeMode = ThemeManager.themeMode.collectAsStateWithLifecycle().value
     val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDark = when (themeMode) {
         com.islami.Aha.ui.theme.ThemeMode.LIGHT -> false
@@ -577,7 +609,7 @@ fun HeatmapCell(day: DailyStatistic, modifier: Modifier = Modifier) {
 
 @Composable
 fun StreakCards(currentStreak: Int, longestStreak: Int) {
-    val themeMode = ThemeManager.themeMode.collectAsState().value
+    val themeMode = ThemeManager.themeMode.collectAsStateWithLifecycle().value
     val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDarkTheme = when (themeMode) {
         com.islami.Aha.ui.theme.ThemeMode.LIGHT -> false

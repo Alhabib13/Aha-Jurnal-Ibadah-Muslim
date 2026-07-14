@@ -20,11 +20,17 @@ object UserPreferencesManager {
     private val _hasSeenPrompt = MutableStateFlow(false)
     val hasSeenPrompt: StateFlow<Boolean> = _hasSeenPrompt.asStateFlow()
     
+    private val _hasSeenOnboarding = MutableStateFlow(false)
+    val hasSeenOnboarding: StateFlow<Boolean> = _hasSeenOnboarding.asStateFlow()
+    
     private val _isJumatEnabled = MutableStateFlow(false)
     val isJumatEnabled: StateFlow<Boolean> = _isJumatEnabled.asStateFlow()
     
     private val _isHaidhMode = MutableStateFlow(false)
     val isHaidhMode: StateFlow<Boolean> = _isHaidhMode.asStateFlow()
+    
+    private val _haidhDates = MutableStateFlow<Set<String>>(emptySet())
+    val haidhDates: StateFlow<Set<String>> = _haidhDates.asStateFlow()
     
     private var prefs: SharedPreferences? = null
 
@@ -34,7 +40,14 @@ object UserPreferencesManager {
         _isJumatEnabled.value = sharedPreferences.getBoolean(KEY_JUMAT_ENABLED, false)
         _isHaidhMode.value = sharedPreferences.getBoolean(KEY_HAIDH_MODE, false)
         _hasSeenPrompt.value = sharedPreferences.getBoolean(KEY_SEEN_PROMPT, false)
+        _hasSeenOnboarding.value = sharedPreferences.getBoolean("seen_onboarding", false)
+        _haidhDates.value = sharedPreferences.getStringSet(KEY_HAIDH_DATES, emptySet()) ?: emptySet()
         syncHaidhDates()
+    }
+
+    fun setHasSeenOnboarding() {
+        _hasSeenOnboarding.value = true
+        prefs?.edit()?.putBoolean("seen_onboarding", true)?.apply()
     }
 
     fun setHasSeenPrompt() {
@@ -70,6 +83,7 @@ object UserPreferencesManager {
             if (!dates.contains(dateKey)) {
                 dates.add(dateKey)
                 prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, dates)?.apply()
+                _haidhDates.value = dates.toSet()
             }
         }
     }
@@ -86,18 +100,21 @@ object UserPreferencesManager {
             dates.remove(dateKey)
         }
         prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, dates)?.apply()
+        _haidhDates.value = dates.toSet()
     }
     
     fun setHaidhDates(dates: List<String>) {
         val mergedDates = getHaidhDates().toMutableSet()
         mergedDates.addAll(dates)
         prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, mergedDates)?.apply()
+        _haidhDates.value = mergedDates.toSet()
     }
     
     fun clearAll() {
         _gender.value = GenderProfile.UNSPECIFIED
         _isJumatEnabled.value = false
         _isHaidhMode.value = false
+        _haidhDates.value = emptySet()
         _hasSeenPrompt.value = false
         prefs?.edit()?.apply {
             remove(KEY_GENDER)

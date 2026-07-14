@@ -23,6 +23,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
 
+private data class StatCombineData(
+    val habits: List<com.islami.Aha.data.model.Habit>,
+    val sunnahHabits: List<com.islami.Aha.domain.model.SunnahHabit>,
+    val config: com.islami.Aha.data.repository.AppFeatureConfig,
+    val haidhDates: Set<String>
+)
+
 data class PastDayHabitItem(
     val habitKey: String, // e.g. "default_1" or "sunnah_abc"
     val name: String,
@@ -94,10 +101,15 @@ class StatisticViewModel @Inject constructor(
             combine(
                 habitDao.getHabits(),
                 sunnahHabitSharedViewModel.sunnahHabits,
-                featureConfigRepository.featureConfig
-            ) { habits, sunnahHabits, config ->
-                Triple(habits, sunnahHabits, config)
-            }.collect { (habits, sunnahHabits, config) ->
+                featureConfigRepository.featureConfig,
+                com.islami.Aha.util.UserPreferencesManager.haidhDates
+            ) { habits, sunnahHabits, config, haidhDates ->
+                StatCombineData(habits, sunnahHabits, config, haidhDates)
+            }.collect { data ->
+                val habits = data.habits
+                val sunnahHabits = data.sunnahHabits
+                val config = data.config
+                val haidhDates = data.haidhDates
                 val visibleHabits = habits.filter {
                     if (it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled)) {
                         return@filter false
@@ -174,8 +186,6 @@ class StatisticViewModel @Inject constructor(
                 val averagePerDay = if (activeDaysCount > 0) {
                     historicalTotal.toFloat() / activeDaysCount
                 } else 0f
-
-                val haidhDates = com.islami.Aha.util.UserPreferencesManager.getHaidhDates()
 
                 _uiState.update {
                     it.copy(

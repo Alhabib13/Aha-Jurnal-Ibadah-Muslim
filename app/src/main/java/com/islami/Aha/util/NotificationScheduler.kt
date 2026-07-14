@@ -267,12 +267,21 @@ object NotificationScheduler {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerTime,
-                    pendingIntent
-                )
-                debugLog("Exact alarm set for '$habitName' at %02d:%02d (trigger=${triggerTime})".format(hour, minute))
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerTime,
+                        pendingIntent
+                    )
+                    debugLog("Exact alarm set for '$habitName' at %02d:%02d (trigger=${triggerTime})".format(hour, minute))
+                } catch (e: SecurityException) {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerTime,
+                        pendingIntent
+                    )
+                    debugLog("Fallback inexact alarm set for '$habitName' due to SecurityException")
+                }
             } else {
                 alarmManager.setAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
@@ -289,6 +298,72 @@ object NotificationScheduler {
             )
             debugLog("Exact alarm set for '$habitName' at %02d:%02d".format(hour, minute))
         }
+    }
+
+    fun scheduleHaidhReminder(context: Context, hour: Int = 8, minute: Int = 0) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val habitId = "haidh_reminder"
+        val habitName = "Peringatan Cuti Ibadah"
+        
+        val intent = Intent(context, NotificationReceiver::class.java).apply {
+            putExtra("habit_id", habitId)
+            putExtra("habit_name", habitName)
+            putExtra("hour", hour)
+            putExtra("minute", minute)
+        }
+        
+        val requestCode = notificationId(habitId)
+        val prefs = context.getSharedPreferences(PREFS_REQUEST_CODES, Context.MODE_PRIVATE)
+        prefs.edit().putInt(habitId, requestCode).apply()
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Jadwalkan untuk 10 hari ke depan
+        val calendar = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_MONTH, 10)
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        val triggerTime = calendar.timeInMillis
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerTime,
+                        pendingIntent
+                    )
+                } catch (e: SecurityException) {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerTime,
+                        pendingIntent
+                    )
+                }
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+            }
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerTime,
+                pendingIntent
+            )
+        }
+        debugLog("Haidh reminder set for 10 days later at %02d:%02d".format(hour, minute))
     }
 
     fun cancelHabitReminder(context: Context, habitId: String) {
@@ -318,5 +393,18 @@ object NotificationScheduler {
         // Hapus dari registry sehingga habitId yang sama bisa mendapat kode baru jika dijadwal ulang
         prefs.edit().remove(habitId).apply()
         debugLog("Alarm cancelled for habitId=$habitId (code=${if (storedCode != -1) storedCode else "legacy"})")
+    }
+
+    fun cancelAllAlarms(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_REQUEST_CODES, Context.MODE_PRIVATE)
+        val keys = prefs.all.keys
+        var count = 0
+        for (key in keys) {
+            if (key != KEY_NEXT_CODE) {
+                cancelHabitReminder(context, key)
+                count++
+            }
+        }
+        debugLog("Cancelled $count active alarms due to global cancel.")
     }
 }

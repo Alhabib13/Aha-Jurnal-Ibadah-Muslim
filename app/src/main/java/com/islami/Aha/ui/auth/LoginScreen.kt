@@ -525,11 +525,13 @@ fun AuthTextField(
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Emerald,
-                unfocusedBorderColor = Gray200,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
                 errorBorderColor = ErrorRed,
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = Gray50,
-                errorContainerColor = ErrorRed.copy(alpha = 0.05f)
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                errorContainerColor = ErrorRed.copy(alpha = 0.05f),
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
 

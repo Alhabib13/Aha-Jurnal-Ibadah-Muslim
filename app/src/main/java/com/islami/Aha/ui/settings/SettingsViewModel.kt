@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
+import com.islami.Aha.R
 import com.islami.Aha.data.local.AppDatabase
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
@@ -183,13 +184,18 @@ class SettingsViewModel @Inject constructor(
     fun setGenderProfile(profile: com.islami.Aha.util.GenderProfile) {
         viewModelScope.launch {
             com.islami.Aha.util.UserPreferencesManager.setGender(profile)
-            authRepository.syncUserPreferences(
+            val res = authRepository.syncUserPreferences(
                 gender = profile.name,
                 isHaidhMode = com.islami.Aha.util.UserPreferencesManager.isHaidhMode.value,
                 haidhDates = com.islami.Aha.util.UserPreferencesManager.getHaidhDates().toList()
             )
             hideGenderDialog()
-            showSnackbar("Profil ibadah berhasil diperbarui")
+            res.onSuccess {
+                showSnackbar("Profil ibadah berhasil diperbarui")
+            }.onFailure { err ->
+                val errorMsg = appContext.getString(R.string.error_sync_cloud, err.message ?: "")
+                showSnackbar(errorMsg)
+            }
         }
     }
 
@@ -334,7 +340,7 @@ class SettingsViewModel @Inject constructor(
                 showSnackbar("Password berhasil diubah. Cek email untuk konfirmasi keamanan.")
             } else {
                 _uiState.update { it.copy(isChangingPassword = false) }
-                showSnackbar(result.exceptionOrNull()?.message ?: "Gagal mengubah password")
+                showSnackbar(result.exceptionOrNull()?.message ?: appContext.getString(R.string.error_change_password))
             }
         }
     }
@@ -351,7 +357,7 @@ class SettingsViewModel @Inject constructor(
             if (result.isSuccess) {
                 showSnackbar("Link reset password dikirim ke $email")
             } else {
-                showSnackbar("Gagal mengirim email reset password")
+                showSnackbar(appContext.getString(R.string.error_send_reset_email))
             }
         }
     }
@@ -383,7 +389,7 @@ class SettingsViewModel @Inject constructor(
                 }
             } else {
                 _uiState.update { it.copy(isRefreshingSecurityStatus = false) }
-                showSnackbar(result.exceptionOrNull()?.message ?: "Gagal memeriksa status verifikasi email")
+                showSnackbar(result.exceptionOrNull()?.message ?: appContext.getString(R.string.error_check_email_verification))
             }
         }
     }
@@ -403,7 +409,7 @@ class SettingsViewModel @Inject constructor(
                 showSnackbar("Email verifikasi berhasil dikirim")
                 startVerificationResendCooldown()
             } else {
-                showSnackbar(result.exceptionOrNull()?.message ?: "Gagal mengirim email verifikasi")
+                showSnackbar(result.exceptionOrNull()?.message ?: appContext.getString(R.string.error_send_verification_email))
             }
         }
     }
@@ -424,7 +430,7 @@ class SettingsViewModel @Inject constructor(
             if (result.isSuccess) {
                 showSnackbar("Link reset password dikirim ke $email")
             } else {
-                showSnackbar("Gagal mengirim email reset password")
+                showSnackbar(appContext.getString(R.string.error_send_reset_email))
             }
         }
     }
@@ -516,7 +522,7 @@ class SettingsViewModel @Inject constructor(
                 if (error is ReAuthRequiredException) {
                     _uiState.update { it.copy(showReAuthDialog = true) }
                 } else {
-                    showSnackbar(error?.message ?: "Gagal menghapus akun")
+                    showSnackbar(error?.message ?: appContext.getString(R.string.error_delete_account))
                 }
             }
         }
@@ -640,7 +646,7 @@ class SettingsViewModel @Inject constructor(
             }.onSuccess {
                 showSnackbar("Data berhasil diekspor")
             }.onFailure {
-                showSnackbar("Gagal mengekspor data")
+                showSnackbar(appContext.getString(R.string.error_export_data))
             }
         }
     }
@@ -682,7 +688,7 @@ class SettingsViewModel @Inject constructor(
                 )
             }.onFailure { error ->
                 _uiState.update { it.copy(isImportingData = false) }
-                showSnackbar(error.message ?: "Gagal mengimpor data")
+                showSnackbar(error.message ?: appContext.getString(R.string.error_import_data))
             }
         }
     }

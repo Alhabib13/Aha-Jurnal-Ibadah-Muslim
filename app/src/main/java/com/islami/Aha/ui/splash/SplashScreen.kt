@@ -36,13 +36,19 @@ import kotlin.math.sin
 @Composable
 fun SplashScreen(
     viewModel: SplashViewModel = hiltViewModel(),
-    onNavigateToHome: () -> Unit = {}
+    onNavigateToHome: () -> Unit = {},
+    onNavigateToOnboarding: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val hasSeenOnboarding by com.islami.Aha.util.UserPreferencesManager.hasSeenOnboarding.collectAsStateWithLifecycle()
 
     LaunchedEffect(uiState.shouldNavigate) {
         if (uiState.shouldNavigate) {
-            onNavigateToHome()
+            if (!hasSeenOnboarding) {
+                onNavigateToOnboarding()
+            } else {
+                onNavigateToHome()
+            }
             viewModel.onNavigationComplete()
         }
     }

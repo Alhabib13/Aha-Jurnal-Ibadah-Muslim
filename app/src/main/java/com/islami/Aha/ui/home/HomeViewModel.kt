@@ -32,6 +32,7 @@ import com.islami.Aha.util.PrayerTimeApiService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.firestore.FirebaseFirestore
+import com.islami.Aha.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.currentCoroutineContext
@@ -170,8 +171,8 @@ data class HomeUiState(
                 if (habit.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled)) return@filter false
                 if (habit.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled)) return@filter false
                 
-                if (isHaidhMode) {
-                    if (!habit.isCompleted) return@filter false
+                if (isHaidhMode && (selectedMainCategory == "Sholat" || selectedMainCategory == "Puasa")) {
+                    return@filter false
                 }
                 
                 true
@@ -189,13 +190,9 @@ data class HomeUiState(
             if (isComingSoon) return emptyList()
             return when {
                 selectedMainCategory == "Sholat" && selectedSubTabIndex == 1 ->
-                    sunnahHabits.filter { 
-                        if (isHaidhMode && !it.isCompletedToday) false else it.category == SunnahCategoryType.SHOLAT 
-                    }
+                    if (isHaidhMode) emptyList() else sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
                 selectedMainCategory == "Puasa" && selectedSubTabIndex == 1 ->
-                    sunnahHabits.filter { 
-                        if (isHaidhMode && !it.isCompletedToday) false else it.category == SunnahCategoryType.PUASA 
-                    }
+                    if (isHaidhMode) emptyList() else sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
                 else -> emptyList()
             }
         }
@@ -292,6 +289,7 @@ class HomeViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private var syncHaidhJob: kotlinx.coroutines.Job? = null
     private var lastLocationRefreshAtMs: Long = 0L
     private val authPrefsListener =
         SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -327,16 +325,7 @@ class HomeViewModel @Inject constructor(
         startPeriodicHomeUpdates()
         loadDailyIslamicContent()
         
-        viewModelScope.launch {
-            kotlinx.coroutines.flow.combine(
-                UserPreferencesManager.gender,
-                UserPreferencesManager.hasSeenPrompt
-            ) { gender, seen ->
-                gender == GenderProfile.UNSPECIFIED && !seen
-            }.collect { shouldShow ->
-                _uiState.update { it.copy(showGenderPrompt = shouldShow) }
-            }
-        }
+        // showGenderPrompt logic removed as requested
         viewModelScope.launch {
             UserPreferencesManager.isJumatEnabled.collect { enabled ->
                 _uiState.update { it.copy(isJumatEnabled = enabled) }
@@ -382,10 +371,7 @@ class HomeViewModel @Inject constructor(
                 when {
                     wasFardhuApiEnabled && !isFardhuApiEnabled -> {
                         launchSafely("disableFardhuScheduleByLocation") {
-                            applyDefaultFardhuTimes()
-                            markPrayerTimeUsingDefault()
-                            updateCurrentTimeAndPrayerInfo()
-                            clearSyncNotice()
+                            refreshLocation(force = true)
                         }
                     }
 
@@ -917,11 +903,72 @@ class HomeViewModel @Inject constructor(
     fun toggleHaidhMode(enabled: Boolean) {
         viewModelScope.launch {
             UserPreferencesManager.setHaidhMode(enabled)
-            authRepository.syncUserPreferences(
-                gender = UserPreferencesManager.gender.value.name,
-                isHaidhMode = enabled,
-                haidhDates = UserPreferencesManager.getHaidhDates().toList()
-            )
+            
+            // Debounce cloud sync to prevent spamming
+            syncHaidhJob?.cancel()
+            syncHaidhJob = launch {
+                kotlinx.coroutines.delay(2000L) // Wait 2 seconds
+                val result = authRepository.syncUserPreferences(
+                    gender = UserPreferencesManager.gender.value.name,
+                    isHaidhMode = enabled,
+                    haidhDates = UserPreferencesManager.getHaidhDates().toList()
+                )
+                result.onFailure { err ->
+                    val errorMsg = context.getString(R.string.error_sync_cloud, err.message ?: "")
+                    showSnackbar(errorMsg)
+                }
+            }
+            // Reschedule alarms immediately to apply the new Haidh state
+            rescheduleAllAlarms()
+            
+            if (enabled) {
+                NotificationScheduler.scheduleHaidhReminder(context, 8, 0) // Schedule for 08:00 AM 10 days later
+            }
+        }
+    }
+
+    private suspend fun rescheduleAllAlarms() {
+        // First, clear all existing alarms
+        NotificationScheduler.cancelAllAlarms(context)
+        
+        // If global notifications are off, we don't reschedule anything
+        if (!isGlobalNotificationEnabled()) return
+        
+        val isHaidh = UserPreferencesManager.isHaidhMode.value
+
+        val allHabits = habitDao.getHabitsSnapshot()
+        allHabits.forEach { habit ->
+            if (isHaidh && (habit.category.startsWith("Sholat") || habit.category.startsWith("Puasa"))) return@forEach
+            val reminderTime = parseHourMinute(habit.time)
+            if (habit.isReminderEnabled && reminderTime != null) {
+                NotificationScheduler.scheduleHabitReminder(
+                    context = context,
+                    habitId = "default_${habit.id}",
+                    habitName = habit.name,
+                    hour = reminderTime.first,
+                    minute = reminderTime.second
+                )
+            }
+        }
+        
+        val currentSunnah = _uiState.value.sunnahHabits
+        currentSunnah.forEach { habit ->
+            if (isHaidh && (habit.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.SHOLAT || habit.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.PUASA)) return@forEach
+            if (habit.reminderEnabled) {
+                val reminderTimeStr = habit.reminderTime
+                if (reminderTimeStr != null) {
+                    val reminderTime = parseHourMinute(reminderTimeStr)
+                    if (reminderTime != null) {
+                        NotificationScheduler.scheduleHabitReminder(
+                            context = context,
+                            habitId = habit.id,
+                            habitName = habit.name,
+                            hour = reminderTime.first,
+                            minute = reminderTime.second
+                        )
+                    }
+                }
+            }
         }
     }
     
@@ -1029,16 +1076,48 @@ class HomeViewModel @Inject constructor(
                 isLocationLoading = true
             )
         }
+
+        if (!_uiState.value.fardhuScheduleByLocationEnabled) {
+            if (cached != null) {
+                launchSafely("syncPrayerTimesByCachedLocation") {
+                    try {
+                        syncPrayerTimesByLocation(cached.latitude, cached.longitude)
+                    } finally {
+                        _uiState.update { current ->
+                            current.copy(
+                                location = cached.cityName,
+                                isLocationLoading = false,
+                                isRefreshing = if (closeRefreshingOnFinish) false else current.isRefreshing
+                            )
+                        }
+                    }
+                }
+            } else {
+                launchSafely("applyDefaultFardhuTimes") {
+                    try {
+                        applyDefaultFardhuTimes()
+                        markPrayerTimeUsingDefault()
+                        updateCurrentTimeAndPrayerInfo()
+                        clearSyncNotice()
+                    } finally {
+                        _uiState.update { current ->
+                            current.copy(
+                                isLocationLoading = false,
+                                isRefreshing = if (closeRefreshingOnFinish) false else current.isRefreshing
+                            )
+                        }
+                    }
+                }
+            }
+            return
+        }
+
         LocationHelper.getLastLocation(
             context = context,
             onResult = { result ->
                 launchSafely("syncPrayerTimesByLocation") {
                     try {
-                        if (_uiState.value.fardhuScheduleByLocationEnabled) {
-                            syncPrayerTimesByLocation(result.latitude, result.longitude)
-                        } else {
-                            clearSyncNotice()
-                        }
+                        syncPrayerTimesByLocation(result.latitude, result.longitude)
                     } finally {
                         _uiState.update { current ->
                             current.copy(
@@ -1063,7 +1142,6 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun syncPrayerTimesByLocation(latitude: Double, longitude: Double) {
-        if (!_uiState.value.fardhuScheduleByLocationEnabled) return
 
         val times = when (
             val result = withContext(Dispatchers.IO) {

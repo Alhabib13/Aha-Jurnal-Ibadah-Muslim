@@ -37,10 +37,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.islami.Aha" />
+                  <option name="mobileSdkAppId" value="1:104478583249:android:abb881216ce887399098f0" />
+                  <option name="projectId" value="debug-5a98a711" />
+                  <option name="projectNumber" value="104478583249" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

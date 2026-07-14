@@ -166,8 +166,12 @@ class AhaApplication : Application() {
                 val habitDao = entryPoint.habitDao()
                 val activeHabits = repository.getActiveReminderHabits()
                 val activeDefaultHabits = habitDao.getActiveReminderHabits()
+                val isHaidh = UserPreferencesManager.isHaidhMode.value
 
                 activeHabits.forEach { habit ->
+                    if (isHaidh && (habit.name.contains("Sholat", ignoreCase = true) || habit.name.contains("Puasa", ignoreCase = true))) {
+                        return@forEach
+                    }
                     val parts = habit.reminderTime?.split(":") ?: return@forEach
                     if (parts.size == 2) {
                         val hour = parts[0].toIntOrNull() ?: return@forEach
@@ -183,6 +187,9 @@ class AhaApplication : Application() {
                 }
 
                 activeDefaultHabits.forEach { habit ->
+                    if (isHaidh && (habit.name.contains("Sholat", ignoreCase = true) || habit.name.contains("Puasa", ignoreCase = true))) {
+                        return@forEach
+                    }
                     val parts = habit.time.split(":")
                     if (parts.size == 2) {
                         val hour = parts[0].toIntOrNull() ?: return@forEach

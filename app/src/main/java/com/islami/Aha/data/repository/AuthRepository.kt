@@ -521,7 +521,7 @@ class AuthRepository @Inject constructor(
         if (user != null) {
             syncToPreferences(user)
         } else {
-            clearPreferences()
+            clearSession()
         }
     }
 

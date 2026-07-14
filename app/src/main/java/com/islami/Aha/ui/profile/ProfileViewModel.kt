@@ -183,9 +183,11 @@ class ProfileViewModel @Inject constructor(
                     bestCategory?.key ?: "-"
                 } else "-"
 
+                val activeHaidhDaysInLast7Days = last7DateKeys.count { it in haidhDates }
+                val effectiveDays = maxOf(1f, 7f - activeHaidhDaysInLast7Days)
                 val weeklyPercentage = if (totalHabits > 0) {
                     val weeklyTotalCompleted = weeklyDailyCounts.sumOf { it.count }
-                    (weeklyTotalCompleted * 100f) / (totalHabits * 7f)
+                    (weeklyTotalCompleted * 100f) / (totalHabits * effectiveDays)
                 } else 0f
 
                 _uiState.update {

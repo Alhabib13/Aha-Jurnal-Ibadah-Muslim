@@ -286,61 +286,7 @@ fun HomeScreen(
         )
     }
 
-    if (uiState.showGenderPrompt) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { viewModel.dismissGenderPrompt() }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Atur Layar Ibadahmu Yuk!",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Bantu kami menyesuaikan aplikasi ini khusus untukmu. Pilih Profil Ibadahmu sekarang untuk mengaktifkan jadwal Salat Jumat atau Mode Cuti (bagi perempuan).",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Button(
-                        onClick = { 
-                            viewModel.dismissGenderPrompt()
-                            onNavigateToSettings() 
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Emerald)
-                    ) {
-                        Text("Atur Sekarang", color = Color.White)
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    androidx.compose.material3.TextButton(
-                        onClick = { viewModel.dismissGenderPrompt() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Nanti Saja", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-        }
-    }
+    // Gender prompt popup ("Atur Layar Ibadahmu Yuk!") has been permanently removed
 
     if (showLocationPermissionDialog && !locationPermission.isGranted) {
         AlertDialog(
@@ -619,7 +565,9 @@ fun HomeScreenContent(
                 }
             } else if (uiState.filteredHabits.isEmpty() && uiState.filteredSunnahHabits.isEmpty()) {
                 item {
-                    if (!uiState.isHaidhMode) {
+                    if (uiState.isHaidhMode && (uiState.selectedMainCategory == "Sholat" || uiState.selectedMainCategory == "Puasa")) {
+                        HaidhEmptyState()
+                    } else if (!uiState.isHaidhMode) {
                         EmptyHabitState(onAddHabitClick = onNavigateToAddHabit)
                     }
                 }
@@ -649,16 +597,45 @@ fun HomeScreenContent(
 
             // Motivational Quote or Haidh Card
             item {
-                if (uiState.isHaidhMode) {
-                    HaidhMotivationCard()
-                } else {
                     IslamicMotivationCard(
                         quote = uiState.motivationalQuote,
                         source = uiState.quoteSource
                     )
-                }
             }
         }
+    }
+}
+
+@Composable
+fun HaidhEmptyState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        androidx.compose.foundation.Image(
+            painter = painterResource(id = R.drawable.ic_flower), // Using flower icon
+            contentDescription = "Cuti Ibadah",
+            modifier = Modifier.size(80.dp),
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(androidx.compose.ui.graphics.Color(0xFFF48FB1))
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Sedang Mode Cuti Ibadah",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Ibadah Sholat dan Puasa ditiadakan selama masa haidh. Perbanyak Dzikir dan amalan lainnya.\n\nJangan lupa matikan mode ini di menu Pengaturan ketika sudah suci kembali ya!",
+            fontSize = 14.sp,
+            color = androidx.compose.ui.graphics.Color.Gray,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 32.dp)
+        )
     }
 }
 
@@ -1863,43 +1840,7 @@ fun IslamicMotivationCard(quote: String, source: String) {
     }
 }
 
-@Composable
-fun HaidhMotivationCard() {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.Info,
-                    contentDescription = "Info",
-                    tint = Emerald,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Mode Cuti Ibadah Aktif",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-            }
-            Text(
-                text = "Saat ini kamu sedang dalam masa halangan (haidh). Kewajiban sholat dan puasamu untuk sementara digugurkan.\n\nJangan lupa matikan mode ini ketika sudah suci kembali ya, agar bisa mencatat amal ibadahmu lagi!",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f),
-                lineHeight = 20.sp
-            )
-        }
-    }
-}
+
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable

@@ -9,6 +9,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import com.islami.Aha.ui.addhabit.AddHabitScreen
 import com.islami.Aha.ui.auth.LoginScreen
 import com.islami.Aha.ui.auth.RegisterScreen
@@ -24,6 +27,7 @@ private const val TRANSIENT_SNACKBAR_KEY = "transient_snackbar"
 
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
+    object Onboarding : Screen("onboarding")
     object Login : Screen("login")
     object Register : Screen("register")
     object Home : Screen("home")
@@ -43,7 +47,11 @@ fun AhaNavHost(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = { fadeIn(animationSpec = tween(500)) },
+        exitTransition = { fadeOut(animationSpec = tween(500)) },
+        popEnterTransition = { fadeIn(animationSpec = tween(500)) },
+        popExitTransition = { fadeOut(animationSpec = tween(500)) }
     ) {
         composable(Screen.Splash.route) {
             SplashScreen(
@@ -51,6 +59,29 @@ fun AhaNavHost(
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Splash.route) { inclusive = true }
                     }
+                },
+                onNavigateToOnboarding = {
+                    navController.navigate(Screen.Onboarding.route) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Onboarding.route) {
+            com.islami.Aha.ui.onboarding.OnboardingScreen(
+                onFinish = {
+                    com.islami.Aha.util.UserPreferencesManager.setHasSeenOnboarding()
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+                    }
+                },
+                onNavigateToSettings = {
+                    com.islami.Aha.util.UserPreferencesManager.setHasSeenOnboarding()
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+                    }
+                    navController.navigate(Screen.Settings.route)
                 }
             )
         }
