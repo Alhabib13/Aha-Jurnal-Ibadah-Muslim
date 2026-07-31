@@ -514,14 +514,13 @@ class AuthRepository @Inject constructor(
             .remove(KEY_LAST_ACTIVE_USER_UID)
             .remove(KEY_LAST_USERNAME_CHANGED)
             .apply()
+        com.islami.Aha.util.UserPreferencesManager.clearAll()
     }
     
     fun restoreSessionFromFirebase() {
         val user = firebaseAuth.currentUser
         if (user != null) {
             syncToPreferences(user)
-        } else {
-            clearSession()
         }
     }
 

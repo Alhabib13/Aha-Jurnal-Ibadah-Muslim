@@ -177,8 +177,8 @@ data class HomeUiState(
                 
                 true
             }.map { habit ->
-                if (isJumatEnabled && isFriday && habit.name == "Dzuhur") {
-                    habit.copy(name = "Salat Jumat")
+                if (isJumatEnabled && isFriday && habit.name == "Sholat Dzuhur") {
+                    habit.copy(name = "Sholat Jumat")
                 } else {
                     habit
                 }
@@ -226,6 +226,7 @@ data class HomeUiState(
     fun getCategoryBadge(mainCategory: String): String {
         return when (mainCategory) {
             "Sholat" -> {
+                if (isHaidhMode) return "Cuti"
                 val habits = allHabits.filter { it.category.startsWith("Sholat") }
                     .filterNot { it.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled) }
                 val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
@@ -234,6 +235,7 @@ data class HomeUiState(
                 "$completed/$total"
             }
             "Puasa" -> {
+                if (isHaidhMode) return "Cuti"
                 val habits = allHabits.filter {
                     it.category.startsWith("Puasa") &&
                         !(it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled))
@@ -272,6 +274,7 @@ class HomeViewModel @Inject constructor(
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
         private const val KEY_USER_NAME = "user_name"
+        private var hasFetchedInitialCloudData = false
         private const val KEY_LAST_DAILY_RESET = "last_daily_reset"
         private const val KEY_PRAYER_TIME_SOURCE = "prayer_time_source"
         private const val KEY_PRAYER_TIME_LAST_SYNC_AT = "prayer_time_last_sync_at"
@@ -548,6 +551,22 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun ensureFardhuTimesFallback() {
+        // Cleanup corrupted "Sholat Jumat" bug in database
+        val allFardhu = habitDao.getFardhuHabits()
+        val corruptedJumat = allFardhu.find { it.name == "Sholat Jumat" }
+        if (corruptedJumat != null) {
+            // Restore its name to Sholat Dzuhur
+            habitDao.updateHabit(corruptedJumat.copy(name = "Sholat Dzuhur"))
+            
+            // Delete any duplicate "Sholat Dzuhur" that might have been inserted later
+            val duplicates = allFardhu.filter { it.name == "Sholat Dzuhur" }
+            duplicates.forEach { dup ->
+                if (dup.id > corruptedJumat.id) {
+                    habitDao.deleteHabit(dup)
+                }
+            }
+        }
+
         val fallbackHabits = fallbackFardhuHabits()
         val existingByName = habitDao.getFardhuHabits().associateBy { it.name }
 
@@ -802,8 +821,9 @@ class HomeViewModel @Inject constructor(
 
     fun toggleHabitCompletion(habit: Habit) {
         viewModelScope.launch {
+            val originalHabit = habitDao.getHabitById(habit.id) ?: return@launch
             val willComplete = !habit.isCompleted
-            val updatedHabit = habit.copy(isCompleted = willComplete)
+            val updatedHabit = originalHabit.copy(isCompleted = willComplete)
             val todayKey = DateUtils.getTodayKey()
             val habitKey = "default_${habit.id}"
             val record = HabitCompletionRecord(
@@ -892,11 +912,13 @@ class HomeViewModel @Inject constructor(
     fun setGenderProfile(profile: GenderProfile) {
         viewModelScope.launch {
             UserPreferencesManager.setGender(profile)
-            authRepository.syncUserPreferences(
-                gender = profile.name,
-                isHaidhMode = UserPreferencesManager.isHaidhMode.value,
-                haidhDates = UserPreferencesManager.getHaidhDates().toList()
-            )
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                authRepository.syncUserPreferences(
+                    gender = profile.name,
+                    isHaidhMode = UserPreferencesManager.isHaidhMode.value,
+                    haidhDates = UserPreferencesManager.getHaidhDates().toList()
+                )
+            }
         }
     }
 
@@ -904,15 +926,16 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             UserPreferencesManager.setHaidhMode(enabled)
             
-            // Debounce cloud sync to prevent spamming
+            // Sync immediately instead of 2 second delay to prevent state loss on navigation
             syncHaidhJob?.cancel()
             syncHaidhJob = launch {
-                kotlinx.coroutines.delay(2000L) // Wait 2 seconds
-                val result = authRepository.syncUserPreferences(
-                    gender = UserPreferencesManager.gender.value.name,
-                    isHaidhMode = enabled,
-                    haidhDates = UserPreferencesManager.getHaidhDates().toList()
-                )
+                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    authRepository.syncUserPreferences(
+                        gender = UserPreferencesManager.gender.value.name,
+                        isHaidhMode = enabled,
+                        haidhDates = UserPreferencesManager.getHaidhDates().toList()
+                    )
+                }
                 result.onFailure { err ->
                     val errorMsg = context.getString(R.string.error_sync_cloud, err.message ?: "")
                     showSnackbar(errorMsg)
@@ -1216,7 +1239,8 @@ class HomeViewModel @Inject constructor(
             )
         }
 
-        if (!wasLoggedIn && isLoggedIn) {
+        if (!wasLoggedIn && isLoggedIn && !hasFetchedInitialCloudData) {
+            hasFetchedInitialCloudData = true
             launchSafely("syncCloudDataOnLogin") {
                 handleAccountBoundaryBeforeSync()
                 val syncStatuses = listOf(
@@ -1242,6 +1266,7 @@ class HomeViewModel @Inject constructor(
                     if (haidhDates != null) {
                         UserPreferencesManager.setHaidhDates(haidhDates)
                     }
+                    UserPreferencesManager.syncHaidhDates()
                     UserPreferencesManager.setHasSeenPrompt()
                 } else if (UserPreferencesManager.gender.value != com.islami.Aha.util.GenderProfile.UNSPECIFIED) {
                     // Local has data but cloud doesn't (or fetch failed), sync up to cloud
@@ -1260,6 +1285,8 @@ class HomeViewModel @Inject constructor(
                     showSyncNotice(firstIssue)
                 }
             }
+        } else if (!isLoggedIn) {
+            hasFetchedInitialCloudData = false
         }
     }
 

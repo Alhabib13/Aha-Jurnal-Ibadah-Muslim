@@ -124,14 +124,14 @@ fun StatisticScreenContent(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Belum Ada Data Riwayat",
+                    text = stringResource(R.string.statistic_no_history_title),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Lakukan ibadah hari ini agar catatanmu muncul di sini.",
+                    text = stringResource(R.string.statistic_no_history_desc),
                     fontSize = 14.sp,
                     color = Color.Gray,
                     textAlign = TextAlign.Center,
@@ -319,13 +319,13 @@ fun ProgressCard(completed: Int, total: Int, percentage: Int, isHaidhMode: Boole
                 Column {
                     if (isHaidhMode) {
                         Text(
-                            text = "Mode Cuti Ibadah",
+                            text = stringResource(R.string.statistic_haidh_mode),
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Bebas Tugas",
+                            text = stringResource(R.string.statistic_haidh_free),
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary
@@ -528,7 +528,7 @@ fun WeeklyHeatmap(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Cuti Ibadah",
+                        text = stringResource(R.string.statistic_haidh_short),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -913,7 +913,7 @@ fun PastDayHabitsList(
             .padding(bottom = 32.dp)
     ) {
         Text(
-            text = "Riwayat Ibadah",
+            text = stringResource(R.string.statistic_history_title),
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
@@ -927,7 +927,7 @@ fun PastDayHabitsList(
 
         if (habits.isEmpty()) {
             Text(
-                text = "Tidak ada ibadah yang tercatat.",
+                text = stringResource(R.string.statistic_history_empty),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 16.dp)
             )

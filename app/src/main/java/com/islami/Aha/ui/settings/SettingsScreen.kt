@@ -578,8 +578,13 @@ fun SettingsScreenContent(
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+                    val descText = when (uiState.genderProfile) {
+                        com.islami.Aha.util.GenderProfile.FEMALE -> "Profil perempuan akan mengaktifkan fitur Mode Cuti (Haidh)."
+                        com.islami.Aha.util.GenderProfile.MALE -> "Profil laki-laki akan mengaktifkan penyesuaian jadwal Salat Jumat."
+                        else -> "Pilih profil Anda untuk menyesuaikan otomatis jadwal ibadah."
+                    }
                     Text(
-                        text = "Pilih profil Anda untuk menyesuaikan otomatis jadwal Salat Jumat atau Mode Cuti.",
+                        text = descText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center

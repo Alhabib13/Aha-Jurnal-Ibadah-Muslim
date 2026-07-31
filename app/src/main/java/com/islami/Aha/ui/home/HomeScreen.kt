@@ -623,15 +623,15 @@ fun HaidhEmptyState() {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Sedang Mode Cuti Ibadah",
+            text = stringResource(R.string.home_haidh_mode_active),
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Ibadah Sholat dan Puasa ditiadakan selama masa haidh. Perbanyak Dzikir dan amalan lainnya.\n\nJangan lupa matikan mode ini di menu Pengaturan ketika sudah suci kembali ya!",
-            fontSize = 14.sp,
+            text = stringResource(R.string.home_haidh_mode_desc),
+            fontSize = 13.sp,
             color = androidx.compose.ui.graphics.Color.Gray,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 32.dp)
@@ -938,7 +938,7 @@ fun HomeHeader(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "Mode Cuti",
+                            text = stringResource(R.string.home_haidh_mode_label),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Medium

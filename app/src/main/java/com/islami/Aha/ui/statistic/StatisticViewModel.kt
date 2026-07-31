@@ -179,7 +179,7 @@ class StatisticViewModel @Inject constructor(
                     emptyList()
                 }
                 val completionDates = habitCompletionDao.getDistinctCompletionDatesDesc()
-                val currentStreak = calculateCurrentStreak(completionDates)
+                val currentStreak = calculateCurrentStreak(completionDates, haidhDates)
                 val longestStreak = calculateLongestStreak(completionDates)
                 val historicalTotal = habitCompletionDao.getTotalCompletionCount()
                 val activeDaysCount = completionDates.size
@@ -243,13 +243,20 @@ class StatisticViewModel @Inject constructor(
         }
     }
 
-    private fun calculateCurrentStreak(distinctDatesDesc: List<String>): Int {
-        if (distinctDatesDesc.isEmpty()) return 0
+    private fun calculateCurrentStreak(distinctDatesDesc: List<String>, haidhDates: Set<String>): Int {
+        if (distinctDatesDesc.isEmpty() && haidhDates.isEmpty()) return 0
         val dateSet = distinctDatesDesc.toSet()
         var cursor = java.time.LocalDate.now()
         var streak = 0
-        while (dateSet.contains(cursor.toString())) {
-            streak++
+        
+        if (!dateSet.contains(cursor.toString()) && !haidhDates.contains(cursor.toString())) {
+            cursor = cursor.minusDays(1)
+        }
+        
+        while (dateSet.contains(cursor.toString()) || haidhDates.contains(cursor.toString())) {
+            if (dateSet.contains(cursor.toString())) {
+                streak++ 
+            }
             cursor = cursor.minusDays(1)
         }
         return streak

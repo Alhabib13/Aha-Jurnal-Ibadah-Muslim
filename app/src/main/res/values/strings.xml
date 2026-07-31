@@ -329,4 +329,16 @@
     <string name="privacy_policy_url">https://aha-islamic-tracker.github.io/Habit-Tracker-Islami/privacy-policy.html</string>
     <string name="terms_of_service_url">https://aha-islamic-tracker.github.io/Habit-Tracker-Islami/terms-of-service.html</string>
 
+    <!-- Haidh Mode & UI Hardcoded Extractions -->
+    <string name="home_haidh_mode_active">Sedang Mode Cuti Ibadah</string>
+    <string name="home_haidh_mode_desc">Ibadah Sholat dan Puasa ditiadakan selama masa haidh.\n\nJangan lupa matikan mode ini di menu Pengaturan ketika sudah suci kembali ya!</string>
+    <string name="home_haidh_mode_label">Mode Cuti</string>
+    <string name="statistic_haidh_mode">Mode Cuti Ibadah</string>
+    <string name="statistic_haidh_free">Bebas Tugas</string>
+    <string name="statistic_haidh_short">Cuti Ibadah</string>
+    <string name="statistic_no_history_title">Belum Ada Data Riwayat</string>
+    <string name="statistic_no_history_desc">Lakukan ibadah hari ini agar catatanmu muncul di sini.</string>
+    <string name="statistic_history_title">Riwayat Ibadah</string>
+    <string name="statistic_history_empty">Tidak ada ibadah yang tercatat.</string>
+
 </resources>

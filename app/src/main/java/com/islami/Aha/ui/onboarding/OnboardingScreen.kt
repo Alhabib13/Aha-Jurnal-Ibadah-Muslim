@@ -54,7 +54,7 @@ val onboardingPages = listOf(
     ),
     OnboardingPage(
         title = "Pengalaman Khusus Untukmu",
-        description = "Bantu kami menyempurnakan jadwal ibadahmu. Atur profil sekarang untuk membuka fitur khusus: Mode Cuti (wanita) atau pengingat Salat Jumat (pria).",
+        description = "Bantu kami menyempurnakan jadwal ibadahmu. Atur profil sekarang untuk mendapatkan penyesuaian otomatis yang sesuai dengan dirimu.",
         iconRes = R.drawable.ic_flower,
         iconTint = IconTint.EMERALD
     )

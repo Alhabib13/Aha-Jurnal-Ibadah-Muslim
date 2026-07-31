@@ -78,13 +78,61 @@ object UserPreferencesManager {
     
     fun syncHaidhDates() {
         if (_isHaidhMode.value) {
-            val dateKey = DateUtils.getTodayKey()
+            val today = java.time.LocalDate.now()
+            val dateKey = today.toString()
             val dates = getHaidhDates().toMutableSet()
-            if (!dates.contains(dateKey)) {
-                dates.add(dateKey)
-                prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, dates)?.apply()
-                _haidhDates.value = dates.toSet()
+            
+            // Check if we should auto-turn off (Max 15 days in Islam)
+            var shouldTurnOff = false
+            if (dates.isNotEmpty()) {
+                val sortedDates = dates.mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }.sorted()
+                if (sortedDates.isNotEmpty()) {
+                    val lastDate = sortedDates.last()
+                    
+                    // Find the start of the CURRENT cycle by walking backwards.
+                    // A gap of more than 15 days means it's a different cycle.
+                    var currentCycleStart = lastDate
+                    for (i in sortedDates.size - 2 downTo 0) {
+                        val prevDate = sortedDates[i]
+                        val gap = java.time.temporal.ChronoUnit.DAYS.between(prevDate, currentCycleStart)
+                        if (gap > 15) {
+                            break // Found the gap separating the previous cycle
+                        }
+                        currentCycleStart = prevDate
+                    }
+                    
+                    val daysSinceStart = java.time.temporal.ChronoUnit.DAYS.between(currentCycleStart, today)
+                    val daysSinceLast = java.time.temporal.ChronoUnit.DAYS.between(lastDate, today)
+                    
+                    // Turn off if it's been more than 15 days since the start of this current cycle,
+                    // OR if the user hasn't opened the app (in Haidh mode) for > 15 days.
+                    if (daysSinceStart > 15 || daysSinceLast > 15) {
+                        shouldTurnOff = true
+                    }
+                }
             }
+
+            if (shouldTurnOff) {
+                setHaidhMode(false)
+                return
+            }
+
+            // Fill in any gaps between the last recorded date and today
+            if (dates.isNotEmpty()) {
+                val sortedDates = dates.mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }.sorted()
+                if (sortedDates.isNotEmpty()) {
+                    var current = sortedDates.last().plusDays(1)
+                    while (current.isBefore(today) || current.isEqual(today)) {
+                        dates.add(current.toString())
+                        current = current.plusDays(1)
+                    }
+                }
+            } else {
+                dates.add(dateKey)
+            }
+
+            prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, dates)?.apply()
+            _haidhDates.value = dates.toSet()
         }
     }
     
