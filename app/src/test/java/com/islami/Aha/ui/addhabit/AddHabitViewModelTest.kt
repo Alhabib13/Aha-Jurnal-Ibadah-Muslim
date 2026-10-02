@@ -45,7 +45,8 @@ class AddHabitViewModelTest {
         val repository = UserHabitRepository(
             appDatabase = mockAppDatabase,
             userHabitDao = mockDao,
-            habitCompletionDao = mockHabitCompletionDao
+            habitCompletionDao = mockHabitCompletionDao,
+            completionSyncRepository = mockk(relaxed = true)
         )
         sharedViewModel = SunnahHabitSharedViewModel(repository)
         viewModel = AddHabitViewModel(mockContext, sharedViewModel)

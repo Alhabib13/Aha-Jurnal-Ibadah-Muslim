@@ -85,19 +85,19 @@ object PrayerTimeApiService {
             FetchResult.Success(times)
         } catch (e: SocketTimeoutException) {
             Log.e(TAG, "Timed out fetching prayer times", e)
-            runCatching { FirebaseCrashlytics.getInstance().recordException(e) }
+            runCatching { com.islami.Aha.util.logCrashlyticsSafe(e) }
             FetchResult.Failure("Sinkron jadwal gagal: API timeout, coba lagi.")
         } catch (e: UnknownHostException) {
             Log.e(TAG, "Host resolution failed", e)
-            runCatching { FirebaseCrashlytics.getInstance().recordException(e) }
+            runCatching { com.islami.Aha.util.logCrashlyticsSafe(e) }
             FetchResult.Failure("Sinkron jadwal gagal: internet tidak tersedia.")
         } catch (e: IOException) {
             Log.e(TAG, "I/O failure fetching prayer times", e)
-            runCatching { FirebaseCrashlytics.getInstance().recordException(e) }
+            runCatching { com.islami.Aha.util.logCrashlyticsSafe(e) }
             FetchResult.Failure("Sinkron jadwal gagal: koneksi jaringan bermasalah.")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch prayer times", e)
-            runCatching { FirebaseCrashlytics.getInstance().recordException(e) }
+            runCatching { com.islami.Aha.util.logCrashlyticsSafe(e) }
             FetchResult.Failure("Sinkron jadwal gagal: terjadi kendala pada layanan jadwal.")
         } finally {
             connection.disconnect()

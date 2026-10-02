@@ -26,7 +26,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.islami.Aha.BuildConfig
 import com.islami.Aha.R
 import com.islami.Aha.ui.theme.*
@@ -35,14 +35,20 @@ import kotlin.math.sin
 
 @Composable
 fun SplashScreen(
-    viewModel: SplashViewModel = viewModel(),
-    onNavigateToHome: () -> Unit = {}
+    viewModel: SplashViewModel = hiltViewModel(),
+    onNavigateToHome: () -> Unit = {},
+    onNavigateToOnboarding: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val hasSeenOnboarding by com.islami.Aha.util.UserPreferencesManager.hasSeenOnboarding.collectAsStateWithLifecycle()
 
     LaunchedEffect(uiState.shouldNavigate) {
         if (uiState.shouldNavigate) {
-            onNavigateToHome()
+            if (!hasSeenOnboarding) {
+                onNavigateToOnboarding()
+            } else {
+                onNavigateToHome()
+            }
             viewModel.onNavigationComplete()
         }
     }
@@ -185,6 +191,7 @@ fun SplashScreenContent() {
             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
                 .padding(bottom = 32.dp)
         )
     }

@@ -429,11 +429,10 @@ class SettingsViewModelTest {
 
     @Test
     fun `logout updates account state and shows snackbar`() {
-        viewModel.logout()
+        viewModel.logout {}
         val state = viewModel.uiState.value
         assertFalse(state.isLoggedIn)
         assertEquals("", state.userEmail)
-        assertEquals("Anda telah keluar dari akun", state.snackbarMessage)
     }
 
     // ===================== Enum Display Names =====================

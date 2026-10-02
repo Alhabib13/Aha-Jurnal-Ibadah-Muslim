@@ -40,7 +40,6 @@ data class UserInfo(
 
 data class Achievement(
     val id: String,
-    val emoji: String,
     val name: String,
     val description: String,
     val isUnlocked: Boolean,
@@ -140,6 +139,9 @@ class ProfileViewModel @Inject constructor(
             ) { habits, sunnahHabits, config ->
                 Triple(habits, sunnahHabits, config)
             }.collect { (habits, sunnahHabits, config) ->
+                val haidhDates = com.islami.Aha.util.UserPreferencesManager.getHaidhDates()
+                val isTodayHaidh = haidhDates.contains(DateUtils.getTodayKey())
+                
                 val visibleHabits = habits.filter {
                     if (it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled)) {
                         return@filter false
@@ -147,10 +149,21 @@ class ProfileViewModel @Inject constructor(
                     if (it.category == "Sholat Tarawih" && (!DateUtils.isRamadanMonth() || !config.sholatTarawihEnabled)) {
                         return@filter false
                     }
+                    if (isTodayHaidh && (it.category.startsWith("Sholat") || it.category.startsWith("Puasa"))) {
+                        return@filter false
+                    }
                     true
                 }
-                val totalHabits = visibleHabits.size + sunnahHabits.size
-                val totalCompletedToday = visibleHabits.count { it.isCompleted } + sunnahHabits.count { it.isCompletedToday }
+                
+                val visibleSunnahHabits = sunnahHabits.filter {
+                    if (isTodayHaidh && (it.category == SunnahCategoryType.SHOLAT || it.category == SunnahCategoryType.PUASA)) {
+                        return@filter false
+                    }
+                    true
+                }
+                
+                val totalHabits = visibleHabits.size + visibleSunnahHabits.size
+                val totalCompletedToday = visibleHabits.count { it.isCompleted } + visibleSunnahHabits.count { it.isCompletedToday }
                 val allCompleteToday = totalHabits > 0 && totalCompletedToday == totalHabits
 
                 val sholatCount = sunnahHabits.count { it.category == SunnahCategoryType.SHOLAT }
@@ -160,7 +173,7 @@ class ProfileViewModel @Inject constructor(
                 // Real historical data from completion records
                 val completionDates = habitCompletionDao.getDistinctCompletionDatesDesc()
                 val historicalTotal = habitCompletionDao.getTotalCompletionCount()
-                val currentStreak = calculateCurrentStreak(completionDates)
+                val currentStreak = calculateCurrentStreak(completionDates, haidhDates)
 
                 // Weekly active days (last 7 days)
                 val last7DateKeys = DateUtils.getDateKeysLastDays(7)
@@ -182,9 +195,11 @@ class ProfileViewModel @Inject constructor(
                     bestCategory?.key ?: "-"
                 } else "-"
 
+                val activeHaidhDaysInLast7Days = last7DateKeys.count { it in haidhDates }
+                val effectiveDays = maxOf(1f, 7f - activeHaidhDaysInLast7Days)
                 val weeklyPercentage = if (totalHabits > 0) {
                     val weeklyTotalCompleted = weeklyDailyCounts.sumOf { it.count }
-                    (weeklyTotalCompleted * 100f) / (totalHabits * 7f)
+                    (weeklyTotalCompleted * 100f) / (totalHabits * effectiveDays)
                 } else 0f
 
                 _uiState.update {
@@ -215,13 +230,20 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    private fun calculateCurrentStreak(distinctDatesDesc: List<String>): Int {
-        if (distinctDatesDesc.isEmpty()) return 0
+    private fun calculateCurrentStreak(distinctDatesDesc: List<String>, haidhDates: Set<String>): Int {
+        if (distinctDatesDesc.isEmpty() && haidhDates.isEmpty()) return 0
         val dateSet = distinctDatesDesc.toSet()
         var cursor = java.time.LocalDate.now()
         var streak = 0
-        while (dateSet.contains(cursor.toString())) {
-            streak++
+        
+        if (!dateSet.contains(cursor.toString()) && !haidhDates.contains(cursor.toString())) {
+            cursor = cursor.minusDays(1)
+        }
+        
+        while (dateSet.contains(cursor.toString()) || haidhDates.contains(cursor.toString())) {
+            if (dateSet.contains(cursor.toString())) {
+                streak++ 
+            }
             cursor = cursor.minusDays(1)
         }
         return streak
@@ -261,7 +283,6 @@ class ProfileViewModel @Inject constructor(
         return listOf(
             Achievement(
                 id = "first_step",
-                emoji = "\uD83C\uDF1F",
                 name = "Langkah Pertama",
                 description = "Selesaikan ibadah pertama",
                 isUnlocked = totalCompleted >= 1,
@@ -269,7 +290,6 @@ class ProfileViewModel @Inject constructor(
             ),
             Achievement(
                 id = "burning",
-                emoji = "\uD83D\uDD25",
                 name = "Semangat Membara",
                 description = "Streak 7 hari berturut",
                 isUnlocked = currentStreak >= 7,
@@ -277,7 +297,6 @@ class ProfileViewModel @Inject constructor(
             ),
             Achievement(
                 id = "consistent",
-                emoji = "\u2B50",
                 name = "Bintang Konsisten",
                 description = "Streak 14 hari berturut",
                 isUnlocked = currentStreak >= 14,
@@ -285,7 +304,6 @@ class ProfileViewModel @Inject constructor(
             ),
             Achievement(
                 id = "champion",
-                emoji = "\uD83C\uDFC6",
                 name = "Juara Istiqomah",
                 description = "Streak 30 hari berturut",
                 isUnlocked = currentStreak >= 30,
@@ -293,7 +311,6 @@ class ProfileViewModel @Inject constructor(
             ),
             Achievement(
                 id = "hundred",
-                emoji = "\uD83D\uDCAF",
                 name = "Seratus Ibadah",
                 description = "100 ibadah total selesai",
                 isUnlocked = totalCompleted >= 100,
@@ -301,7 +318,6 @@ class ProfileViewModel @Inject constructor(
             ),
             Achievement(
                 id = "sharpshooter",
-                emoji = "\uD83C\uDFAF",
                 name = "Penembak Jitu",
                 description = "Semua habit selesai 1 hari",
                 isUnlocked = allCompleteToday,

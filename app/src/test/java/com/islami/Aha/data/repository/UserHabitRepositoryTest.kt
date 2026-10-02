@@ -43,7 +43,8 @@ class UserHabitRepositoryTest {
         repository = UserHabitRepository(
             appDatabase = mockDatabase,
             userHabitDao = mockDao,
-            habitCompletionDao = mockHabitCompletionDao
+            habitCompletionDao = mockHabitCompletionDao,
+            completionSyncRepository = mockk(relaxed = true)
         )
     }
 

@@ -1,7 +1,6 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Islamic Tracker</string>
-
-    <!-- AddHabitScreen -->
     <string name="save_sunnah_worship">Simpan Ibadah Sunnah</string>
     <string name="category_heading">Kategori</string>
     <string name="select_worship_heading">Pilih Ibadah</string>
@@ -76,8 +75,6 @@
     <string name="auth_validation_password_min">Password minimal 6 karakter</string>
     <string name="auth_validation_confirm_password_empty">Konfirmasi password tidak boleh kosong</string>
     <string name="auth_validation_confirm_password_mismatch">Password tidak cocok</string>
-
-    <!-- HomeScreen -->
     <string name="additional_worship_heading">Ibadah Sunnah Tambahan</string>
     <string name="no_sunnah_habit_added">Belum ada ibadah sunnah yang ditambahkan.</string>
     <string name="notification_permission_required_message">Izinkan notifikasi terlebih dahulu agar pengingat bisa diaktifkan.</string>
@@ -198,6 +195,18 @@
     <string name="home_state_unavailable">Belum tersedia</string>
     <string name="home_coming_soon_short">segera hadir</string>
     <string name="home_coming_soon_cd">Segera hadir</string>
+    <string name="error_sync_cloud">Gagal menyimpan ke cloud: %1$s</string>
+    <string name="error_update_username">Gagal memperbarui username</string>
+    <string name="error_save_profile_pic">Gagal menyimpan foto profil</string>
+    <string name="error_delete_profile_pic">Gagal menghapus foto profil</string>
+    <string name="error_change_password">Gagal mengubah password</string>
+    <string name="error_send_reset_email">Gagal mengirim email reset password</string>
+    <string name="error_check_email_verification">Gagal memeriksa status verifikasi email</string>
+    <string name="error_send_verification_email">Gagal mengirim email verifikasi</string>
+    <string name="error_delete_account">Gagal menghapus akun</string>
+    <string name="error_export_data">Gagal mengekspor data</string>
+    <string name="error_import_data">Gagal mengimpor data</string>
+    <string name="error_get_location">Gagal mendapatkan lokasi</string>
     <string name="home_coming_soon_title">Segera Hadir!</string>
     <string name="home_coming_soon_desc_format">Fitur %1$s sedang dalam pengembangan.</string>
     <string name="home_empty_habit_cd">Belum ada kebiasaan</string>
@@ -265,14 +274,14 @@
     <string name="profile_avatar_pick_title">Foto Profil</string>
     <string name="profile_avatar_pick_action">Pilih dari Galeri</string>
     <string name="profile_avatar_remove_action">Hapus Foto</string>
-    <string name="profile_achievement_title">🏆 Pencapaian Saya</string>
+    <string name="profile_achievement_title">Pencapaian Saya</string>
     <string name="profile_login_button">Login</string>
     <string name="profile_stat_habits">Kebiasaan</string>
     <string name="profile_stat_completed">Selesai</string>
     <string name="profile_stat_streak">Streak</string>
-    <string name="profile_achievement_reached">✅ Tercapai!</string>
-    <string name="profile_achievement_not_yet">🔒 Belum</string>
-    <string name="profile_activity_title">🛠️ Aktivitas &amp; Pengingat</string>
+    <string name="profile_achievement_reached">Tercapai!</string>
+    <string name="profile_achievement_not_yet">Belum</string>
+    <string name="profile_activity_title">Aktivitas &amp; Pengingat</string>
     <string name="profile_activity_sholat">Habit Sholat Sunnah</string>
     <string name="profile_activity_puasa">Habit Puasa Sunnah</string>
     <string name="profile_activity_reminder">Pengingat Aktif</string>
@@ -286,8 +295,8 @@
     <string name="profile_remove_photo_action">Hapus Foto</string>
     <string name="profile_username_label">Username</string>
     <plurals name="profile_username_locked_days_format">
-        <item quantity="one">🔒 Bisa diubah lagi dalam %1$d hari</item>
-        <item quantity="other">🔒 Bisa diubah lagi dalam %1$d hari</item>
+        <item quantity="one">Bisa diubah lagi dalam %1$d hari</item>
+        <item quantity="other">Bisa diubah lagi dalam %1$d hari</item>
     </plurals>
     <string name="profile_edit_profile_cd">Edit profil</string>
     <string name="statistic_category_title">Statistik per Kategori</string>
@@ -316,5 +325,62 @@
     <string name="statistic_coming_soon_desc">akan tersedia segera!</string>
     <string name="privacy_policy_url">https://aha-islamic-tracker.github.io/Habit-Tracker-Islami/privacy-policy.html</string>
     <string name="terms_of_service_url">https://aha-islamic-tracker.github.io/Habit-Tracker-Islami/terms-of-service.html</string>
-
+    <string name="home_haidh_mode_active">Sedang Mode Cuti Ibadah</string>
+    <string name="home_haidh_mode_desc">Ibadah Sholat dan Puasa ditiadakan selama masa haidh.\n\nJangan lupa matikan mode ini di menu Pengaturan ketika sudah suci kembali ya!</string>
+    <string name="home_haidh_mode_label">Mode Cuti</string>
+    <string name="statistic_haidh_mode">Mode Cuti Ibadah</string>
+    <string name="statistic_haidh_free">Bebas Tugas</string>
+    <string name="statistic_haidh_short">Cuti Ibadah</string>
+    <string name="statistic_no_history_title">Belum Ada Data Riwayat</string>
+    <string name="statistic_no_history_desc">Lakukan ibadah hari ini agar catatanmu muncul di sini.</string>
+    <string name="statistic_history_title">Riwayat Ibadah</string>
+    <string name="statistic_history_empty">Tidak ada ibadah yang tercatat.</string>
+    <string name="settings_battery_opt_prompt">Silakan izinkan Aha agar dikecualikan dari penghematan baterai.</string>
+    <string name="settings_battery_already_optimal">Baterai sudah optimal! (Jika masih telat, silakan cari opsi Mulai Otomatis di pengaturan HP).</string>
+    <string name="settings_autostart_prompt">Silakan izinkan Aha untuk Mulai Otomatis (AutoStart).</string>
+    <string name="settings_gender_male_active">Laki-laki (Jadwal Jumat Aktif)</string>
+    <string name="settings_gender_female_active">Perempuan (Mode Cuti Aktif)</string>
+    <string name="settings_gender_not_set">Belum Diatur</string>
+    <string name="settings_gender_title">Profil Ibadah</string>
+    <string name="settings_gender_haidh_warning">Matikan Mode Cuti Ibadah terlebih dahulu untuk mengubah profil.</string>
+    <string name="settings_fix_notif_title">Perbaiki Notifikasi (HP China)</string>
+    <string name="settings_fix_notif_subtitle">Izin Baterai &amp; Mulai Otomatis agar notifikasi tidak mati</string>
+    <string name="settings_gender_desc_female">Profil perempuan akan mengaktifkan fitur Mode Cuti (Haidh).</string>
+    <string name="settings_gender_desc_male">Profil laki-laki akan mengaktifkan penyesuaian jadwal Salat Jumat.</string>
+    <string name="settings_gender_desc_default">Pilih profil Anda untuk menyesuaikan otomatis jadwal ibadah.</string>
+    <string name="settings_gender_male">Laki-laki</string>
+    <string name="settings_gender_female">Perempuan</string>
+    <string name="settings_cancel">Batal</string>
+    <string name="notification_haidh_mode_warning">Notifikasi pengingat ibadah wajib (Sholat &amp; Puasa) sedang dijeda karena Mode Cuti Ibadah sedang aktif.</string>
+    <string name="add_habit_haidh_mode_title">Mode Cuti Ibadah Aktif</string>
+    <string name="add_habit_haidh_mode_desc">Maaf, Anda tidak dapat menambahkan jadwal Sholat atau Puasa Sunnah saat mode cuti sedang aktif.</string>
+    <string name="settings_snackbar_profile_updated">Profil ibadah berhasil diperbarui</string>
+    <string name="settings_snackbar_reminder_enabled">Pengingat global diaktifkan</string>
+    <string name="settings_snackbar_reminder_disabled">Pengingat global dimatikan</string>
+    <string name="settings_snackbar_sound_updated">Suara notifikasi diperbarui</string>
+    <string name="settings_snackbar_login_required_password">Silakan login untuk mengubah password</string>
+    <string name="settings_snackbar_old_password_empty">Password lama tidak boleh kosong</string>
+    <string name="settings_snackbar_new_password_empty">Password baru tidak boleh kosong</string>
+    <string name="settings_snackbar_password_min_length">Password baru minimal 6 karakter</string>
+    <string name="settings_snackbar_password_must_differ">Password baru harus berbeda dari password lama</string>
+    <string name="settings_snackbar_password_mismatch">Konfirmasi password tidak cocok</string>
+    <string name="settings_snackbar_password_changed">Password berhasil diubah. Cek email untuk konfirmasi keamanan.</string>
+    <string name="settings_snackbar_email_not_found">Email akun tidak ditemukan</string>
+    <string name="settings_snackbar_reset_link_sent">Link reset password dikirim ke %1$s</string>
+    <string name="settings_snackbar_login_required_security">Silakan login untuk membuka keamanan akun</string>
+    <string name="settings_snackbar_verify_cooldown">Tunggu %1$d detik sebelum kirim ulang verifikasi</string>
+    <string name="settings_snackbar_verify_email_sent">Email verifikasi berhasil dikirim</string>
+    <string name="settings_snackbar_delete_account_failed">Password salah atau gagal menghapus akun</string>
+    <string name="settings_snackbar_export_cancelled">Ekspor dibatalkan</string>
+    <string name="settings_snackbar_import_cancelled">Impor dibatalkan</string>
+    <string name="settings_snackbar_export_success">Data berhasil diekspor</string>
+    <string name="settings_snackbar_import_file_not_found">File impor tidak ditemukan</string>
+    <string name="settings_snackbar_data_reset_success">Semua data telah direset</string>
+    <string name="settings_snackbar_import_success">Impor selesai: %1$d habit, %2$d sunnah, %3$d riwayat</string>
+    <string name="double_tap_exit">Tekan sekali lagi untuk keluar</string>
+    <string name="home_tutorial_title">Ahlan wa Sahlan!</string>
+    <string name="home_tutorial_subtitle">Mari mulai perjalanan istiqamahmu dengan 3 langkah mudah:</string>
+    <string name="home_tutorial_step1">Klik tombol (+) untuk menambahkan target ibadah Fardhu atau Sunnah.</string>
+    <string name="home_tutorial_step2">Centang saat ibadah selesai. Aktifkan Mode Cuti Haidh saat berhalangan agar rekor tidak terputus.</string>
+    <string name="home_tutorial_step3">Pantau grafik perkembangan ibadahmu di menu Statistik.</string>
 </resources>

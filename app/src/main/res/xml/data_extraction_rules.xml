@@ -5,11 +5,13 @@
         <exclude domain="database" path="aha_db-wal"/>
         <exclude domain="database" path="aha_db-shm"/>
         <exclude domain="sharedpref" path="aha_prefs.xml"/>
+        <exclude domain="sharedpref" path="aha_secure_prefs.xml"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="database" path="aha_db"/>
         <exclude domain="database" path="aha_db-wal"/>
         <exclude domain="database" path="aha_db-shm"/>
         <exclude domain="sharedpref" path="aha_prefs.xml"/>
+        <exclude domain="sharedpref" path="aha_secure_prefs.xml"/>
     </device-transfer>
 </data-extraction-rules>

@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.auth
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -19,6 +21,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -165,6 +169,9 @@ fun LoginScreenContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { focusManager.clearFocus() })
+            }
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(scrollState)
             .padding(24.dp),
@@ -280,7 +287,7 @@ fun LoginScreenContent(
                                 text = stringResource(R.string.auth_forgot_password),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Emerald
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -310,7 +317,7 @@ fun LoginScreenContent(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Emerald.copy(alpha = 0.1f))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
             ) {
                 Text(
                     text = uiState.infoMessage,
@@ -345,7 +352,7 @@ fun LoginScreenContent(
                     .fillMaxSize()
                     .background(
                         brush = Brush.horizontalGradient(
-                            colors = listOf(EmeraldDark, Emerald)
+                            colors = listOf(EmeraldDark, MaterialTheme.colorScheme.primary)
                         ),
                         shape = RoundedCornerShape(28.dp)
                     ),
@@ -421,7 +428,7 @@ fun LoginScreenContent(
                     text = stringResource(R.string.auth_register_action),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Emerald
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -502,7 +509,7 @@ fun AuthTextField(
                 Icon(
                     imageVector = leadingIcon,
                     contentDescription = null,
-                    tint = if (isError) ErrorRed else Emerald
+                    tint = if (isError) ErrorRed else MaterialTheme.colorScheme.primary
                 )
             },
             trailingIcon = if (trailingIcon != null) {
@@ -524,12 +531,14 @@ fun AuthTextField(
             isError = isError,
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Emerald,
-                unfocusedBorderColor = Gray200,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
                 errorBorderColor = ErrorRed,
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = Gray50,
-                errorContainerColor = ErrorRed.copy(alpha = 0.05f)
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                errorContainerColor = ErrorRed.copy(alpha = 0.05f),
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
 

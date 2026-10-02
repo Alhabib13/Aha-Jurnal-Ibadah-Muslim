@@ -1,6 +1,8 @@
 package com.islami.Aha.data.repository
 
 import com.islami.Aha.data.local.HabitCompletionDao
+import com.islami.Aha.data.local.DeletedSyncDao
+import com.islami.Aha.data.model.DeletedSyncRecord
 import com.islami.Aha.data.model.HabitCompletionRecord
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.crashlytics.FirebaseCrashlytics
@@ -17,7 +19,9 @@ import javax.inject.Singleton
  */
 @Singleton
 class CompletionSyncRepository @Inject constructor(
-    private val habitCompletionDao: HabitCompletionDao
+    private val habitCompletionDao: HabitCompletionDao,
+    private val deletedSyncDao: DeletedSyncDao,
+    private val sharedPreferences: android.content.SharedPreferences
 ) {
     companion object {
         const val OFFLINE_SYNC_NOTICE =
@@ -75,7 +79,7 @@ class CompletionSyncRepository @Inject constructor(
             habitCompletionDao.markSyncedByKey(record.habitKey, record.dateKey)
             CloudSyncStatus.success(changedCount = 1)
         }.getOrElse { error ->
-            runCatching { FirebaseCrashlytics.getInstance().recordException(error) }
+            runCatching { com.islami.Aha.util.logCrashlyticsSafe(error) }
             error.toCloudSyncFailure(UPLOAD_FAILED_NOTICE)
         }
     }
@@ -85,11 +89,15 @@ class CompletionSyncRepository @Inject constructor(
         val uid = auth?.currentUser?.uid ?: return CloudSyncStatus.success()
         val col = collection(uid) ?: return CloudSyncStatus.success()
         val docId = "${dateKey}_${habitKey}"
+        
+        deletedSyncDao.insert(DeletedSyncRecord(recordId = docId, recordType = "HABIT_COMPLETION"))
+        
         return runCatching {
             col.document(docId).delete().await()
+            deletedSyncDao.deleteByRecordIdAndType(docId, "HABIT_COMPLETION")
             CloudSyncStatus.success(changedCount = 1)
         }.getOrElse { error ->
-            runCatching { FirebaseCrashlytics.getInstance().recordException(error) }
+            runCatching { com.islami.Aha.util.logCrashlyticsSafe(error) }
             error.toCloudSyncFailure(UPLOAD_FAILED_NOTICE)
         }
     }
@@ -101,8 +109,16 @@ class CompletionSyncRepository @Inject constructor(
     suspend fun restoreFromCloud(): CloudSyncStatus {
         val uid = auth?.currentUser?.uid ?: return CloudSyncStatus.success()
         val col = collection(uid) ?: return CloudSyncStatus.success()
+        val lastSyncKey = "last_completion_sync_$uid"
+        val lastSyncTime = sharedPreferences.getLong(lastSyncKey, 0L)
+        
         return runCatching {
-            val snapshot = col.get().await()
+            val query = if (lastSyncTime > 0) {
+                col.whereGreaterThan("createdAt", lastSyncTime)
+            } else {
+                col
+            }
+            val snapshot = query.get().await()
             var restoredCount = 0
             snapshot.documents.forEach { doc ->
                 val habitKey = doc.getString("habitKey") ?: return@forEach
@@ -121,9 +137,17 @@ class CompletionSyncRepository @Inject constructor(
                 )
                 restoredCount += 1
             }
+            
+            if (snapshot.documents.isNotEmpty()) {
+                sharedPreferences.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
+            } else if (lastSyncTime == 0L) {
+                // If it's the first time but empty, we also set the timestamp so we don't query full list again
+                sharedPreferences.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
+            }
+            
             CloudSyncStatus.success(changedCount = restoredCount)
         }.getOrElse { error ->
-            runCatching { FirebaseCrashlytics.getInstance().recordException(error) }
+            runCatching { com.islami.Aha.util.logCrashlyticsSafe(error) }
             error.toCloudSyncFailure(RESTORE_FAILED_NOTICE)
         }
     }
@@ -135,9 +159,29 @@ class CompletionSyncRepository @Inject constructor(
     suspend fun syncPendingRecords(): CloudSyncStatus {
         val uid = auth?.currentUser?.uid ?: return CloudSyncStatus.success()
         val col = collection(uid) ?: return CloudSyncStatus.success()
-        val pending = habitCompletionDao.getUnsyncedRecords()
-        if (pending.isEmpty()) return CloudSyncStatus.success()
         var syncedCount = 0
+
+        // Process pending deletes first
+        val pendingDeletes = deletedSyncDao.getAllDeletedRecords().filter { it.recordType == "HABIT_COMPLETION" }
+        pendingDeletes.forEach { record ->
+            val result = runCatching {
+                col.document(record.recordId).delete().await()
+                deletedSyncDao.deleteRecordById(record.id)
+                CloudSyncStatus.success(changedCount = 1)
+            }.getOrElse { error ->
+                runCatching { com.islami.Aha.util.logCrashlyticsSafe(error) }
+                error.toCloudSyncFailure(UPLOAD_FAILED_NOTICE)
+            }
+            if (result.hasIssue) {
+                return result.copy(changedCount = syncedCount)
+            }
+            syncedCount += 1
+        }
+
+        // Process pending inserts/updates
+        val pending = habitCompletionDao.getUnsyncedRecords()
+        if (pending.isEmpty() && pendingDeletes.isEmpty()) return CloudSyncStatus.success()
+        
         pending.forEach { record ->
             val docId = "${record.dateKey}_${record.habitKey}"
             val result = runCatching {
@@ -153,7 +197,7 @@ class CompletionSyncRepository @Inject constructor(
                 habitCompletionDao.markSyncedByKey(record.habitKey, record.dateKey)
                 CloudSyncStatus.success(changedCount = 1)
             }.getOrElse { error ->
-                runCatching { FirebaseCrashlytics.getInstance().recordException(error) }
+                runCatching { com.islami.Aha.util.logCrashlyticsSafe(error) }
                 error.toCloudSyncFailure(UPLOAD_FAILED_NOTICE)
             }
             if (result.hasIssue) {

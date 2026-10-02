@@ -69,7 +69,7 @@ class DailyIslamicContentRepository @Inject constructor(
                 }
             }.getOrElse { error ->
                 lastSyncAtMs = 0L
-                runCatching { FirebaseCrashlytics.getInstance().recordException(error) }
+                runCatching { com.islami.Aha.util.logCrashlyticsSafe(error) }
                 return@withLock false
             }
 
@@ -88,7 +88,7 @@ class DailyIslamicContentRepository @Inject constructor(
                 }
             }.getOrElse { error ->
                 lastSyncAtMs = 0L
-                runCatching { FirebaseCrashlytics.getInstance().recordException(error) }
+                runCatching { com.islami.Aha.util.logCrashlyticsSafe(error) }
                 return@withLock false
             }
 

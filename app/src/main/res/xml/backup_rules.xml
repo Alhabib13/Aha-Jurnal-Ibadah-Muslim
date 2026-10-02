@@ -7,4 +7,5 @@
 
     <!-- Keep auth/session/user preference data out of backup payload. -->
     <exclude domain="sharedpref" path="aha_prefs.xml"/>
+    <exclude domain="sharedpref" path="aha_secure_prefs.xml"/>
 </full-backup-content>

@@ -9,9 +9,9 @@ import com.islami.Aha.data.repository.UserHabitRepository
 import com.islami.Aha.ui.theme.ThemeManager
 import com.islami.Aha.util.NotificationScheduler
 import com.islami.Aha.util.SecurePrefsProvider
+import com.islami.Aha.util.UserPreferencesManager
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
-import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import dagger.hilt.android.HiltAndroidApp
@@ -60,6 +60,7 @@ class AhaApplication : Application() {
         FirebaseCrashlytics.getInstance().log("AhaApplication started")
         val prefs = SecurePrefsProvider.get(this)
         ThemeManager.init(prefs)
+        UserPreferencesManager.init(prefs)
         NotificationScheduler.createNotificationChannel(this)
         restoreAlarms()
     }
@@ -94,7 +95,17 @@ class AhaApplication : Application() {
                 }
             }
             AppCheckMode.DEBUG -> {
-                appCheck.installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance())
+                // DebugAppCheckProviderFactory hanya tersedia di debug build
+                // Gunakan refleksi agar tidak crash di release
+                runCatching {
+                    val factoryClass = Class.forName("com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory")
+                    val getInstance = factoryClass.getMethod("getInstance")
+                    val factory = getInstance.invoke(null)
+                    val installMethod = appCheck.javaClass.getMethod("installAppCheckProviderFactory", Class.forName("com.google.firebase.appcheck.AppCheckProviderFactory"))
+                    installMethod.invoke(appCheck, factory)
+                }.onFailure {
+                    Log.w(TAG, "DebugAppCheckProviderFactory not available in this build variant")
+                }
                 if (Log.isLoggable(TAG, Log.DEBUG)) {
                     Log.d(
                         TAG,
@@ -155,8 +166,12 @@ class AhaApplication : Application() {
                 val habitDao = entryPoint.habitDao()
                 val activeHabits = repository.getActiveReminderHabits()
                 val activeDefaultHabits = habitDao.getActiveReminderHabits()
+                val isHaidh = UserPreferencesManager.isHaidhMode.value
 
                 activeHabits.forEach { habit ->
+                    if (isHaidh && (habit.name.contains("Sholat", ignoreCase = true) || habit.name.contains("Puasa", ignoreCase = true))) {
+                        return@forEach
+                    }
                     val parts = habit.reminderTime?.split(":") ?: return@forEach
                     if (parts.size == 2) {
                         val hour = parts[0].toIntOrNull() ?: return@forEach
@@ -172,6 +187,9 @@ class AhaApplication : Application() {
                 }
 
                 activeDefaultHabits.forEach { habit ->
+                    if (isHaidh && (habit.name.contains("Sholat", ignoreCase = true) || habit.name.contains("Puasa", ignoreCase = true))) {
+                        return@forEach
+                    }
                     val parts = habit.time.split(":")
                     if (parts.size == 2) {
                         val hour = parts[0].toIntOrNull() ?: return@forEach
@@ -190,8 +208,9 @@ class AhaApplication : Application() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to restore alarms", e)
-                FirebaseCrashlytics.getInstance().recordException(e)
+                com.islami.Aha.util.logCrashlyticsSafe(e)
             }
         }
     }
 }
+

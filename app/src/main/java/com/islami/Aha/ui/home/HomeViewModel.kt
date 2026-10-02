@@ -32,6 +32,7 @@ import com.islami.Aha.util.PrayerTimeApiService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.firestore.FirebaseFirestore
+import com.islami.Aha.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.currentCoroutineContext
@@ -51,184 +52,9 @@ import java.util.Date
 import java.util.Locale
 import java.text.SimpleDateFormat
 import javax.inject.Inject
+import com.islami.Aha.util.UserPreferencesManager
+import com.islami.Aha.util.GenderProfile
 
-data class HomeUiState(
-    val isLoading: Boolean = true,
-    val isRefreshing: Boolean = false,
-    val isLocationLoading: Boolean = false,
-    val currentTime: String = "",
-    val location: String = "Memuat lokasi...",
-    val gregorianDate: String = "",
-    val hijriDate: String = "",
-    val userName: String = "",
-    val isLoggedIn: Boolean = false,
-    val nextPrayerName: String = "",
-    val nextPrayerTimeRemaining: String = "",
-    val nextPrayerProgress: Float = 0f,
-    val prayerTimeSource: String = "DEFAULT",
-    val prayerTimeLastSyncAtMs: Long = 0L,
-    val prayerTimeStatusText: String = "",
-    val puasaWajibRamadanEnabled: Boolean = true,
-    val ramadanScheduleByLocationEnabled: Boolean = true,
-    val sholatTarawihEnabled: Boolean = true,
-    val fardhuScheduleByLocationEnabled: Boolean = true,
-    val ramadanImsakTime: String = "",
-    val ramadanIftarTime: String = "",
-    val ramadanStatusText: String = "",
-    val selectedMainCategory: String = "Sholat",
-    val selectedSubTabIndex: Int = 0,
-    val allHabits: List<Habit> = emptyList(),
-    val hadithText: String = "Memuat hadis...",
-    val hadithSource: String = "",
-    val surahMeaning: String = "Memuat arti surah...",
-    val surahReference: String = "",
-    val showHadithContent: Boolean = true,
-    val motivationalQuote: String = "Memuat hadis...",
-    val quoteSource: String = "",
-    val sunnahHabits: List<SunnahHabit> = emptyList(),
-    val snackbarMessage: String? = null,
-    val showSyncNotice: Boolean = false,
-    val syncNoticeMessage: String = "",
-    val isRamadanMonth: Boolean = DateUtils.isRamadanMonth()
-) {
-    private val selectedSubCategory: String?
-        get() = subTabCategories.getOrNull(selectedSubTabIndex)
-
-    val ramadanPuasaHabit: Habit?
-        get() = allHabits.firstOrNull { it.category == "Puasa Wajib" }
-
-    val ramadanTarawihHabit: Habit?
-        get() = allHabits.firstOrNull { it.category == "Sholat Tarawih" }
-
-    private val isPuasaRamadanContext: Boolean
-        get() = selectedMainCategory == "Puasa" && selectedSubCategory == "Puasa Wajib"
-
-    private val isTarawihContext: Boolean
-        get() = selectedMainCategory == "Sholat" && selectedSubCategory == "Sholat Tarawih"
-
-    private val ramadanUnifiedHabits: List<Habit>
-        get() {
-            return buildList {
-                if (isPuasaRamadanContext && puasaWajibRamadanEnabled) {
-                    ramadanPuasaHabit?.let { add(it) }
-                }
-                if (isTarawihContext && sholatTarawihEnabled) {
-                    ramadanTarawihHabit?.let { add(it) }
-                }
-            }
-        }
-
-    val subTabCategories: List<String>
-        get() = when (selectedMainCategory) {
-            "Sholat" -> buildList {
-                add("Sholat Fardhu")
-                add("Sholat Sunnah")
-                if (sholatTarawihEnabled && isRamadanMonth) {
-                    add("Sholat Tarawih")
-                }
-            }
-            "Puasa" -> listOf("Puasa Wajib", "Puasa Sunnah")
-            else -> emptyList()
-        }
-
-    val subTabDisplayNames: List<String>
-        get() = when (selectedMainCategory) {
-            "Sholat" -> buildList {
-                add("Sholat Fardhu")
-                add("Sholat Sunnah")
-                if (sholatTarawihEnabled && isRamadanMonth) {
-                    add("Sholat Tarawih")
-                }
-            }
-            "Puasa" -> listOf("Puasa Wajib (Ramadan)", "Puasa Sunnah")
-            else -> emptyList()
-        }
-
-    val comingSoonCategories = listOf("Dzikir", "Tilawah")
-
-    val isComingSoon: Boolean
-        get() = selectedMainCategory in comingSoonCategories
-
-    val filteredHabits: List<Habit>
-        get() {
-            if (isComingSoon) return emptyList()
-            val subCategory = subTabCategories.getOrNull(selectedSubTabIndex) ?: return emptyList()
-            return allHabits.filter {
-                if (it.category != subCategory) return@filter false
-                if (it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled)) return@filter false
-                if (it.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled)) return@filter false
-                true
-            }
-        }
-
-    val filteredSunnahHabits: List<SunnahHabit>
-        get() {
-            if (isComingSoon) return emptyList()
-            return when {
-                selectedMainCategory == "Sholat" && selectedSubTabIndex == 1 ->
-                    sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
-                selectedMainCategory == "Puasa" && selectedSubTabIndex == 1 ->
-                    sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
-                else -> emptyList()
-            }
-        }
-
-    val showRamadanUnifiedCard: Boolean
-        get() {
-            if (!isRamadanMonth) return false
-            return ramadanUnifiedHabits.isNotEmpty()
-        }
-
-    val completedHabitsCount: Int
-        get() {
-            val habitCount = if (showRamadanUnifiedCard) {
-                ramadanUnifiedHabits.count { it.isCompleted }
-            } else {
-                filteredHabits.count { it.isCompleted }
-            }
-            return habitCount + filteredSunnahHabits.count { it.isCompletedToday }
-        }
-
-    val totalHabitsCount: Int
-        get() {
-            val habitCount = if (showRamadanUnifiedCard) {
-                ramadanUnifiedHabits.size
-            } else {
-                filteredHabits.size
-            }
-            return habitCount + filteredSunnahHabits.size
-        }
-
-    fun getCategoryBadge(mainCategory: String): String {
-        return when (mainCategory) {
-            "Sholat" -> {
-                val habits = allHabits.filter { it.category.startsWith("Sholat") }
-                    .filterNot { it.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled) }
-                val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
-                val completed = habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }
-                val total = habits.size + sunnah.size
-                "$completed/$total"
-            }
-            "Puasa" -> {
-                val habits = allHabits.filter {
-                    it.category.startsWith("Puasa") &&
-                        !(it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled))
-                }
-                val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
-                val completed = habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }
-                val total = habits.size + sunnah.size
-                "$completed/$total"
-            }
-            else -> "Segera"
-        }
-    }
-
-    val showRamadanScheduleCard: Boolean
-        get() = isRamadanMonth &&
-            ramadanScheduleByLocationEnabled &&
-            ramadanImsakTime.isNotBlank() &&
-            ramadanIftarTime.isNotBlank()
-}
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -242,7 +68,8 @@ class HomeViewModel @Inject constructor(
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
     private val featureConfigRepository: FeatureConfigRepository,
     private val dailyIslamicContentRepository: DailyIslamicContentRepository,
-    private val completionSyncRepository: CompletionSyncRepository
+    private val completionSyncRepository: CompletionSyncRepository,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
@@ -262,8 +89,10 @@ class HomeViewModel @Inject constructor(
         private val HHMM_REGEX = Regex("^\\d{2}:\\d{2}$")
     }
 
+    private var hasFetchedInitialCloudData = false
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private var syncHaidhJob: kotlinx.coroutines.Job? = null
     private var lastLocationRefreshAtMs: Long = 0L
     private val authPrefsListener =
         SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -298,6 +127,23 @@ class HomeViewModel @Inject constructor(
         loadHabits()
         startPeriodicHomeUpdates()
         loadDailyIslamicContent()
+        
+        // showGenderPrompt logic removed as requested
+        viewModelScope.launch {
+            UserPreferencesManager.isJumatEnabled.collect { enabled ->
+                _uiState.update { it.copy(isJumatEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            UserPreferencesManager.isHaidhMode.collect { enabled ->
+                _uiState.update { it.copy(isHaidhMode = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            UserPreferencesManager.gender.collect { gender ->
+                _uiState.update { it.copy(genderProfile = gender) }
+            }
+        }
         refreshLocation()
 
         // Observe changes from SunnahHabitSharedViewModel
@@ -328,10 +174,7 @@ class HomeViewModel @Inject constructor(
                 when {
                     wasFardhuApiEnabled && !isFardhuApiEnabled -> {
                         launchSafely("disableFardhuScheduleByLocation") {
-                            applyDefaultFardhuTimes()
-                            markPrayerTimeUsingDefault()
-                            updateCurrentTimeAndPrayerInfo()
-                            clearSyncNotice()
+                            refreshLocation(force = true)
                         }
                     }
 
@@ -508,6 +351,22 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun ensureFardhuTimesFallback() {
+        // Cleanup corrupted "Sholat Jumat" bug in database
+        val allFardhu = habitDao.getFardhuHabits()
+        val corruptedJumat = allFardhu.find { it.name == "Sholat Jumat" }
+        if (corruptedJumat != null) {
+            // Restore its name to Sholat Dzuhur
+            habitDao.updateHabit(corruptedJumat.copy(name = "Sholat Dzuhur"))
+            
+            // Delete any duplicate "Sholat Dzuhur" that might have been inserted later
+            val duplicates = allFardhu.filter { it.name == "Sholat Dzuhur" }
+            duplicates.forEach { dup ->
+                if (dup.id > corruptedJumat.id) {
+                    habitDao.deleteHabit(dup)
+                }
+            }
+        }
+
         val fallbackHabits = fallbackFardhuHabits()
         val existingByName = habitDao.getFardhuHabits().associateBy { it.name }
 
@@ -534,7 +393,7 @@ class HomeViewModel @Inject constructor(
             fetchCompleteFardhuHabitsFromFirestore(
                 firestore = firestore,
                 onError = { error ->
-                    runCatching { FirebaseCrashlytics.getInstance().recordException(error) }
+                    runCatching { com.islami.Aha.util.logCrashlyticsSafe(error) }
                 }
             )
         } else {
@@ -762,8 +621,9 @@ class HomeViewModel @Inject constructor(
 
     fun toggleHabitCompletion(habit: Habit) {
         viewModelScope.launch {
+            val originalHabit = habitDao.getHabitById(habit.id) ?: return@launch
             val willComplete = !habit.isCompleted
-            val updatedHabit = habit.copy(isCompleted = willComplete)
+            val updatedHabit = originalHabit.copy(isCompleted = willComplete)
             val todayKey = DateUtils.getTodayKey()
             val habitKey = "default_${habit.id}"
             val record = HabitCompletionRecord(
@@ -847,6 +707,103 @@ class HomeViewModel @Inject constructor(
 
     fun selectMainCategory(category: String) {
         _uiState.update { it.copy(selectedMainCategory = category, selectedSubTabIndex = 0) }
+    }
+    
+    fun setGenderProfile(profile: GenderProfile) {
+        viewModelScope.launch {
+            UserPreferencesManager.setGender(profile)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                authRepository.syncUserPreferences(
+                    gender = profile.name,
+                    isHaidhMode = UserPreferencesManager.isHaidhMode.value,
+                    haidhDates = UserPreferencesManager.getHaidhDates().toList()
+                )
+            }
+        }
+    }
+
+    fun toggleHaidhMode(enabled: Boolean) {
+        viewModelScope.launch {
+            UserPreferencesManager.setHaidhMode(enabled, reason = "toggleHaidhMode(UI)")
+            
+            // Sync immediately instead of 2 second delay to prevent state loss on navigation
+            syncHaidhJob?.cancel()
+            syncHaidhJob = launch {
+                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    authRepository.syncUserPreferences(
+                        gender = UserPreferencesManager.gender.value.name,
+                        isHaidhMode = enabled,
+                        haidhDates = UserPreferencesManager.getHaidhDates().toList()
+                    )
+                }
+                result.onFailure { err ->
+                    val errorMsg = context.getString(R.string.error_sync_cloud, err.message ?: "")
+                    showSnackbar(errorMsg)
+                }
+            }
+            // Reschedule alarms immediately to apply the new Haidh state
+            rescheduleAllAlarms()
+            
+            if (enabled) {
+                NotificationScheduler.scheduleHaidhReminder(context, 8, 0) // Schedule for 08:00 AM 10 days later
+            }
+        }
+    }
+
+    private suspend fun rescheduleAllAlarms() {
+        // First, clear all existing alarms
+        NotificationScheduler.cancelAllAlarms(context)
+        
+        // If global notifications are off, we don't reschedule anything
+        if (!isGlobalNotificationEnabled()) return
+        
+        val isHaidh = UserPreferencesManager.isHaidhMode.value
+
+        val allHabits = habitDao.getHabitsSnapshot()
+        allHabits.forEach { habit ->
+            if (isHaidh && (habit.category.startsWith("Sholat") || habit.category.startsWith("Puasa"))) return@forEach
+            val reminderTime = parseHourMinute(habit.time)
+            if (habit.isReminderEnabled && reminderTime != null) {
+                NotificationScheduler.scheduleHabitReminder(
+                    context = context,
+                    habitId = "default_${habit.id}",
+                    habitName = habit.name,
+                    hour = reminderTime.first,
+                    minute = reminderTime.second
+                )
+            }
+        }
+        
+        val currentSunnah = _uiState.value.sunnahHabits
+        currentSunnah.forEach { habit ->
+            if (isHaidh && (habit.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.SHOLAT || habit.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.PUASA)) return@forEach
+            if (habit.reminderEnabled) {
+                val reminderTimeStr = habit.reminderTime
+                if (reminderTimeStr != null) {
+                    val reminderTime = parseHourMinute(reminderTimeStr)
+                    if (reminderTime != null) {
+                        NotificationScheduler.scheduleHabitReminder(
+                            context = context,
+                            habitId = habit.id,
+                            habitName = habit.name,
+                            hour = reminderTime.first,
+                            minute = reminderTime.second
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    fun dismissGenderPrompt() {
+        viewModelScope.launch {
+            UserPreferencesManager.setHasSeenPrompt()
+            authRepository.syncUserPreferences(
+                gender = UserPreferencesManager.gender.value.name,
+                isHaidhMode = UserPreferencesManager.isHaidhMode.value,
+                haidhDates = UserPreferencesManager.getHaidhDates().toList()
+            )
+        }
     }
 
     fun selectSubTab(index: Int) {
@@ -942,16 +899,48 @@ class HomeViewModel @Inject constructor(
                 isLocationLoading = true
             )
         }
+
+        if (!_uiState.value.fardhuScheduleByLocationEnabled) {
+            if (cached != null) {
+                launchSafely("syncPrayerTimesByCachedLocation") {
+                    try {
+                        syncPrayerTimesByLocation(cached.latitude, cached.longitude)
+                    } finally {
+                        _uiState.update { current ->
+                            current.copy(
+                                location = cached.cityName,
+                                isLocationLoading = false,
+                                isRefreshing = if (closeRefreshingOnFinish) false else current.isRefreshing
+                            )
+                        }
+                    }
+                }
+            } else {
+                launchSafely("applyDefaultFardhuTimes") {
+                    try {
+                        applyDefaultFardhuTimes()
+                        markPrayerTimeUsingDefault()
+                        updateCurrentTimeAndPrayerInfo()
+                        clearSyncNotice()
+                    } finally {
+                        _uiState.update { current ->
+                            current.copy(
+                                isLocationLoading = false,
+                                isRefreshing = if (closeRefreshingOnFinish) false else current.isRefreshing
+                            )
+                        }
+                    }
+                }
+            }
+            return
+        }
+
         LocationHelper.getLastLocation(
             context = context,
             onResult = { result ->
                 launchSafely("syncPrayerTimesByLocation") {
                     try {
-                        if (_uiState.value.fardhuScheduleByLocationEnabled) {
-                            syncPrayerTimesByLocation(result.latitude, result.longitude)
-                        } else {
-                            clearSyncNotice()
-                        }
+                        syncPrayerTimesByLocation(result.latitude, result.longitude)
                     } finally {
                         _uiState.update { current ->
                             current.copy(
@@ -976,7 +965,6 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun syncPrayerTimesByLocation(latitude: Double, longitude: Double) {
-        if (!_uiState.value.fardhuScheduleByLocationEnabled) return
 
         val times = when (
             val result = withContext(Dispatchers.IO) {
@@ -1015,10 +1003,11 @@ class HomeViewModel @Inject constructor(
         updateCurrentTimeAndPrayerInfo()
 
         val globalEnabled = isGlobalNotificationEnabled()
+        val isHaidh = UserPreferencesManager.isHaidhMode.value
 
         // Keep user reminder behavior intact: only reschedule habits that are currently enabled.
         habitDao.getFardhuHabits().forEach { habit ->
-            if (!globalEnabled) {
+            if (!globalEnabled || (isHaidh && (habit.category.startsWith("Sholat") || habit.category.startsWith("Puasa")))) {
                 NotificationScheduler.cancelHabitReminder(context, "default_${habit.id}")
                 return@forEach
             }
@@ -1051,7 +1040,8 @@ class HomeViewModel @Inject constructor(
             )
         }
 
-        if (!wasLoggedIn && isLoggedIn) {
+        if (!wasLoggedIn && isLoggedIn && !hasFetchedInitialCloudData) {
+            hasFetchedInitialCloudData = true
             launchSafely("syncCloudDataOnLogin") {
                 handleAccountBoundaryBeforeSync()
                 val syncStatuses = listOf(
@@ -1059,6 +1049,35 @@ class HomeViewModel @Inject constructor(
                     completionSyncRepository.restoreFromCloud(),
                     completionSyncRepository.syncPendingRecords()
                 )
+                
+                val prefsResult = authRepository.fetchUserPreferences()
+                val prefs = prefsResult.getOrNull()?.takeIf { it.isNotEmpty() }
+                if (prefs != null) {
+                    val genderStr = prefs["genderProfile"] as? String
+                    if (genderStr != null) {
+                        runCatching { com.islami.Aha.util.GenderProfile.valueOf(genderStr) }.getOrNull()?.let { profile ->
+                            UserPreferencesManager.setGender(profile)
+                        }
+                    }
+                    val haidhDates = (prefs["haidhDates"] as? List<*>)?.mapNotNull { it as? String }
+                    if (haidhDates != null) {
+                        UserPreferencesManager.setHaidhDates(haidhDates)
+                    }
+                    val isHaidh = prefs["isHaidhMode"] as? Boolean
+                    if (isHaidh != null) {
+                        UserPreferencesManager.setHaidhMode(isHaidh)
+                    }
+                    UserPreferencesManager.syncHaidhDates()
+                    UserPreferencesManager.setHasSeenPrompt()
+                } else if (UserPreferencesManager.gender.value != com.islami.Aha.util.GenderProfile.UNSPECIFIED) {
+                    // Local has data but cloud doesn't (or fetch failed), sync up to cloud
+                    authRepository.syncUserPreferences(
+                        gender = UserPreferencesManager.gender.value.name,
+                        isHaidhMode = UserPreferencesManager.isHaidhMode.value,
+                        haidhDates = UserPreferencesManager.getHaidhDates().toList()
+                    )
+                }
+                
                 syncTodayCompletionsToUiState()
                 val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
                 if (firstIssue.isNullOrBlank()) {
@@ -1067,6 +1086,8 @@ class HomeViewModel @Inject constructor(
                     showSyncNotice(firstIssue)
                 }
             }
+        } else if (!isLoggedIn) {
+            hasFetchedInitialCloudData = false
         }
     }
 
@@ -1089,7 +1110,7 @@ class HomeViewModel @Inject constructor(
             runCatching { block() }
                 .onFailure { error ->
                     Log.e("HomeViewModel", "Startup task failed: $tag", error)
-                    runCatching { FirebaseCrashlytics.getInstance().recordException(error) }
+                    runCatching { com.islami.Aha.util.logCrashlyticsSafe(error) }
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -1151,5 +1172,4 @@ class HomeViewModel @Inject constructor(
             current.copy(showSyncNotice = false, syncNoticeMessage = "")
         }
     }
-
 }

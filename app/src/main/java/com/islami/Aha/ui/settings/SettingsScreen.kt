@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.settings
 
+import androidx.compose.material3.MaterialTheme
+
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,6 +37,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +50,7 @@ import com.islami.Aha.ui.components.AhaToastTone
 import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.*
 import com.islami.Aha.util.NotificationScheduler
+import com.islami.Aha.ui.settings.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,7 +113,9 @@ fun SettingsScreen(
         onShowTimeFormatDialog = viewModel::showTimeFormatDialog,
         onHideTimeFormatDialog = viewModel::hideTimeFormatDialog,
         onSetTimeFormat = viewModel::setTimeFormat,
-        onToggleDarkMode = viewModel::toggleDarkMode,
+        onShowThemeModeDialog = viewModel::showThemeModeDialog,
+        onHideThemeModeDialog = viewModel::hideThemeModeDialog,
+        onSetThemeMode = viewModel::setThemeMode,
         onToggleNotification = viewModel::toggleNotification,
         onNotificationSoundClick = viewModel::onNotificationSoundClick,
         onHideNotificationSoundDialog = viewModel::hideNotificationSoundDialog,
@@ -165,6 +171,22 @@ fun SettingsScreen(
             viewModel.confirmReAuthDelete(password) {
                 onNavigateToLogin(null)
             }
+        },
+        onShowGenderDialog = viewModel::showGenderDialog,
+        onHideGenderDialog = viewModel::hideGenderDialog,
+        onSetGenderProfile = viewModel::setGenderProfile,
+        onFixNotificationClick = {
+            if (!com.islami.Aha.util.AutoStartHelper.isIgnoringBatteryOptimizations(context)) {
+                android.widget.Toast.makeText(context, context.getString(R.string.settings_battery_opt_prompt), android.widget.Toast.LENGTH_LONG).show()
+                com.islami.Aha.util.AutoStartHelper.requestIgnoreBatteryOptimizations(context)
+            } else {
+                val success = com.islami.Aha.util.AutoStartHelper.openAutoStartSettings(context)
+                if (!success) {
+                    android.widget.Toast.makeText(context, context.getString(R.string.settings_battery_already_optimal), android.widget.Toast.LENGTH_LONG).show()
+                } else {
+                    android.widget.Toast.makeText(context, context.getString(R.string.settings_autostart_prompt), android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
         }
     )
 }
@@ -182,7 +204,12 @@ fun SettingsScreenContent(
     onShowTimeFormatDialog: () -> Unit,
     onHideTimeFormatDialog: () -> Unit,
     onSetTimeFormat: (TimeFormatOption) -> Unit,
-    onToggleDarkMode: () -> Unit,
+    onShowThemeModeDialog: () -> Unit,
+    onHideThemeModeDialog: () -> Unit,
+    onSetThemeMode: (ThemeMode) -> Unit,
+    onShowGenderDialog: () -> Unit,
+    onHideGenderDialog: () -> Unit,
+    onSetGenderProfile: (com.islami.Aha.util.GenderProfile) -> Unit,
     onToggleNotification: () -> Unit,
     onNotificationSoundClick: () -> Unit,
     onHideNotificationSoundDialog: () -> Unit,
@@ -214,8 +241,10 @@ fun SettingsScreenContent(
     onLoginClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onHideReAuthDialog: () -> Unit = {},
-    onConfirmReAuthDelete: (String) -> Unit = {}
+    onConfirmReAuthDelete: (String) -> Unit = {},
+    onFixNotificationClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
@@ -251,17 +280,44 @@ fun SettingsScreenContent(
                 )
             }
 
-            // Mode Gelap
+            // Mode Tema
             item {
                 Spacer(modifier = Modifier.height(8.dp))
-                SettingsToggleItem(
+                SettingsClickableItem(
                     icon = Icons.Outlined.DarkMode,
                     iconBackground = CategoryPuasaStart.copy(alpha = 0.1f),
                     iconTint = CategoryPuasaStart,
                     title = stringResource(R.string.settings_dark_mode_title),
-                    subtitle = stringResource(R.string.settings_dark_mode_subtitle),
-                    isChecked = uiState.darkModeEnabled,
-                    onToggle = onToggleDarkMode
+                    subtitle = uiState.themeMode.displayName,
+                    onClick = onShowThemeModeDialog
+                )
+            }
+
+            // Profil Ibadah (Gender)
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                val genderText = when (uiState.genderProfile) {
+                    com.islami.Aha.util.GenderProfile.MALE -> stringResource(R.string.settings_gender_male_active)
+                    com.islami.Aha.util.GenderProfile.FEMALE -> stringResource(R.string.settings_gender_female_active)
+                    else -> stringResource(R.string.settings_gender_not_set)
+                }
+                SettingsClickableItem(
+                    icon = Icons.Outlined.Person,
+                    iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    title = stringResource(R.string.settings_gender_title),
+                    subtitle = genderText,
+                    onClick = {
+                        if (uiState.isHaidhMode) {
+                            android.widget.Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_gender_haidh_warning),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            onShowGenderDialog()
+                        }
+                    }
                 )
             }
 
@@ -311,6 +367,8 @@ fun SettingsScreenContent(
                     onToggle = onToggleNotificationVibration
                 )
             }
+
+            // Removed AutoStart per user request
 
             // =============================================================
             // SECTION: AKUN
@@ -511,6 +569,126 @@ fun SettingsScreenContent(
         )
     }
 
+    if (uiState.showThemeModeDialog) {
+        ThemeModeSelectionDialog(
+            currentMode = uiState.themeMode,
+            onSelect = onSetThemeMode,
+            onDismiss = onHideThemeModeDialog
+        )
+    }
+
+    if (uiState.showGenderDialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = onHideGenderDialog) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_gender_title),
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    val descText = when (uiState.genderProfile) {
+                        com.islami.Aha.util.GenderProfile.FEMALE -> stringResource(R.string.settings_gender_desc_female)
+                        com.islami.Aha.util.GenderProfile.MALE -> stringResource(R.string.settings_gender_desc_male)
+                        else -> stringResource(R.string.settings_gender_desc_default)
+                    }
+                    Text(
+                        text = descText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(0.85f)
+                                .clickable { onSetGenderProfile(com.islami.Aha.util.GenderProfile.MALE) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.MALE) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.MALE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_gender_male),
+                                    contentDescription = stringResource(R.string.settings_gender_male),
+                                    modifier = Modifier.size(56.dp),
+                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = stringResource(R.string.settings_gender_male),
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(0.85f)
+                                .clickable { onSetGenderProfile(com.islami.Aha.util.GenderProfile.FEMALE) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.FEMALE) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.FEMALE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_gender_female),
+                                    contentDescription = stringResource(R.string.settings_gender_female),
+                                    modifier = Modifier.size(56.dp),
+                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = stringResource(R.string.settings_gender_female),
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    androidx.compose.material3.TextButton(
+                        onClick = onHideGenderDialog,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.settings_cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+
     if (uiState.showNotificationSoundDialog) {
         NotificationSoundSelectionDialog(
             currentOption = uiState.notificationSound,
@@ -579,1027 +757,7 @@ fun SettingsScreenContent(
     }
 }
 
-@Composable
-private fun SettingsHeader(onNavigateBack: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                brush = Brush.verticalGradient(colors = listOf(EmeraldDark, Emerald)),
-                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .heightIn(min = 104.dp)
-                .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                IconButton(
-                    onClick = onNavigateBack,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.settings_back_cd),
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
 
-                Text(
-                    text = stringResource(R.string.settings_title),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.settings_header_subtitle),
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
-        }
-    }
-}
-
-// ============================================================================
-// REUSABLE SETTINGS COMPONENTS
-// ============================================================================
-
-@Composable
-fun SettingsSectionHeader(title: String) {
-    Text(
-        text = title,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        letterSpacing = 0.3.sp,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-    )
-}
-
-@Composable
-fun GuestLoginCard(onLoginClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.settings_guest_login_title),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = stringResource(R.string.settings_guest_login_desc),
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            TextButton(
-                onClick = onLoginClick,
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_guest_login_action),
-                    color = Emerald,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun SettingsToggleItem(
-    icon: ImageVector,
-    iconBackground: Color = Color.Unspecified,
-    iconTint: Color = Color.Unspecified,
-    title: String,
-    subtitle: String,
-    isChecked: Boolean,
-    onToggle: () -> Unit
-) {
-    val resolvedIconBackground = if (iconBackground == Color.Unspecified) {
-        MaterialTheme.colorScheme.surfaceVariant
-    } else {
-        iconBackground
-    }
-    val resolvedIconTint = if (iconTint == Color.Unspecified) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        iconTint
-    }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .toggleable(
-                    value = isChecked,
-                    role = Role.Switch,
-                    onValueChange = { onToggle() }
-                )
-                .semantics(mergeDescendants = true) {
-                    contentDescription = title
-                }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(resolvedIconBackground),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = resolvedIconTint,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Switch(
-                checked = isChecked,
-                onCheckedChange = null,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = Emerald,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant
-                )
-            )
-        }
-    }
-}
-
-@Composable
-fun SettingsClickableItem(
-    icon: ImageVector,
-    iconBackground: Color = Color.Unspecified,
-    iconTint: Color = Color.Unspecified,
-    title: String,
-    subtitle: String,
-    titleColor: Color = Color.Unspecified,
-    onClick: () -> Unit
-) {
-    val resolvedIconBackground = if (iconBackground == Color.Unspecified) {
-        MaterialTheme.colorScheme.surfaceVariant
-    } else {
-        iconBackground
-    }
-    val resolvedIconTint = if (iconTint == Color.Unspecified) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        iconTint
-    }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clickable(role = Role.Button) { onClick() }
-            .semantics(mergeDescendants = true) {
-                role = Role.Button
-                contentDescription = title
-            },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(resolvedIconBackground),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = resolvedIconTint,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (titleColor == Color.Unspecified) MaterialTheme.colorScheme.onSurface else titleColor
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun SettingsInfoItem(
-    icon: ImageVector,
-    iconBackground: Color = Color.Unspecified,
-    iconTint: Color = Color.Unspecified,
-    title: String,
-    value: String
-) {
-    val resolvedIconBackground = if (iconBackground == Color.Unspecified) {
-        MaterialTheme.colorScheme.surfaceVariant
-    } else {
-        iconBackground
-    }
-    val resolvedIconTint = if (iconTint == Color.Unspecified) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        iconTint
-    }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(resolvedIconBackground),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = resolvedIconTint,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Text(
-                text = title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-
-            Text(
-                text = value,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-// ============================================================================
-// DIALOGS
-// ============================================================================
-
-@Composable
-fun LocationInputDialog(
-    currentLocation: String,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var text by remember { mutableStateOf(currentLocation) }
-    val focusManager = LocalFocusManager.current
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.settings_change_location_title),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text(stringResource(R.string.settings_city_name_label)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        focusManager.clearFocus()
-                        if (text.isNotBlank()) onConfirm(text)
-                    }
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Emerald,
-                    focusedLabelColor = Emerald,
-                    cursorColor = Emerald
-                ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (text.isNotBlank()) onConfirm(text) }
-            ) {
-                Text(
-                    text = stringResource(R.string.common_save),
-                    color = Emerald,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-@Composable
-fun TimeFormatSelectionDialog(
-    currentFormat: TimeFormatOption,
-    onSelect: (TimeFormatOption) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.settings_time_format_title),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            Column {
-                TimeFormatOption.entries.forEach { format ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(format) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = format == currentFormat,
-                            onClick = { onSelect(format) },
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = Emerald
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = format.displayName,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = format.description,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-@Composable
-fun NotificationSoundSelectionDialog(
-    currentOption: NotificationScheduler.NotificationSoundOption,
-    onSelect: (NotificationScheduler.NotificationSoundOption) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.settings_sound_title),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            Column {
-                NotificationScheduler.NotificationSoundOption.values().forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(option) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = option == currentOption,
-                            onClick = { onSelect(option) },
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = Emerald
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = option.displayName,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = option.description,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-@Composable
-fun AccountSecurityDialog(
-    userEmail: String,
-    isEmailVerified: Boolean,
-    isRefreshingStatus: Boolean,
-    isSendingVerificationEmail: Boolean,
-    verificationResendCooldownSeconds: Int,
-    isSendingResetPasswordEmail: Boolean,
-    onRefreshStatus: () -> Unit,
-    onSendVerificationEmail: () -> Unit,
-    onSendResetPasswordEmail: () -> Unit,
-    onDeleteAccount: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val isActionRunning = isRefreshingStatus || isSendingVerificationEmail || isSendingResetPasswordEmail
-    val isVerificationCooldown = verificationResendCooldownSeconds > 0
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.settings_account_security_title),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = if (userEmail.isBlank()) {
-                        stringResource(R.string.settings_security_account_missing)
-                    } else {
-                        stringResource(R.string.settings_security_email_format, userEmail)
-                    },
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = if (isEmailVerified) {
-                            stringResource(R.string.settings_security_status_verified)
-                        } else {
-                            stringResource(R.string.settings_security_status_unverified)
-                        },
-                        fontSize = 13.sp,
-                        color = if (isEmailVerified) Emerald else WarningAmber
-                    )
-                    TextButton(
-                        onClick = onRefreshStatus,
-                        enabled = !isActionRunning
-                    ) {
-                        if (isRefreshingStatus) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.settings_loading))
-                        } else {
-                            Text(stringResource(R.string.settings_refresh))
-                        }
-                    }
-                }
-
-                if (!isEmailVerified) {
-                    OutlinedButton(
-                        onClick = onSendVerificationEmail,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isActionRunning && !isVerificationCooldown
-                    ) {
-                        if (isSendingVerificationEmail) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.settings_sending))
-                        } else if (isVerificationCooldown) {
-                            Text(
-                                pluralStringResource(
-                                    R.plurals.settings_resend_verification_cooldown,
-                                    verificationResendCooldownSeconds,
-                                    verificationResendCooldownSeconds
-                                )
-                            )
-                        } else {
-                            Text(stringResource(R.string.settings_resend_verification_email))
-                        }
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = onSendResetPasswordEmail,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isActionRunning
-                ) {
-                    if (isSendingResetPasswordEmail) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.settings_sending))
-                    } else {
-                        Text(stringResource(R.string.settings_send_reset_link))
-                    }
-                }
-
-                HorizontalDivider(color = Gray200)
-
-                OutlinedButton(
-                    onClick = onDeleteAccount,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isActionRunning,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed)
-                ) {
-                    Text(stringResource(R.string.settings_delete_account_permanent))
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.settings_close), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-@Composable
-fun ImportDataConfirmationDialog(
-    selectedMode: ImportMode,
-    isImporting: Boolean,
-    onSelectMode: (ImportMode) -> Unit,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = { if (!isImporting) onDismiss() },
-        title = {
-            Text(
-                text = stringResource(R.string.settings_import_title),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = stringResource(R.string.settings_import_dialog_desc),
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                ImportMode.entries.forEach { mode ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = !isImporting) { onSelectMode(mode) }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedMode == mode,
-                            onClick = { onSelectMode(mode) },
-                            enabled = !isImporting,
-                            colors = RadioButtonDefaults.colors(selectedColor = Emerald)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = mode.displayName,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = mode.description,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm, enabled = !isImporting) {
-                if (isImporting) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.settings_importing))
-                } else {
-                    Text(
-                        text = stringResource(R.string.settings_import_action),
-                        color = Emerald,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isImporting) {
-                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-@Composable
-fun ChangePasswordDialog(
-    userEmail: String,
-    isSubmitting: Boolean,
-    onDismiss: () -> Unit,
-    onForgotPassword: () -> Unit,
-    onSubmit: (String, String, String) -> Unit
-) {
-    var oldPassword by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    val focusManager = LocalFocusManager.current
-
-    AlertDialog(
-        onDismissRequest = { if (!isSubmitting) onDismiss() },
-        title = {
-            Text(
-                text = stringResource(R.string.settings_change_password_title),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_change_password_dialog_desc),
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = oldPassword,
-                    onValueChange = { oldPassword = it },
-                    label = { Text(stringResource(R.string.settings_old_password_label)) },
-                    singleLine = true,
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                        imeAction = ImeAction.Next
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isSubmitting
-                )
-                OutlinedTextField(
-                    value = newPassword,
-                    onValueChange = { newPassword = it },
-                    label = { Text(stringResource(R.string.settings_new_password_label)) },
-                    singleLine = true,
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                        imeAction = ImeAction.Next
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isSubmitting
-                )
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = { Text(stringResource(R.string.settings_confirm_new_password_label)) },
-                    singleLine = true,
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            focusManager.clearFocus()
-                            if (!isSubmitting) {
-                                onSubmit(oldPassword, newPassword, confirmPassword)
-                            }
-                        }
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isSubmitting
-                )
-                TextButton(
-                    onClick = onForgotPassword,
-                    enabled = !isSubmitting,
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text(text = stringResource(R.string.settings_forgot_password_send_email))
-                }
-                if (userEmail.isNotBlank()) {
-                    Text(
-                        text = stringResource(R.string.settings_account_email_format, userEmail),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSubmit(oldPassword, newPassword, confirmPassword) },
-                enabled = !isSubmitting &&
-                    oldPassword.isNotBlank() &&
-                    newPassword.isNotBlank() &&
-                    confirmPassword.isNotBlank()
-            ) {
-                if (isSubmitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.settings_saving))
-                } else {
-                    Text(
-                        text = stringResource(R.string.common_save),
-                        color = Emerald,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSubmitting) {
-                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-@Composable
-fun ResetConfirmationDialog(
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.settings_reset_title),
-                fontWeight = FontWeight.SemiBold,
-                color = ErrorRed
-            )
-        },
-        text = {
-            Text(
-                text = stringResource(R.string.settings_reset_dialog_desc),
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(
-                    text = stringResource(R.string.settings_reset_action),
-                    color = ErrorRed,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-@Composable
-fun DeleteAccountConfirmationDialog(
-    isDeleting: Boolean,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = { if (!isDeleting) onDismiss() },
-        title = {
-            Text(
-                text = stringResource(R.string.settings_delete_account_dialog_title),
-                fontWeight = FontWeight.SemiBold,
-                color = ErrorRed
-            )
-        },
-        text = {
-            Text(
-                text = stringResource(R.string.settings_delete_account_dialog_desc),
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm, enabled = !isDeleting) {
-                if (isDeleting) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.settings_deleting))
-                } else {
-                    Text(
-                        text = stringResource(R.string.settings_delete_action),
-                        color = ErrorRed,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isDeleting) {
-                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-@Composable
-fun ReAuthDialog(
-    isDeleting: Boolean,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var password by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = { if (!isDeleting) onDismiss() },
-        title = {
-            Text(
-                text = stringResource(R.string.settings_reauth_dialog_title),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            Column {
-                Text(
-                    text = stringResource(R.string.settings_reauth_dialog_desc),
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text(stringResource(R.string.settings_password_label)) },
-                    singleLine = true,
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = { if (password.isNotBlank() && !isDeleting) onConfirm(password) }
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isDeleting
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(password) },
-                enabled = password.isNotBlank() && !isDeleting
-            ) {
-                if (isDeleting) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.settings_deleting))
-                } else {
-                    Text(
-                        text = stringResource(R.string.settings_delete_account_action),
-                        color = ErrorRed,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isDeleting) {
-                Text(text = stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
 
 // ============================================================================
 // PREVIEW
@@ -1620,7 +778,12 @@ fun SettingsScreenPreview() {
             onShowTimeFormatDialog = {},
             onHideTimeFormatDialog = {},
             onSetTimeFormat = {},
-            onToggleDarkMode = {},
+            onShowThemeModeDialog = {},
+            onHideThemeModeDialog = {},
+            onSetThemeMode = {},
+            onShowGenderDialog = {},
+            onHideGenderDialog = {},
+            onSetGenderProfile = {},
             onToggleNotification = {},
             onNotificationSoundClick = {},
             onHideNotificationSoundDialog = {},

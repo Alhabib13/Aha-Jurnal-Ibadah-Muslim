@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import androidx.lifecycle.viewModelScope
 import java.util.Locale
 import javax.inject.Inject
 
@@ -100,6 +102,7 @@ data class AddHabitUiState(
     val selectedRakaat: Int? = null,
     val frequencyType: FrequencyType = FrequencyType.EVERY_DAY,
     val selectedDays: Set<Int> = emptySet(),
+    val isHaidhMode: Boolean = false,
     val isReminderEnabled: Boolean = false,
     val reminderHour: Int = 5,
     val reminderMinute: Int = 0,
@@ -147,6 +150,14 @@ class AddHabitViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(AddHabitUiState())
     val uiState: StateFlow<AddHabitUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            com.islami.Aha.util.UserPreferencesManager.isHaidhMode.collect { isHaidhMode ->
+                _uiState.update { it.copy(isHaidhMode = isHaidhMode) }
+            }
+        }
+    }
 
     fun selectCategory(category: SunnahCategoryType) {
         _uiState.update { current ->

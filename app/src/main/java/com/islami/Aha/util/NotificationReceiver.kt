@@ -44,6 +44,14 @@ class NotificationReceiver : BroadcastReceiver() {
             return
         }
 
+        val prefs = com.islami.Aha.util.SecurePrefsProvider.get(context)
+        val isHaidhMode = prefs.getBoolean("haidh_mode", false)
+        if (isHaidhMode && (habitName.contains("Sholat", ignoreCase = true) || habitName.contains("Puasa", ignoreCase = true))) {
+            debugLog("Haidh mode is active, skipping notification for: $habitName")
+            rescheduleAlarm(context, habitId, habitName, hour, minute)
+            return
+        }
+
         // Check notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
@@ -75,11 +83,22 @@ class NotificationReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val channelSettings = NotificationScheduler.getChannelSettings(context)
-        val notificationTitle = context.getString(R.string.notification_reminder_title)
+        
+        // Cek apakah hari ini Jumat dan mode Jumat aktif (untuk Laki-laki)
+        val isJumatEnabled = prefs.getBoolean("jumat_enabled", false)
+        val isFriday = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.FRIDAY
+        var finalHabitName = habitName
+        if (isJumatEnabled && isFriday && habitName == "Sholat Dzuhur") {
+            finalHabitName = "Sholat Jumat"
+        }
+
+        val notificationTitle = if (habitId == "haidh_reminder") "Peringatan Cuti Ibadah" else context.getString(R.string.notification_reminder_title)
+        val notificationText = if (habitId == "haidh_reminder") "Apakah masa cuti ibadah Anda sudah selesai? Jangan lupa matikan mode cuti di aplikasi Aha." else context.getString(R.string.notification_trigger_text_format, finalHabitName)
+
         val notificationBuilder = NotificationCompat.Builder(context, NotificationScheduler.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_nav_notification)
             .setContentTitle(notificationTitle)
-            .setContentText(context.getString(R.string.notification_trigger_text_format, habitName))
+            .setContentText(notificationText)
             .setGroup(GROUP_KEY_HABIT_REMINDER)
             .setContentIntent(contentPendingIntent)
             .setAutoCancel(true)
@@ -124,8 +143,10 @@ class NotificationReceiver : BroadcastReceiver() {
         notificationManager.notify(SUMMARY_NOTIFICATION_ID, summaryNotification)
         debugLog("Notification shown for '$habitName'")
 
-        // Reschedule for next day
-        rescheduleAlarm(context, habitId, habitName, hour, minute)
+        // Reschedule only if it is a recurring daily alarm
+        if (habitId != "haidh_reminder") {
+            rescheduleAlarm(context, habitId, habitName, hour, minute)
+        }
     }
 
     private fun rescheduleAlarm(

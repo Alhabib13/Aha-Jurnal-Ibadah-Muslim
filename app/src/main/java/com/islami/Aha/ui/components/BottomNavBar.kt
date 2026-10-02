@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -117,7 +119,7 @@ fun AhaBottomNavBar(
                 .shadow(elevation = 8.dp, shape = CircleShape)
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(EmeraldDark, Emerald)
+                        colors = listOf(EmeraldDark, MaterialTheme.colorScheme.primary)
                     ),
                     shape = CircleShape
                 )

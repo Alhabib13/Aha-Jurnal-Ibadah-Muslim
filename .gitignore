@@ -25,3 +25,7 @@ secrets/
 app/schemas/
 node_modules/
 *.png
+# Keystore — JANGAN COMMIT
+keystore.properties
+*.jks
+*.keystore

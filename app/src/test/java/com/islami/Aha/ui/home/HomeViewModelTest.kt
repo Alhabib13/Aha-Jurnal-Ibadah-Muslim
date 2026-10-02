@@ -81,7 +81,7 @@ class HomeViewModelTest {
 
     private val sampleHabits = listOf(
         Habit(id = 1, name = "Subuh", category = "Sholat Fardhu", icon = "sunrise", description = ""),
-        Habit(id = 2, name = "Dzuhur", category = "Sholat Fardhu", icon = "sun", description = ""),
+        Habit(id = 2, name = "Sholat Dzuhur", category = "Sholat Fardhu", icon = "sun", description = ""),
         Habit(id = 3, name = "Dhuha", category = "Sholat Sunnah", icon = "sun", description = ""),
         Habit(id = 4, name = "Ramadan", category = "Puasa Wajib", icon = "plate", description = ""),
         Habit(id = 5, name = "Senin", category = "Puasa Sunnah", icon = "moon", description = "")
@@ -195,7 +195,7 @@ class HomeViewModelTest {
         val state = HomeUiState(
             allHabits = listOf(
                 Habit(id = 1, name = "Subuh", category = "Sholat Fardhu", icon = "sunrise", description = "", isCompleted = true),
-                Habit(id = 2, name = "Dzuhur", category = "Sholat Fardhu", icon = "sun", description = ""),
+                Habit(id = 2, name = "Sholat Dzuhur", category = "Sholat Fardhu", icon = "sun", description = ""),
                 Habit(id = 3, name = "Dhuha", category = "Sholat Sunnah", icon = "sun", description = "", isCompleted = true)
             ),
             sunnahHabits = listOf(

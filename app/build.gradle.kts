@@ -1,4 +1,5 @@
 import java.io.File
+import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -34,11 +35,11 @@ android {
     val firebaseConfigMeta = readFirebaseConfigMeta(file("google-services.json"))
 
     defaultConfig {
-        applicationId = "com.islami.Aha"
+        applicationId = "com.Islamic.Aha"
         minSdk = 23
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.0.3"
+        versionCode = 3
+        versionName = "1.1.1"
         val forceDebugAppCheck = providers
             .gradleProperty("FORCE_APPCHECK_DEBUG")
             .orNull
@@ -60,6 +61,19 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val keystorePropertiesFile = rootProject.file("keystore.properties")
+    if (keystorePropertiesFile.exists()) {
+        val keystoreProperties = Properties().also { it.load(keystorePropertiesFile.inputStream()) }
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "APP_CHECK_MODE", "\"NONE\"")
@@ -70,6 +84,9 @@ android {
             isDebuggable = false
             isJniDebuggable = false
             buildConfigField("String", "APP_CHECK_MODE", "\"PLAY_INTEGRITY\"")
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -152,9 +169,8 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-storage")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
-    implementation("com.google.firebase:firebase-appcheck-debug")
+    debugImplementation("com.google.firebase:firebase-appcheck-debug")
 
     // Location
     implementation("com.google.android.gms:play-services-location:21.3.0")
@@ -176,8 +192,8 @@ tasks.register("validateFirebaseConfigPresence") {
     group = "verification"
     description = "Validate the single Firebase configuration file required by this app."
 
+    val firebaseFile = layout.projectDirectory.file("google-services.json").asFile
     doLast {
-        val firebaseFile = file("google-services.json")
         if (!firebaseFile.exists()) {
             throw GradleException("Missing Firebase config: app/google-services.json")
         }
