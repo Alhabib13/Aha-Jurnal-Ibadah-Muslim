@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -120,7 +122,7 @@ private fun RamadanUnifiedHabitRow(
                 Icon(
                     imageVector = getHabitItemIcon(habit),
                     contentDescription = displayName,
-                    tint = Emerald,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -156,7 +158,7 @@ private fun RamadanUnifiedHabitRow(
                     Icons.Outlined.NotificationsOff
                 },
                 contentDescription = reminderStateDescription,
-                tint = if (habit.isReminderEnabled) Emerald else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (habit.isReminderEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
         }

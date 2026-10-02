@@ -74,14 +74,18 @@ data class StatisticUiState(
 
 @HiltViewModel
 class StatisticViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
     private val habitCompletionDao: HabitCompletionDao,
     private val habitDao: HabitDao,
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
-    private val featureConfigRepository: FeatureConfigRepository
+    private val featureConfigRepository: FeatureConfigRepository,
+    private val completionSyncRepository: com.islami.Aha.data.repository.CompletionSyncRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StatisticUiState())
     val uiState: StateFlow<StatisticUiState> = _uiState.asStateFlow()
+
+    private var statsJob: kotlinx.coroutines.Job? = null
 
     private val _selectedPastDate = MutableStateFlow<String?>(null)
     val selectedPastDate: StateFlow<String?> = _selectedPastDate.asStateFlow()
@@ -95,7 +99,8 @@ class StatisticViewModel @Inject constructor(
     }
 
     private fun loadStatistics() {
-        viewModelScope.launch {
+        statsJob?.cancel()
+        statsJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
 
             combine(
@@ -110,6 +115,7 @@ class StatisticViewModel @Inject constructor(
                 val sunnahHabits = data.sunnahHabits
                 val config = data.config
                 val haidhDates = data.haidhDates
+                val isTodayHaidh = haidhDates.contains(DateUtils.getTodayKey())
                 val visibleHabits = habits.filter {
                     if (it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled)) {
                         return@filter false
@@ -117,12 +123,22 @@ class StatisticViewModel @Inject constructor(
                     if (it.category == "Sholat Tarawih" && (!DateUtils.isRamadanMonth() || !config.sholatTarawihEnabled)) {
                         return@filter false
                     }
+                    if (isTodayHaidh && (it.category.startsWith("Sholat") || it.category.startsWith("Puasa"))) {
+                        return@filter false
+                    }
                     true
                 }
+                val visibleSunnahHabits = sunnahHabits.filter {
+                    if (isTodayHaidh && (it.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.SHOLAT || it.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.PUASA)) {
+                        return@filter false
+                    }
+                    true
+                }
+
                 val fardhuCompleted = visibleHabits.count { it.isCompleted }
-                val sunnahCompleted = sunnahHabits.count { it.isCompletedToday }
+                val sunnahCompleted = visibleSunnahHabits.count { it.isCompletedToday }
                 val todayCompleted = fardhuCompleted + sunnahCompleted
-                val todayTotal = visibleHabits.size + sunnahHabits.size
+                val todayTotal = visibleHabits.size + visibleSunnahHabits.size
                 val todayPercentage = if (todayTotal > 0) (todayCompleted * 100) / todayTotal else 0
 
                 val categoryOrder = buildList {
@@ -131,7 +147,9 @@ class StatisticViewModel @Inject constructor(
                     if (DateUtils.isRamadanMonth() && config.sholatTarawihEnabled) {
                         add("Sholat Tarawih")
                     }
-                    add("Puasa Wajib")
+                    if (DateUtils.isRamadanMonth()) {
+                        add("Puasa Wajib")
+                    }
                     add("Puasa Sunnah")
                 }
                 val categoryIcons = mapOf(
@@ -150,12 +168,12 @@ class StatisticViewModel @Inject constructor(
                     // Include user-added sunnah habits in their respective categories
                     when (categoryName) {
                         "Sholat Sunnah" -> {
-                            val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
+                            val sunnah = visibleSunnahHabits.filter { it.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.SHOLAT }
                             total += sunnah.size
                             completed += sunnah.count { it.isCompletedToday }
                         }
                         "Puasa Sunnah" -> {
-                            val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
+                            val sunnah = visibleSunnahHabits.filter { it.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.PUASA }
                             total += sunnah.size
                             completed += sunnah.count { it.isCompletedToday }
                         }
@@ -295,19 +313,35 @@ class StatisticViewModel @Inject constructor(
             val sunnahHabitsList = sunnahHabitSharedViewModel.sunnahHabits.value
             val completions = habitCompletionDao.getRecordsForDate(dateKey)
             val completedKeys = completions.map { it.habitKey }.toSet()
+            
+            val haidhDates = com.islami.Aha.util.UserPreferencesManager.getHaidhDates()
+            val isHaidh = haidhDates.contains(dateKey)
+
+            val isJumatEnabled = com.islami.Aha.util.UserPreferencesManager.isJumatEnabled.value
+            val isFriday = runCatching {
+                val parsed = java.time.LocalDate.parse(dateKey)
+                parsed.dayOfWeek == java.time.DayOfWeek.FRIDAY
+            }.getOrDefault(false)
 
             val items = mutableListOf<PastDayHabitItem>()
             fardhuHabits.forEach { habit ->
+                if (isHaidh && (habit.category.startsWith("Sholat") || habit.category.startsWith("Puasa"))) return@forEach
                 val key = "default_${habit.id}"
+                var displayTitle = habit.name
+                if (isJumatEnabled && isFriday && habit.name == "Sholat Dzuhur") {
+                    displayTitle = "Sholat Jumat"
+                }
+                
                 items.add(PastDayHabitItem(
                     habitKey = key,
-                    name = habit.name,
+                    name = displayTitle,
                     isCompleted = completedKeys.contains(key),
                     category = habit.category,
                     isSunnah = false
                 ))
             }
             sunnahHabitsList.forEach { sunnah ->
+                if (isHaidh && (sunnah.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.SHOLAT || sunnah.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.PUASA)) return@forEach
                 val key = "sunnah_${sunnah.id}"
                 items.add(PastDayHabitItem(
                     habitKey = key,
@@ -326,22 +360,46 @@ class StatisticViewModel @Inject constructor(
         val dateKey = _selectedPastDate.value ?: return
         viewModelScope.launch {
             val willComplete = !item.isCompleted
+            val record = com.islami.Aha.data.model.HabitCompletionRecord(
+                habitKey = item.habitKey,
+                dateKey = dateKey,
+                category = item.category,
+                source = if (item.isSunnah) "SUNNAH" else "DEFAULT"
+            )
             if (willComplete) {
-                habitCompletionDao.insert(
-                    com.islami.Aha.data.model.HabitCompletionRecord(
-                        habitKey = item.habitKey,
-                        dateKey = dateKey,
-                        category = item.category,
-                        source = if (item.isSunnah) "SUNNAH" else "DEFAULT"
-                    )
-                )
+                habitCompletionDao.insert(record)
+                // Sync to Cloud
+                launch { 
+                    val status = completionSyncRepository.syncAdd(record)
+                    if (status.shouldRetry) scheduleSyncCompletionsWork()
+                }
             } else {
                 habitCompletionDao.deleteByHabitAndDate(item.habitKey, dateKey)
+                // Sync to Cloud
+                launch { 
+                    val status = completionSyncRepository.syncDelete(item.habitKey, dateKey)
+                    if (status.shouldRetry) scheduleSyncCompletionsWork()
+                }
             }
             // Reload the list to reflect changes
             loadPastDayHabits(dateKey)
             // Reload statistics since a past record changed
             loadStatistics()
         }
+    }
+
+    private fun scheduleSyncCompletionsWork() {
+        val request = androidx.work.OneTimeWorkRequestBuilder<com.islami.Aha.worker.SyncCompletionsWorker>()
+            .setConstraints(
+                androidx.work.Constraints.Builder()
+                    .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(
+            "sync_habit_completions",
+            androidx.work.ExistingWorkPolicy.KEEP,
+            request
+        )
     }
 }

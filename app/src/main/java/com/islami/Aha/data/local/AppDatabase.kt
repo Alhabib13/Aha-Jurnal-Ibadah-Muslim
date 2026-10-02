@@ -10,6 +10,7 @@ import com.islami.Aha.data.model.Habit
 import com.islami.Aha.data.model.HadithContentEntity
 import com.islami.Aha.data.model.SurahVerseEntity
 import com.islami.Aha.data.model.UserHabitEntity
+import com.islami.Aha.data.model.DeletedSyncRecord
 
 @Database(
     entities = [
@@ -17,9 +18,10 @@ import com.islami.Aha.data.model.UserHabitEntity
         UserHabitEntity::class,
         HabitCompletionRecord::class,
         HadithContentEntity::class,
-        SurahVerseEntity::class
+        SurahVerseEntity::class,
+        DeletedSyncRecord::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -28,6 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userHabitDao(): UserHabitDao
     abstract fun habitCompletionDao(): HabitCompletionDao
     abstract fun dailyIslamicContentDao(): DailyIslamicContentDao
+    abstract fun deletedSyncDao(): DeletedSyncDao
 
     companion object {
         val MIGRATION_5_6 = object : Migration(5, 6) {
@@ -142,6 +145,21 @@ abstract class AppDatabase : RoomDatabase() {
                         "ALTER TABLE habit_completion_records ADD COLUMN isSynced INTEGER NOT NULL DEFAULT 0"
                     )
                 }
+            }
+        }
+
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS deleted_sync_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        recordId TEXT NOT NULL,
+                        recordType TEXT NOT NULL,
+                        deletedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
             }
         }
 

@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.onboarding
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -114,7 +116,7 @@ fun OnboardingScreen(
                 horizontalArrangement = Arrangement.Center
             ) {
                 repeat(pagerState.pageCount) { iteration ->
-                    val color = if (pagerState.currentPage == iteration) Emerald else Color.Gray.copy(alpha = 0.5f)
+                    val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.5f)
                     val width = if (pagerState.currentPage == iteration) 24.dp else 12.dp
                     Box(
                         modifier = Modifier
@@ -163,7 +165,7 @@ fun OnboardingScreen(
                         }
                     },
                     shape = RoundedCornerShape(24.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Emerald),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     contentPadding = PaddingValues(horizontal = 32.dp, vertical = 12.dp)
                 ) {
                     Text(
@@ -180,7 +182,7 @@ fun OnboardingScreen(
 @Composable
 fun OnboardingPageContent(page: OnboardingPage) {
     val colorFilter = when (page.iconTint) {
-        IconTint.EMERALD -> ColorFilter.tint(Emerald)
+        IconTint.EMERALD -> ColorFilter.tint(MaterialTheme.colorScheme.primary)
         IconTint.WHITE -> ColorFilter.tint(Color.White)
         IconTint.NONE -> null
     }

@@ -48,6 +48,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -124,6 +125,17 @@ fun HomeScreen(
     var hasPromptedLocationService by rememberSaveable { mutableStateOf(false) }
     var hasAutoRequestedLocationPermission by rememberSaveable { mutableStateOf(false) }
 
+    var backPressedTime by remember { mutableLongStateOf(0L) }
+    androidx.activity.compose.BackHandler {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - backPressedTime < 2000) {
+            (context as? android.app.Activity)?.finish()
+        } else {
+            backPressedTime = currentTime
+            android.widget.Toast.makeText(context, context.getString(R.string.double_tap_exit), android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val locationSettingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) {
@@ -158,8 +170,10 @@ fun HomeScreen(
         val hasPermission = locationPermission.isGranted
         val locationEnabled = hasPermission && LocationHelper.isLocationEnabled(context)
         showLocationPermissionBanner = !hasPermission
-        showLocationPermissionDialog = !hasPermission && !hasPromptedLocationPermission
+        
+        // Auto-show GPS warning if permission is granted but GPS is off
         showLocationServiceDialog = hasPermission && !locationEnabled && !hasPromptedLocationService
+        
         if (hasPermission) {
             viewModel.refreshLocation()
         }
@@ -167,10 +181,6 @@ fun HomeScreen(
 
     LaunchedEffect(locationPermission.isGranted) {
         syncLocationRequirementUi()
-        if (!locationPermission.isGranted && !hasAutoRequestedLocationPermission) {
-            hasAutoRequestedLocationPermission = true
-            locationPermission.requestPermission()
-        }
     }
 
     LaunchedEffect(transientSnackbarMessage) {
@@ -212,7 +222,6 @@ fun HomeScreen(
             onRequestLocationPermission = {
                 showLocationPermissionDialog = true
                 hasPromptedLocationPermission = true
-                locationPermission.requestPermission()
             },
             onRequestNotificationPermission = notificationPermission.requestPermission,
             onRefresh = { viewModel.refreshData() },
@@ -221,7 +230,6 @@ fun HomeScreen(
                     showLocationPermissionBanner = true
                     showLocationPermissionDialog = true
                     hasPromptedLocationPermission = true
-                    locationPermission.requestPermission()
                 } else if (!LocationHelper.isLocationEnabled(context)) {
                     showLocationServiceDialog = true
                     hasPromptedLocationService = true
@@ -513,14 +521,20 @@ fun HomeScreenContent(
             }
 
             // Content based on category
+            val selectedSubCategory = uiState.subTabCategories.getOrNull(uiState.selectedSubTabIndex)
             if (uiState.isComingSoon) {
                 item {
                     ComingSoonState(categoryName = uiState.selectedMainCategory)
                 }
+            } else if (!uiState.isRamadanMonth && uiState.selectedMainCategory == CATEGORY_PUASA && selectedSubCategory == CATEGORY_PUASA_WAJIB) {
+                item {
+                    ComingSoonState(
+                        categoryName = "Ramadan (Puasa Wajib)",
+                        customMessage = "Fitur pelacakan puasa ini akan otomatis hadir di bulan Ramadan. Mari maksimalkan ibadah dengan Puasa Sunnah dulu ya!"
+                    )
+                }
             } else if (uiState.showRamadanUnifiedCard) {
                 item {
-                    val selectedSubCategory =
-                        uiState.subTabCategories.getOrNull(uiState.selectedSubTabIndex)
                     RamadanUnifiedHabitCard(
                         puasaHabit = if (
                             uiState.selectedMainCategory == CATEGORY_PUASA &&

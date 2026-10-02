@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -59,7 +61,7 @@ fun PermissionBanner(
                     text = buttonText,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Emerald
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -85,7 +87,7 @@ fun SyncStatusBanner(message: String) {
             Icon(
                 imageVector = Icons.Filled.Cloud,
                 contentDescription = null,
-                tint = Emerald,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
@@ -93,7 +95,7 @@ fun SyncStatusBanner(message: String) {
                     text = stringResource(R.string.sync_status_label),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Emerald
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Text(
                     text = message,

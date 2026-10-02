@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.settings
 
+import androidx.compose.material3.MaterialTheme
+
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -172,7 +174,20 @@ fun SettingsScreen(
         },
         onShowGenderDialog = viewModel::showGenderDialog,
         onHideGenderDialog = viewModel::hideGenderDialog,
-        onSetGenderProfile = viewModel::setGenderProfile
+        onSetGenderProfile = viewModel::setGenderProfile,
+        onFixNotificationClick = {
+            if (!com.islami.Aha.util.AutoStartHelper.isIgnoringBatteryOptimizations(context)) {
+                android.widget.Toast.makeText(context, context.getString(R.string.settings_battery_opt_prompt), android.widget.Toast.LENGTH_LONG).show()
+                com.islami.Aha.util.AutoStartHelper.requestIgnoreBatteryOptimizations(context)
+            } else {
+                val success = com.islami.Aha.util.AutoStartHelper.openAutoStartSettings(context)
+                if (!success) {
+                    android.widget.Toast.makeText(context, context.getString(R.string.settings_battery_already_optimal), android.widget.Toast.LENGTH_LONG).show()
+                } else {
+                    android.widget.Toast.makeText(context, context.getString(R.string.settings_autostart_prompt), android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     )
 }
 
@@ -226,7 +241,8 @@ fun SettingsScreenContent(
     onLoginClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onHideReAuthDialog: () -> Unit = {},
-    onConfirmReAuthDelete: (String) -> Unit = {}
+    onConfirmReAuthDelete: (String) -> Unit = {},
+    onFixNotificationClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize()) {
@@ -281,21 +297,21 @@ fun SettingsScreenContent(
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 val genderText = when (uiState.genderProfile) {
-                    com.islami.Aha.util.GenderProfile.MALE -> "Laki-laki (Jadwal Jumat Aktif)"
-                    com.islami.Aha.util.GenderProfile.FEMALE -> "Perempuan (Mode Cuti Aktif)"
-                    else -> "Belum Diatur"
+                    com.islami.Aha.util.GenderProfile.MALE -> stringResource(R.string.settings_gender_male_active)
+                    com.islami.Aha.util.GenderProfile.FEMALE -> stringResource(R.string.settings_gender_female_active)
+                    else -> stringResource(R.string.settings_gender_not_set)
                 }
                 SettingsClickableItem(
                     icon = Icons.Outlined.Person,
-                    iconBackground = Emerald.copy(alpha = 0.1f),
-                    iconTint = Emerald,
-                    title = "Profil Ibadah",
+                    iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    title = stringResource(R.string.settings_gender_title),
                     subtitle = genderText,
                     onClick = {
                         if (uiState.isHaidhMode) {
                             android.widget.Toast.makeText(
                                 context,
-                                "Matikan Mode Cuti Ibadah terlebih dahulu untuk mengubah profil.",
+                                context.getString(R.string.settings_gender_haidh_warning),
                                 android.widget.Toast.LENGTH_SHORT
                             ).show()
                         } else {
@@ -351,6 +367,8 @@ fun SettingsScreenContent(
                     onToggle = onToggleNotificationVibration
                 )
             }
+
+            // Removed AutoStart per user request
 
             // =============================================================
             // SECTION: AKUN
@@ -573,16 +591,16 @@ fun SettingsScreenContent(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Profil Ibadah",
+                        text = stringResource(R.string.settings_gender_title),
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     val descText = when (uiState.genderProfile) {
-                        com.islami.Aha.util.GenderProfile.FEMALE -> "Profil perempuan akan mengaktifkan fitur Mode Cuti (Haidh)."
-                        com.islami.Aha.util.GenderProfile.MALE -> "Profil laki-laki akan mengaktifkan penyesuaian jadwal Salat Jumat."
-                        else -> "Pilih profil Anda untuk menyesuaikan otomatis jadwal ibadah."
+                        com.islami.Aha.util.GenderProfile.FEMALE -> stringResource(R.string.settings_gender_desc_female)
+                        com.islami.Aha.util.GenderProfile.MALE -> stringResource(R.string.settings_gender_desc_male)
+                        else -> stringResource(R.string.settings_gender_desc_default)
                     }
                     Text(
                         text = descText,
@@ -603,9 +621,9 @@ fun SettingsScreenContent(
                                 .clickable { onSetGenderProfile(com.islami.Aha.util.GenderProfile.MALE) },
                             shape = RoundedCornerShape(16.dp),
                             colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.MALE) Emerald.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                containerColor = if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.MALE) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.MALE) Emerald else MaterialTheme.colorScheme.outlineVariant)
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.MALE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxSize().padding(12.dp),
@@ -614,13 +632,13 @@ fun SettingsScreenContent(
                             ) {
                                 androidx.compose.foundation.Image(
                                     painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_gender_male),
-                                    contentDescription = "Laki-laki",
+                                    contentDescription = stringResource(R.string.settings_gender_male),
                                     modifier = Modifier.size(56.dp),
                                     colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = "Laki-laki",
+                                    text = stringResource(R.string.settings_gender_male),
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -634,9 +652,9 @@ fun SettingsScreenContent(
                                 .clickable { onSetGenderProfile(com.islami.Aha.util.GenderProfile.FEMALE) },
                             shape = RoundedCornerShape(16.dp),
                             colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.FEMALE) Emerald.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                containerColor = if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.FEMALE) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.FEMALE) Emerald else MaterialTheme.colorScheme.outlineVariant)
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.genderProfile == com.islami.Aha.util.GenderProfile.FEMALE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxSize().padding(12.dp),
@@ -645,13 +663,13 @@ fun SettingsScreenContent(
                             ) {
                                 androidx.compose.foundation.Image(
                                     painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_gender_female),
-                                    contentDescription = "Perempuan",
+                                    contentDescription = stringResource(R.string.settings_gender_female),
                                     modifier = Modifier.size(56.dp),
                                     colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = "Perempuan",
+                                    text = stringResource(R.string.settings_gender_female),
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -664,7 +682,7 @@ fun SettingsScreenContent(
                         onClick = onHideGenderDialog,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Batal", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.settings_cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

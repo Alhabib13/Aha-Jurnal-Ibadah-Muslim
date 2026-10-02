@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -89,7 +91,7 @@ fun SunnahHabitCard(
                         modifier = Modifier.size(24.dp),
                         tint = when (sunnahHabit.category) {
                             SunnahCategoryType.PUASA -> WarningAmber
-                            SunnahCategoryType.SHOLAT -> Emerald
+                            SunnahCategoryType.SHOLAT -> MaterialTheme.colorScheme.primary
                         }
                     )
                 }

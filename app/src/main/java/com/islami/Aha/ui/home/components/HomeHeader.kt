@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -60,7 +62,7 @@ fun HomeHeader(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .background(brush = Brush.verticalGradient(colors = listOf(EmeraldDark, Emerald)))
+            .background(brush = Brush.verticalGradient(colors = listOf(EmeraldDark, MaterialTheme.colorScheme.primary)))
     ) {
         Column(
             modifier = Modifier
@@ -107,7 +109,7 @@ fun HomeHeader(
                             modifier = Modifier.height(16.dp).width(32.dp).scale(0.6f),
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                                checkedTrackColor = Emerald
+                                checkedTrackColor = MaterialTheme.colorScheme.primary
                             )
                         )
                     }

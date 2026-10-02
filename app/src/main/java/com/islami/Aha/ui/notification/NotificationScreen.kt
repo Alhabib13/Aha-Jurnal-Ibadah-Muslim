@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.notification
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -42,6 +44,16 @@ import com.islami.Aha.ui.components.AhaToastTone
 import com.islami.Aha.ui.components.AhaToastHost
 import com.islami.Aha.ui.theme.*
 import com.islami.Aha.util.rememberNotificationPermissionState
+
+import com.islami.Aha.ui.notification.components.NotificationHeader
+import com.islami.Aha.ui.notification.components.NotificationPermissionBanner
+import com.islami.Aha.ui.notification.components.CategorySectionHeader
+import com.islami.Aha.ui.notification.components.HabitReminderCard
+import com.islami.Aha.ui.notification.components.SunnahHabitReminderCard
+import com.islami.Aha.ui.notification.components.EmptyNotificationState
+import com.islami.Aha.ui.notification.components.EditSunnahHabitDialog
+import com.islami.Aha.ui.notification.components.DeleteConfirmationDialog
+
 
 @Composable
 fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
@@ -186,11 +198,11 @@ fun NotificationScreenContent(
                                     Icon(
                                         imageVector = Icons.Filled.Info,
                                         contentDescription = "Info",
-                                        tint = Emerald
+                                        tint = MaterialTheme.colorScheme.primary
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
-                                        text = "Notifikasi pengingat ibadah wajib (Sholat & Puasa) sedang dijeda karena Mode Cuti Ibadah sedang aktif.",
+                                        text = stringResource(R.string.notification_haidh_mode_warning),
                                         fontSize = 13.sp,
                                         lineHeight = 18.sp,
                                         color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -356,672 +368,49 @@ fun NotificationScreenContent(
     }
 }
 
-@Composable
-fun NotificationHeader(
-    isEnabled: Boolean,
-    onToggle: () -> Unit
-) {
-    val globalSwitchDescription = if (isEnabled) {
-        stringResource(R.string.notification_switch_global_on)
-    } else {
-        stringResource(R.string.notification_switch_global_off)
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                brush = Brush.verticalGradient(colors = listOf(EmeraldDark, Emerald)),
-                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 18.dp)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.NotificationsActive,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.notification_screen_title),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-            }
 
-            Text(
-                text = stringResource(R.string.notification_header_subtitle),
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
+// Extracted NotificationHeader
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.16f)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isEnabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Column {
-                            Text(
-                                text = stringResource(R.string.notification_enabled_title),
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = if (isEnabled) {
-                                    stringResource(R.string.notification_enabled_desc)
-                                } else {
-                                    stringResource(R.string.notification_disabled_desc)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
-                            )
-                        }
-                    }
-                    Switch(
-                        modifier = Modifier.semantics {
-                            contentDescription = globalSwitchDescription
-                        },
-                        checked = isEnabled,
-                        onCheckedChange = { onToggle() },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                            checkedTrackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f),
-                            uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                            uncheckedTrackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
-                        )
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = stringResource(R.string.notification_header_summary),
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                modifier = Modifier.padding(top = 6.dp)
-            )
-        }
-    }
-}
 
 // ── Section Header ──
 
-@Composable
-fun NotificationPermissionBanner(onRequestPermission: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = GoldLight)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.NotificationsOff,
-                contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.notification_permission_banner_text),
-                color = Gray700,
-                fontSize = 12.sp,
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(onClick = onRequestPermission) {
-                Text(
-                    text = stringResource(R.string.notification_permission_action),
-                    color = Emerald,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-    }
-}
 
-@Composable
-fun CategorySectionHeader(title: String, count: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = title,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = Emerald
-        )
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = EmeraldLight
-        ) {
-            Text(
-                text = pluralStringResource(R.plurals.notification_count_ibadah_format, count, count),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = Emerald,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-            )
-        }
-    }
-}
+// Extracted NotificationPermissionBanner
+
+
+
+// Extracted CategorySectionHeader
+
 
 // ── Room DB Habit Card (seed data) ──
 
-@Composable
-fun HabitReminderCard(
-    habit: Habit,
-    globalEnabled: Boolean,
-    onToggle: () -> Unit
-) {
-    val isEffectivelyEnabled = globalEnabled && habit.isReminderEnabled
-    val cardAlpha by animateFloatAsState(targetValue = if (globalEnabled) 1f else 0.6f, label = "")
-    val reminderSwitchDescription = if (habit.isReminderEnabled) {
-        stringResource(R.string.notification_switch_habit_on_format, habit.name)
-    } else {
-        stringResource(R.string.notification_switch_habit_off_format, habit.name)
-    }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(cardAlpha),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Mosque icon in circle
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(EmeraldLight),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.masjid),
-                    contentDescription = stringResource(R.string.notification_mosque_cd),
-                    tint = Emerald,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+// Extracted HabitReminderCard
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = habit.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isEffectivelyEnabled) MaterialTheme.colorScheme.onSurface else Gray500,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Time badge
-                    if (habit.time.isNotEmpty()) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = EmeraldLight
-                        ) {
-                            Text(
-                                text = habit.time,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Emerald,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    // Frequency
-                    Text(
-                        text = stringResource(R.string.notification_frequency_daily),
-                        fontSize = 12.sp,
-                        color = Gray500
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Switch(
-                modifier = Modifier.semantics {
-                    contentDescription = reminderSwitchDescription
-                },
-                checked = habit.isReminderEnabled,
-                onCheckedChange = { onToggle() },
-                enabled = globalEnabled,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = Emerald,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    uncheckedTrackColor = Gray300
-                )
-            )
-        }
-    }
-}
 
 // ── Sunnah Habit Card (manually added via AddHabit) ──
 
-@Composable
-fun SunnahHabitReminderCard(
-    sunnahHabit: SunnahHabit,
-    globalEnabled: Boolean,
-    onToggleReminder: () -> Unit,
-    onDelete: () -> Unit,
-    onEdit: () -> Unit,
-    isHaidhMode: Boolean = false
-) {
-    val isEffectivelyEnabled = globalEnabled && sunnahHabit.reminderEnabled
-    val cardAlpha by animateFloatAsState(targetValue = if (globalEnabled) 1f else 0.6f, label = "")
-    val reminderSwitchDescription = if (sunnahHabit.reminderEnabled) {
-        stringResource(R.string.notification_switch_habit_on_format, sunnahHabit.name)
-    } else {
-        stringResource(R.string.notification_switch_habit_off_format, sunnahHabit.name)
-    }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(cardAlpha),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icon in circle
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(EmeraldLight),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.masjid),
-                    contentDescription = stringResource(R.string.notification_mosque_cd),
-                    tint = Emerald,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+// Extracted SunnahHabitReminderCard
 
-            Spacer(modifier = Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = sunnahHabit.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isEffectivelyEnabled) MaterialTheme.colorScheme.onSurface else Gray500,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (sunnahHabit.reminderTime != null) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = EmeraldLight
-                        ) {
-                            Text(
-                                text = sunnahHabit.reminderTime,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Emerald,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = sunnahHabit.frequencyLabel.ifEmpty {
-                            stringResource(R.string.notification_frequency_daily)
-                        },
-                        fontSize = 12.sp,
-                        color = Gray500
-                    )
-                }
-                sunnahHabit.rakaat?.let { rakaat ->
-                    Text(
-                        text = pluralStringResource(R.plurals.notification_rakaat_format, rakaat, rakaat),
-                        fontSize = 12.sp,
-                        color = Gray500
-                    )
-                }
-            }
 
-            IconButton(
-                onClick = onEdit,
-                enabled = globalEnabled,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Edit,
-                    contentDescription = stringResource(R.string.notification_edit_cd),
-                    tint = if (globalEnabled) Gray500 else Gray300,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+// Extracted EditSunnahHabitDialog
 
-            // Delete button
-            IconButton(
-                onClick = onDelete,
-                enabled = globalEnabled,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Delete,
-                    contentDescription = stringResource(R.string.notification_delete_cd),
-                    tint = if (globalEnabled) ErrorRed.copy(alpha = 0.7f) else Gray300,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            // Bell switch
-            Switch(
-                modifier = Modifier.semantics {
-                    contentDescription = reminderSwitchDescription
-                },
-                checked = sunnahHabit.reminderEnabled,
-                onCheckedChange = { onToggleReminder() },
-                enabled = globalEnabled,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = Emerald,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    uncheckedTrackColor = Gray300
-                )
-            )
-        }
-    }
-}
-
-@Composable
-fun EditSunnahHabitDialog(
-    habit: SunnahHabit,
-    onDismiss: () -> Unit,
-    onSave: (String?, String, Int?) -> Unit
-) {
-    val timeRegex = remember { Regex("^([01]\\d|2[0-3]):([0-5]\\d)$") }
-    val dailyFrequencyText = stringResource(R.string.notification_frequency_daily)
-    var frequency by remember(habit.id, dailyFrequencyText) {
-        mutableStateOf(habit.frequencyLabel.ifBlank { dailyFrequencyText })
-    }
-    var reminderTime by remember(habit.id) { mutableStateOf(habit.reminderTime.orEmpty()) }
-    var rakaatText by remember(habit.id) { mutableStateOf(habit.rakaat?.toString().orEmpty()) }
-    val normalizedTime = reminderTime.trim()
-    val hasTimeInput = normalizedTime.isNotEmpty()
-    val hasInvalidTime = hasTimeInput && !timeRegex.matches(normalizedTime)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.notification_edit_sunnah_title),
-                fontWeight = FontWeight.SemiBold
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = frequency,
-                    onValueChange = { frequency = it },
-                    label = { Text(stringResource(R.string.notification_frequency_label)) },
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = reminderTime,
-                    onValueChange = { reminderTime = it },
-                    label = { Text(stringResource(R.string.notification_time_label)) },
-                    placeholder = { Text(stringResource(R.string.notification_time_placeholder)) },
-                    singleLine = true,
-                    isError = hasInvalidTime,
-                    supportingText = {
-                        if (hasInvalidTime) {
-                            Text(stringResource(R.string.notification_time_error_format))
-                        }
-                    }
-                )
-                if (habit.category == SunnahCategoryType.SHOLAT) {
-                    OutlinedTextField(
-                        value = rakaatText,
-                        onValueChange = { rakaatText = it.filter(Char::isDigit) },
-                        label = { Text(stringResource(R.string.notification_rakaat_label)) },
-                        singleLine = true
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = !hasInvalidTime,
-                onClick = {
-                    val rakaat = rakaatText.toIntOrNull()
-                    onSave(
-                        normalizedTime.ifBlank { null },
-                        frequency.trim().ifBlank { dailyFrequencyText },
-                        rakaat
-                    )
-                }
-            ) {
-                Text(
-                    text = stringResource(R.string.common_save),
-                    color = Emerald,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    )
-}
 
 // ── Dialogs & Empty State ──
 
-@Composable
-fun DeleteConfirmationDialog(
-    habitName: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.notification_delete_dialog_title),
-                fontWeight = FontWeight.SemiBold
-            )
-        },
-        text = {
-            Text(stringResource(R.string.notification_delete_dialog_desc_format, habitName))
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(
-                    text = stringResource(R.string.settings_delete_action),
-                    color = ErrorRed,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        }
-    )
-}
 
-@Composable
-fun EmptyNotificationState(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(Icons.Outlined.NotificationsOff, null, modifier = Modifier.size(48.dp), tint = Gray400)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(stringResource(R.string.notification_empty_title), style = MaterialTheme.typography.titleMedium)
-        Text(
-            text = stringResource(R.string.notification_empty_desc),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Gray500,
-            textAlign = TextAlign.Center
-        )
-    }
-}
+// Extracted DeleteConfirmationDialog
+
+
+
+// Extracted EmptyNotificationState
+
 
 // ── Preview ──
 
-private fun notificationPreviewState(
-    isLoading: Boolean = false,
-    globalEnabled: Boolean = true
-): NotificationUiState {
-    return NotificationUiState(
-        isLoading = isLoading,
-        globalNotificationEnabled = globalEnabled,
-        habits = if (isLoading) {
-            emptyList()
-        } else {
-            listOf(
-                Habit(1, "Sholat Subuh", "Sholat Fardhu", "sunrise", "", false, time = "04:30"),
-                Habit(2, "Sholat Dzuhur", "Sholat Fardhu", "sun", "", false, time = "12:00"),
-                Habit(3, "Sholat Ashar", "Sholat Fardhu", "cloud", "", false, time = "15:15"),
-                Habit(4, "Sholat Maghrib", "Sholat Fardhu", "moon", "", false, time = "18:00"),
-                Habit(5, "Sholat Isya", "Sholat Fardhu", "moon", "", false, time = "19:15"),
-                Habit(6, "Sholat Dhuha", "Sholat Sunnah", "sun", "", false, time = "06:00"),
-                Habit(7, "Puasa Ramadan", "Puasa Wajib", "plate", "", false, time = ""),
-                Habit(8, "Puasa Senin", "Puasa Sunnah", "moon", "", false, time = "")
-            )
-        },
-        sunnahHabits = if (isLoading) {
-            emptyList()
-        } else {
-            listOf(
-                SunnahHabit(
-                    name = "Taubat",
-                    category = SunnahCategoryType.SHOLAT,
-                    frequencyLabel = "Setiap hari",
-                    reminderEnabled = true,
-                    reminderTime = "05:00"
-                ),
-                SunnahHabit(
-                    name = "Puasa Nazar",
-                    category = SunnahCategoryType.PUASA,
-                    frequencyLabel = "Hari: Sen",
-                    reminderEnabled = false
-                )
-            )
-        }
-    )
-}
-
-@Composable
-private fun NotificationScreenPreviewContent(
-    uiState: NotificationUiState,
-    notificationPermissionGranted: Boolean = true
-) {
-    HabitIslamiTheme {
-        NotificationScreenContent(
-            uiState = uiState,
-            notificationPermissionGranted = notificationPermissionGranted,
-            onToggleGlobalNotification = {},
-            onToggleReminder = {},
-            onDeleteClick = {},
-            onConfirmDelete = {},
-            onDismissDelete = {},
-            onToggleSunnahReminder = {},
-            onDeleteSunnahClick = {},
-            onEditSunnahClick = {},
-            onDismissEditSunnah = {},
-            onSaveEditSunnah = { _, _, _, _ -> }
-        )
-    }
-}
-
-@Preview(name = "Notification Split Safe", showBackground = true)
-@Composable
-fun NotificationScreenSplitSafePreview() {
-    NotificationScreenPreviewContent(uiState = notificationPreviewState())
-}
-
-@Preview(name = "Notification Loading Safe", showBackground = true)
-@Composable
-fun NotificationScreenLoadingSafePreview() {
-    NotificationScreenPreviewContent(uiState = notificationPreviewState(isLoading = true))
-}
-
-@Preview(name = "Notification Permission Safe", showBackground = true)
-@Composable
-fun NotificationScreenPermissionSafePreview() {
-    NotificationScreenPreviewContent(
-        uiState = notificationPreviewState(globalEnabled = false),
-        notificationPermissionGranted = false
-    )
-}
-
-@Preview(showBackground = true)
+@Preview(showBackground = true, device = "id:pixel_5")
 @Composable
 fun NotificationScreenPreview() {
     HabitIslamiTheme {
@@ -1054,6 +443,7 @@ fun NotificationScreenPreview() {
                     )
                 )
             ),
+            notificationPermissionGranted = true,
             onToggleGlobalNotification = {},
             onToggleReminder = {},
             onDeleteClick = {},
@@ -1067,3 +457,4 @@ fun NotificationScreenPreview() {
         )
     }
 }
+

@@ -4,6 +4,8 @@ import androidx.room.withTransaction
 import com.islami.Aha.data.local.AppDatabase
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.UserHabitDao
+import com.islami.Aha.data.local.DeletedSyncDao
+import com.islami.Aha.data.model.DeletedSyncRecord
 import com.islami.Aha.data.model.HabitCompletionRecord
 import com.islami.Aha.data.model.UserHabitEntity
 import com.islami.Aha.domain.model.SunnahHabit
@@ -26,7 +28,8 @@ class UserHabitRepository @Inject constructor(
     private val appDatabase: AppDatabase,
     private val userHabitDao: UserHabitDao,
     private val habitCompletionDao: HabitCompletionDao,
-    private val completionSyncRepository: CompletionSyncRepository
+    private val completionSyncRepository: CompletionSyncRepository,
+    private val deletedSyncDao: DeletedSyncDao
 ) {
     companion object {
         private const val MIN_SYNC_INTERVAL_MS = 30_000L
@@ -130,6 +133,11 @@ class UserHabitRepository @Inject constructor(
 
     suspend fun clearLocalHabitsForGuestMode() {
         userHabitDao.deleteAll()
+        lastSyncAtMs = 0L
+    }
+
+    fun resetSyncState() {
+        lastSyncAtMs = 0L
     }
 
     suspend fun syncFromCloudIfLoggedIn(): CloudSyncStatus {
@@ -149,7 +157,7 @@ class UserHabitRepository @Inject constructor(
                     .await()
             }.getOrElse { error ->
                 lastSyncAtMs = 0L
-                FirebaseCrashlytics.getInstance().recordException(error)
+                com.islami.Aha.util.logCrashlyticsSafe(error)
                 return error.toCloudSyncFailure(HABIT_SYNC_FAILED_NOTICE)
             }
 
@@ -217,6 +225,24 @@ class UserHabitRepository @Inject constructor(
                     changedCount += idsToDelete.size
                 }
 
+                // Process pending deletes
+                val pendingDeletes = deletedSyncDao.getAllDeletedRecords().filter { it.recordType == "SUNNAH_HABIT" }
+                pendingDeletes.forEach { record ->
+                    val result = runCatching {
+                        cloud.collection("users").document(uid).collection("sunnah_habits").document(record.recordId).delete().await()
+                        deletedSyncDao.deleteRecordById(record.id)
+                        CloudSyncStatus.success(changedCount = 1)
+                    }.getOrElse { error ->
+                        com.islami.Aha.util.logCrashlyticsSafe(error)
+                        error.toCloudSyncFailure(HABIT_SYNC_FAILED_NOTICE)
+                    }
+                    if (result.hasIssue) {
+                        lastSyncAtMs = 0L
+                        return result.copy(changedCount = changedCount)
+                    }
+                    changedCount += 1
+                }
+
                 pendingUpload.values.forEach { local ->
                     val syncStatus = syncUpsertToCloud(local)
                     if (syncStatus.hasIssue) {
@@ -260,7 +286,7 @@ class UserHabitRepository @Inject constructor(
             userHabitDao.markHabitSynced(entity.id, entity.updatedAt)
             CloudSyncStatus.success(changedCount = 1)
         }.getOrElse { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
             error.toCloudSyncFailure(HABIT_SYNC_FAILED_NOTICE)
         }
     }
@@ -268,6 +294,7 @@ class UserHabitRepository @Inject constructor(
     private suspend fun syncDeleteFromCloud(id: String) {
         val uid = firebaseAuth?.currentUser?.uid ?: return
         val cloud = firestore ?: return
+        deletedSyncDao.insert(DeletedSyncRecord(recordId = id, recordType = "SUNNAH_HABIT"))
         runCatching {
             cloud.collection("users")
                 .document(uid)
@@ -275,8 +302,9 @@ class UserHabitRepository @Inject constructor(
                 .document(id)
                 .delete()
                 .await()
+            deletedSyncDao.deleteByRecordIdAndType(id, "SUNNAH_HABIT")
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 

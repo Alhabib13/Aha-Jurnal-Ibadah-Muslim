@@ -93,7 +93,7 @@ fun HabitItem(
                         Icon(
                             imageVector = mapHabitIcon(habit.icon),
                             contentDescription = habit.name,
-                            tint = Emerald,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
                     }

@@ -208,8 +208,9 @@ class AhaApplication : Application() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to restore alarms", e)
-                FirebaseCrashlytics.getInstance().recordException(e)
+                com.islami.Aha.util.logCrashlyticsSafe(e)
             }
         }
     }
 }
+

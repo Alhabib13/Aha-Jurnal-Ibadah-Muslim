@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.addhabit
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -35,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import com.islami.Aha.R
 import com.islami.Aha.ui.components.AhaLoadingOverlay
 import com.islami.Aha.ui.theme.*
@@ -104,7 +108,15 @@ fun AddHabitScreenContent(
         is24Hour = true
     )
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { focusManager.clearFocus() })
+            }
+    ) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
             bottomBar = {
@@ -124,7 +136,7 @@ fun AddHabitScreenContent(
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                             .height(56.dp),
                         shape = RoundedCornerShape(28.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Emerald)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -177,13 +189,14 @@ fun AddHabitScreenContent(
                             modifier = Modifier.size(80.dp)
                         )
                         Text(
-                            text = "Mode Cuti Ibadah Aktif",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            text = stringResource(R.string.add_habit_haidh_mode_title),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.error
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Maaf, Anda tidak dapat menambahkan jadwal Sholat atau Puasa Sunnah saat mode cuti sedang aktif.",
+                            text = stringResource(R.string.add_habit_haidh_mode_desc),
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -228,7 +241,7 @@ fun AddHabitScreenContent(
                                 .fillMaxHeight()
                                 .clickable { onSelectHabit(habit.id) },
                             shape = RoundedCornerShape(16.dp),
-                            border = if (isSelected) BorderStroke(2.dp, Emerald) else null,
+                            border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant
                                 else MaterialTheme.colorScheme.surface
@@ -243,7 +256,7 @@ fun AddHabitScreenContent(
                                 Text(
                                     text = habit.name,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (isSelected) Emerald else MaterialTheme.colorScheme.onSurface
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = habit.description,
@@ -282,14 +295,14 @@ fun AddHabitScreenContent(
                                         .clip(CircleShape)
                                         .clickable { onSelectRakaat(rakaat) },
                                     shape = CircleShape,
-                                    color = if (isSelected) Emerald else MaterialTheme.colorScheme.surface,
-                                    border = if (!isSelected) BorderStroke(1.dp, Emerald.copy(alpha = 0.4f)) else null
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                    border = if (!isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)) else null
                                 ) {
                                     Text(
                                         text = "$rakaat",
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                                         fontWeight = FontWeight.Medium,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Emerald
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
@@ -367,13 +380,13 @@ fun AddHabitScreenContent(
                 state = timePickerState,
                 colors = TimePickerDefaults.colors(
                     clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
-                    selectorColor = Emerald,
+                    selectorColor = MaterialTheme.colorScheme.primary,
                     containerColor = MaterialTheme.colorScheme.surface,
-                    periodSelectorBorderColor = Emerald,
-                    periodSelectorSelectedContainerColor = Emerald,
+                    periodSelectorBorderColor = MaterialTheme.colorScheme.primary,
+                    periodSelectorSelectedContainerColor = MaterialTheme.colorScheme.primary,
                     periodSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
                     periodSelectorUnselectedContentColor = secondaryIconTint,
-                    timeSelectorSelectedContainerColor = Emerald,
+                    timeSelectorSelectedContainerColor = MaterialTheme.colorScheme.primary,
                     timeSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
                     timeSelectorUnselectedContentColor = secondaryIconTint,
                     clockDialSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
@@ -392,7 +405,7 @@ private fun AddHabitHeader(onNavigateBack: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                brush = Brush.verticalGradient(colors = listOf(EmeraldDark, Emerald)),
+                brush = Brush.verticalGradient(colors = listOf(EmeraldDark, MaterialTheme.colorScheme.primary)),
                 shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
             )
     ) {
@@ -494,8 +507,8 @@ private fun LainnyaSection(
                         modifier = Modifier
                             .clickable { onSelectExtra(extra.id) },
                         shape = RoundedCornerShape(50),
-                        color = if (isSelected) Emerald else MaterialTheme.colorScheme.surfaceVariant,
-                        border = if (!isSelected) BorderStroke(1.dp, Emerald) else null
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                        border = if (!isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
                     ) {
                         Text(
                             text = extra.name,
@@ -523,14 +536,14 @@ private fun LainnyaSection(
                 Icon(
                     imageVector = Icons.Filled.Edit,
                     contentDescription = null,
-                    tint = Emerald,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
                     text = stringResource(R.string.write_custom_label),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Emerald
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
 
@@ -548,9 +561,9 @@ private fun LainnyaSection(
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Emerald,
-                        focusedLabelColor = Emerald,
-                        cursorColor = Emerald
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        cursorColor = MaterialTheme.colorScheme.primary
                     )
                 )
             }
@@ -566,14 +579,14 @@ private fun SelectableChip(text: String, isSelected: Boolean, onClick: () -> Uni
         modifier = Modifier
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(50),
-        color = if (isSelected) Emerald else MaterialTheme.colorScheme.surface,
-        border = if (!isSelected) BorderStroke(1.dp, Emerald) else null
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        border = if (!isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             fontWeight = FontWeight.Medium,
-            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Emerald
+            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
         )
     }
 }
@@ -590,7 +603,7 @@ private fun DaySelectionChip(title: String, selected: Boolean, onClick: () -> Un
             .clip(CircleShape)
             .clickable(onClick = onClick),
         shape = CircleShape,
-        color = if (selected) Emerald else MaterialTheme.colorScheme.surface,
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         border = if (!selected) BorderStroke(1.dp, Gray300) else null
     ) {
         Text(
@@ -630,7 +643,7 @@ private fun ReminderCard(
                         imageVector = if (isEnabled) Icons.Outlined.NotificationsActive
                         else Icons.Outlined.Notifications,
                         contentDescription = null,
-                        tint = Emerald
+                        tint = MaterialTheme.colorScheme.primary
                     )
                     Column {
                         Text(
@@ -649,7 +662,7 @@ private fun ReminderCard(
                     onCheckedChange = { onToggle() },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                        checkedTrackColor = Emerald
+                        checkedTrackColor = MaterialTheme.colorScheme.primary
                     )
                 )
             }
@@ -681,7 +694,7 @@ private fun ReminderCard(
                         Text(
                             text = reminderTime,
                             fontWeight = FontWeight.SemiBold,
-                            color = Emerald
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -709,7 +722,7 @@ fun TimePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text(text = stringResource(R.string.ok), color = Emerald)
+                Text(text = stringResource(R.string.ok), color = MaterialTheme.colorScheme.primary)
             }
         },
         dismissButton = {

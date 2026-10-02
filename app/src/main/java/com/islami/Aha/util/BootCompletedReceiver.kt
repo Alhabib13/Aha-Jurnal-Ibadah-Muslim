@@ -84,7 +84,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
                     }
                 }.onFailure { e ->
                     Log.e("BootCompletedReceiver", "Failed to restore alarms", e)
-                    FirebaseCrashlytics.getInstance().recordException(e)
+                    com.islami.Aha.util.logCrashlyticsSafe(e)
                 }
             } finally {
                 pendingResult.finish()

@@ -80,7 +80,7 @@ fun AhaToastHost(
     }
     val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val accentColor = when (resolvedTone) {
-        AhaToastTone.SUCCESS -> Emerald
+        AhaToastTone.SUCCESS -> MaterialTheme.colorScheme.primary
         AhaToastTone.ERROR -> ErrorRed
         AhaToastTone.INFO,
         AhaToastTone.AUTO -> MaterialTheme.colorScheme.primary
@@ -226,7 +226,7 @@ fun AhaLoadingOverlay(
                     .border(
                         width = 1.dp,
                         color = if (isDarkTheme) {
-                            Emerald.copy(alpha = 0.24f)
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
                         } else {
                             EmeraldDark.copy(alpha = 0.14f)
                         },
@@ -236,7 +236,7 @@ fun AhaLoadingOverlay(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 CircularProgressIndicator(
-                    color = Emerald,
+                    color = MaterialTheme.colorScheme.primary,
                     strokeWidth = 3.dp
                 )
                 Spacer(modifier = Modifier.height(16.dp))

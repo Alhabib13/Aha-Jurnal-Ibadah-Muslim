@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.settings.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,9 +61,9 @@ fun LocationInputDialog(
                     }
                 ),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Emerald,
-                    focusedLabelColor = Emerald,
-                    cursorColor = Emerald
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary
                 ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -73,7 +75,7 @@ fun LocationInputDialog(
             ) {
                 Text(
                     text = stringResource(R.string.common_save),
-                    color = Emerald,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -117,7 +119,7 @@ fun TimeFormatSelectionDialog(
                             selected = format == currentFormat,
                             onClick = { onSelect(format) },
                             colors = RadioButtonDefaults.colors(
-                                selectedColor = Emerald
+                                selectedColor = MaterialTheme.colorScheme.primary
                             )
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -177,7 +179,7 @@ fun ThemeModeSelectionDialog(
                             selected = mode == currentMode,
                             onClick = { onSelect(mode) },
                             colors = RadioButtonDefaults.colors(
-                                selectedColor = Emerald
+                                selectedColor = MaterialTheme.colorScheme.primary
                             )
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -230,7 +232,7 @@ fun NotificationSoundSelectionDialog(
                             selected = option == currentOption,
                             onClick = { onSelect(option) },
                             colors = RadioButtonDefaults.colors(
-                                selectedColor = Emerald
+                                selectedColor = MaterialTheme.colorScheme.primary
                             )
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -310,7 +312,7 @@ fun AccountSecurityDialog(
                             stringResource(R.string.settings_security_status_unverified)
                         },
                         fontSize = 13.sp,
-                        color = if (isEmailVerified) Emerald else WarningAmber
+                        color = if (isEmailVerified) MaterialTheme.colorScheme.primary else WarningAmber
                     )
                     TextButton(
                         onClick = onRefreshStatus,
@@ -431,7 +433,7 @@ fun ImportDataConfirmationDialog(
                             selected = selectedMode == mode,
                             onClick = { onSelectMode(mode) },
                             enabled = !isImporting,
-                            colors = RadioButtonDefaults.colors(selectedColor = Emerald)
+                            colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
@@ -460,7 +462,7 @@ fun ImportDataConfirmationDialog(
                 } else {
                     Text(
                         text = stringResource(R.string.settings_import_action),
-                        color = Emerald,
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -585,7 +587,7 @@ fun ChangePasswordDialog(
                 } else {
                     Text(
                         text = stringResource(R.string.common_save),
-                        color = Emerald,
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
                 }

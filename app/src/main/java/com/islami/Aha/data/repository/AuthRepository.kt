@@ -14,6 +14,10 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,6 +33,8 @@ class AuthRepository @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
     private val sharedPreferences: SharedPreferences
 ) {
+
+    private val repoScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
@@ -64,8 +70,10 @@ class AuthRepository @Inject constructor(
             val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
             val user = result.user ?: return AuthResult.Error("Login gagal")
             syncToPreferences(user)
-            runCatching { syncProfileFromCloud(user.uid) }
-                .onFailure { FirebaseCrashlytics.getInstance().recordException(it) }
+            repoScope.launch {
+                runCatching { syncProfileFromCloud(user.uid) }
+                    .onFailure { com.islami.Aha.util.logCrashlyticsSafe(it) }
+            }
             AuthResult.Success(user)
         } catch (e: Exception) {
             AuthResult.Error(mapFirebaseError(e))
@@ -83,8 +91,10 @@ class AuthRepository @Inject constructor(
             user.updateProfile(profileUpdates).await()
 
             syncToPreferences(user.apply { /* displayName updated */ }, name)
-            runCatching { upsertProfileBasics(user.uid, name, email) }
-                .onFailure { FirebaseCrashlytics.getInstance().recordException(it) }
+            repoScope.launch {
+                runCatching { upsertProfileBasics(user.uid, name, email) }
+                    .onFailure { com.islami.Aha.util.logCrashlyticsSafe(it) }
+            }
             AuthResult.Success(user)
         } catch (e: Exception) {
             AuthResult.Error(mapFirebaseError(e))
@@ -97,14 +107,16 @@ class AuthRepository @Inject constructor(
             val result = firebaseAuth.signInWithCredential(credential).await()
             val user = result.user ?: return AuthResult.Error("Login gagal")
             syncToPreferences(user)
-            runCatching {
-                upsertProfileBasics(
-                    uid = user.uid,
-                    name = user.displayName ?: user.email?.substringBefore("@") ?: "Pengguna",
-                    email = user.email ?: ""
-                )
-                syncProfileFromCloud(user.uid)
-            }.onFailure { FirebaseCrashlytics.getInstance().recordException(it) }
+            repoScope.launch {
+                runCatching {
+                    upsertProfileBasics(
+                        uid = user.uid,
+                        name = user.displayName ?: user.email?.substringBefore("@") ?: "Pengguna",
+                        email = user.email ?: ""
+                    )
+                    syncProfileFromCloud(user.uid)
+                }.onFailure { com.islami.Aha.util.logCrashlyticsSafe(it) }
+            }
             AuthResult.Success(user, isProfileIncomplete = false)
         } catch (e: Exception) {
             AuthResult.Error(mapFirebaseError(e))
@@ -137,7 +149,7 @@ class AuthRepository @Inject constructor(
             sharedPreferences.edit().putString(KEY_USER_AVATAR_URI, base64Image).apply()
             Unit
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 
@@ -164,7 +176,7 @@ class AuthRepository @Inject constructor(
             sharedPreferences.edit().remove(KEY_USER_AVATAR_URI).apply()
             Unit
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 
@@ -207,7 +219,7 @@ class AuthRepository @Inject constructor(
                 .apply()
             Unit
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 
@@ -227,7 +239,7 @@ class AuthRepository @Inject constructor(
                 )?.await()
             Unit
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 
@@ -248,7 +260,7 @@ class AuthRepository @Inject constructor(
         }.recoverCatching { error ->
             throw IllegalStateException(mapFirebaseError(error as? Exception ?: Exception(error)))
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 
@@ -262,7 +274,7 @@ class AuthRepository @Inject constructor(
         }.recoverCatching { error ->
             throw IllegalStateException(mapFirebaseError(error as? Exception ?: Exception(error)))
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 
@@ -276,7 +288,7 @@ class AuthRepository @Inject constructor(
         }.recoverCatching { error ->
             throw IllegalStateException(mapFirebaseError(error as? Exception ?: Exception(error)))
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 
@@ -301,7 +313,7 @@ class AuthRepository @Inject constructor(
                 runCatching {
                     firebaseAuth.sendPasswordResetEmail(email).await()
                 }.onFailure { error ->
-                    FirebaseCrashlytics.getInstance().recordException(error)
+                    com.islami.Aha.util.logCrashlyticsSafe(error)
                     throw IllegalStateException("Password berhasil diubah, tapi email konfirmasi gagal dikirim")
                 }
             }
@@ -312,7 +324,7 @@ class AuthRepository @Inject constructor(
             }
             throw IllegalStateException(mapFirebaseError(error as? Exception ?: Exception(error)))
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 
@@ -334,7 +346,7 @@ class AuthRepository @Inject constructor(
             throw error
         }.onFailure { error ->
             if (error !is ReAuthRequiredException) {
-                FirebaseCrashlytics.getInstance().recordException(error)
+                com.islami.Aha.util.logCrashlyticsSafe(error)
             }
         }
     }
@@ -351,7 +363,7 @@ class AuthRepository @Inject constructor(
             user.reauthenticate(credential).await()
             deleteAccountSafely(user)
         }.onFailure { error ->
-            FirebaseCrashlytics.getInstance().recordException(error)
+            com.islami.Aha.util.logCrashlyticsSafe(error)
         }
     }
 
@@ -371,7 +383,7 @@ class AuthRepository @Inject constructor(
         }.onFailure { error ->
             runCatching { restoreCloudData(user.uid, backup) }
                 .onFailure { restoreError ->
-                    FirebaseCrashlytics.getInstance().recordException(restoreError)
+                    com.islami.Aha.util.logCrashlyticsSafe(restoreError)
                 }
             throw error
         }
@@ -505,6 +517,10 @@ class AuthRepository @Inject constructor(
     }
 
     fun logout() {
+        val uid = firebaseAuth.currentUser?.uid
+        if (uid != null) {
+            sharedPreferences.edit().remove("last_completion_sync_$uid").apply()
+        }
         firebaseAuth.signOut()
         sharedPreferences.edit()
             .putBoolean(KEY_IS_LOGGED_IN, false)
@@ -517,10 +533,14 @@ class AuthRepository @Inject constructor(
         com.islami.Aha.util.UserPreferencesManager.clearAll()
     }
     
-    fun restoreSessionFromFirebase() {
+    suspend fun restoreSessionFromFirebase() {
         val user = firebaseAuth.currentUser
         if (user != null) {
             syncToPreferences(user)
+            repoScope.launch {
+                runCatching { syncProfileFromCloud(user.uid) }
+                    .onFailure { com.islami.Aha.util.logCrashlyticsSafe(it) }
+            }
         }
     }
 
@@ -533,7 +553,11 @@ class AuthRepository @Inject constructor(
             .putString(KEY_USER_EMAIL, user.email ?: "")
         val photoUrl = user.photoUrl?.toString()
         if (!photoUrl.isNullOrBlank()) {
-            editor.putString(KEY_USER_AVATAR_URI, photoUrl)
+            val existingAvatar = sharedPreferences.getString(KEY_USER_AVATAR_URI, null)
+            // Hanya timpa avatar jika saat ini kosong atau berupa URL Google
+            if (existingAvatar == null || existingAvatar.startsWith("http")) {
+                editor.putString(KEY_USER_AVATAR_URI, photoUrl)
+            }
         }
         editor.apply()
     }

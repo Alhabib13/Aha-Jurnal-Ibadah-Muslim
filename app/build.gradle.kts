@@ -35,11 +35,11 @@ android {
     val firebaseConfigMeta = readFirebaseConfigMeta(file("google-services.json"))
 
     defaultConfig {
-        applicationId = "com.islami.Aha"
+        applicationId = "com.Islamic.Aha"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.1.1"
         val forceDebugAppCheck = providers
             .gradleProperty("FORCE_APPCHECK_DEBUG")
             .orNull
@@ -169,7 +169,6 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-storage")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
     debugImplementation("com.google.firebase:firebase-appcheck-debug")
 
@@ -193,8 +192,8 @@ tasks.register("validateFirebaseConfigPresence") {
     group = "verification"
     description = "Validate the single Firebase configuration file required by this app."
 
+    val firebaseFile = layout.projectDirectory.file("google-services.json").asFile
     doLast {
-        val firebaseFile = file("google-services.json")
         if (!firebaseFile.exists()) {
             throw GradleException("Missing Firebase config: app/google-services.json")
         }

@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -142,14 +144,14 @@ fun HomeHabitItem(
                             Icon(
                                 imageVector = Icons.Rounded.Mosque,
                                 contentDescription = habit.name,
-                                tint = Emerald,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
                         } else {
                             Icon(
                                 imageVector = getHabitItemIcon(habit),
                                 contentDescription = habit.name,
-                                tint = Emerald,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -193,7 +195,7 @@ fun HomeHabitItem(
                             Icons.Outlined.NotificationsOff
                         },
                         contentDescription = reminderStateDescription,
-                        tint = if (habit.isReminderEnabled) Emerald else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (habit.isReminderEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }

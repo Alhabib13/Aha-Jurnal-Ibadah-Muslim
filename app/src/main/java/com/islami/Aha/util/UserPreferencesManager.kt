@@ -61,7 +61,7 @@ object UserPreferencesManager {
         
         if (profile == GenderProfile.MALE) {
             setJumatEnabled(true)
-            setHaidhMode(false)
+            setHaidhMode(false, reason = "setGender(MALE)")
         } else if (profile == GenderProfile.FEMALE) {
             setJumatEnabled(false)
         }
@@ -79,56 +79,23 @@ object UserPreferencesManager {
     fun syncHaidhDates() {
         if (_isHaidhMode.value) {
             val today = java.time.LocalDate.now()
-            val dateKey = today.toString()
             val dates = getHaidhDates().toMutableSet()
             
-            // Check if we should auto-turn off (Max 15 days in Islam)
-            var shouldTurnOff = false
             if (dates.isNotEmpty()) {
-                val sortedDates = dates.mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }.sorted()
-                if (sortedDates.isNotEmpty()) {
-                    val lastDate = sortedDates.last()
-                    
-                    // Find the start of the CURRENT cycle by walking backwards.
-                    // A gap of more than 15 days means it's a different cycle.
-                    var currentCycleStart = lastDate
-                    for (i in sortedDates.size - 2 downTo 0) {
-                        val prevDate = sortedDates[i]
-                        val gap = java.time.temporal.ChronoUnit.DAYS.between(prevDate, currentCycleStart)
-                        if (gap > 15) {
-                            break // Found the gap separating the previous cycle
-                        }
-                        currentCycleStart = prevDate
-                    }
-                    
-                    val daysSinceStart = java.time.temporal.ChronoUnit.DAYS.between(currentCycleStart, today)
-                    val daysSinceLast = java.time.temporal.ChronoUnit.DAYS.between(lastDate, today)
-                    
-                    // Turn off if it's been more than 15 days since the start of this current cycle,
-                    // OR if the user hasn't opened the app (in Haidh mode) for > 15 days.
-                    if (daysSinceStart > 15 || daysSinceLast > 15) {
-                        shouldTurnOff = true
-                    }
-                }
-            }
-
-            if (shouldTurnOff) {
-                setHaidhMode(false)
-                return
-            }
-
-            // Fill in any gaps between the last recorded date and today
-            if (dates.isNotEmpty()) {
-                val sortedDates = dates.mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }.sorted()
-                if (sortedDates.isNotEmpty()) {
-                    var current = sortedDates.last().plusDays(1)
+                val parsedDates = dates.mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+                val pastDates = parsedDates.filter { it.isBefore(today) }.sorted()
+                
+                if (pastDates.isNotEmpty()) {
+                    var current = pastDates.last().plusDays(1)
                     while (current.isBefore(today) || current.isEqual(today)) {
                         dates.add(current.toString())
                         current = current.plusDays(1)
                     }
+                } else {
+                    dates.add(today.toString())
                 }
             } else {
-                dates.add(dateKey)
+                dates.add(today.toString())
             }
 
             prefs?.edit()?.putStringSet(KEY_HAIDH_DATES, dates)?.apply()
@@ -136,7 +103,11 @@ object UserPreferencesManager {
         }
     }
     
-    fun setHaidhMode(enabled: Boolean) {
+    fun setHaidhMode(enabled: Boolean, reason: String = "Unknown") {
+        if (!enabled && _isHaidhMode.value) {
+            // Log this to Firestore or SharedPreferences so we can read it!
+            prefs?.edit()?.putString("DEBUG_HAIDH_OFF_REASON", reason)?.apply()
+        }
         _isHaidhMode.value = enabled
         prefs?.edit()?.putBoolean(KEY_HAIDH_MODE, enabled)?.apply()
         

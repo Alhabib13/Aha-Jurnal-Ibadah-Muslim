@@ -18,9 +18,9 @@
 
 <div class="container">
     <h1>Kebijakan Privasi Aha Islamic Tracker</h1>
-    <p><em>Terakhir Diperbarui: 14 Februari 2026</em></p>
+    <p><em>Terakhir Diperbarui: 17 September 2026</em></p>
 
-    <p>Selamat datang di <strong>Aha Islamic Tracker</strong> (Package Name: <code>com.islami.Aha</code>). Privasi Anda adalah amanah bagi kami. Kebijakan ini menjelaskan bagaimana aplikasi kami mengelola data Anda untuk membantu Anda tetap istiqomah dalam beribadah.</p>
+    <p>Selamat datang di <strong>Aha Islamic Tracker</strong> (Package Name: <code>com.Islamic.Aha</code>). Privasi Anda adalah amanah bagi kami. Kebijakan ini menjelaskan bagaimana aplikasi kami mengelola data Anda untuk membantu Anda tetap istiqomah dalam beribadah.</p>
 
     <div class="highlight">
         <strong>Pernyataan Privasi Utama:</strong> Kami tidak menjual data pribadi Anda kepada pihak ketiga. Semua data yang kami kumpulkan bertujuan murni untuk fungsionalitas fitur ibadah Anda.
@@ -28,9 +28,10 @@
 
     <h2>1. Informasi yang Kami Kumpulkan</h2>
     <ul>
-        <li><strong>Informasi Lokasi:</strong> Kami memerlukan akses lokasi perangkat Anda untuk memberikan jadwal sholat yang akurat dan menentukan arah Kiblat berdasarkan posisi Anda saat ini.</li>
+        <li><strong>Informasi Akun:</strong> Saat Anda mendaftar atau masuk menggunakan Google Sign-In, kami mengumpulkan nama lengkap, alamat email, dan foto profil (opsional) untuk keperluan personalisasi dan autentikasi akun Anda.</li>
+        <li><strong>Informasi Lokasi:</strong> Kami memerlukan akses lokasi perangkat Anda untuk memberikan jadwal sholat yang akurat dan menentukan arah Kiblat berdasarkan posisi Anda saat ini. Koordinat lokasi Anda dikirimkan ke layanan pihak ketiga <strong>Aladhan API</strong> (<code>api.aladhan.com</code>) untuk menghitung jadwal sholat sesuai metode Kementerian Agama RI.</li>
         <li><strong>Log Ibadah:</strong> Data yang Anda masukkan secara mandiri (seperti centang sholat, puasa, atau progres hafalan) disimpan untuk menampilkan statistik kemajuan spiritual Anda.</li>
-        <li><strong>Informasi Perangkat:</strong> Jenis perangkat dan versi OS untuk memastikan aplikasi berjalan optimal dan bebas <em>bug</em>.</li>
+        <li><strong>Informasi Perangkat &amp; Diagnostik:</strong> Jenis perangkat, versi OS, dan data <em>crash log</em> dikumpulkan melalui <strong>Google Firebase Crashlytics</strong> untuk memastikan aplikasi berjalan optimal dan memperbaiki <em>bug</em> secara cepat. Pengumpulan data diagnostik ini hanya aktif pada versi produksi aplikasi.</li>
     </ul>
 
     <h2>2. Penggunaan Data</h2>
@@ -39,28 +40,38 @@
         <li>Sinkronisasi jadwal ibadah secara otomatis sesuai zona waktu Anda.</li>
         <li>Memberikan notifikasi pengingat waktu sholat (Adzan) dan puasa.</li>
         <li>Menampilkan grafik progres ibadah mingguan atau bulanan.</li>
+        <li>Menganalisis dan memperbaiki masalah teknis (crash &amp; bug) pada aplikasi.</li>
     </ul>
 
     <h2>3. Penyimpanan Data</h2>
-    <p>Sebagian besar data ibadah Anda disimpan secara lokal di perangkat Anda. Jika Anda menggunakan fitur sinkronisasi akun (opsional), data Anda akan dienkripsi dan disimpan dengan aman di server kami menggunakan standar keamanan industri.</p>
+    <p>Sebagian besar data ibadah Anda disimpan secara lokal di perangkat Anda dengan enkripsi AES-256. Jika Anda menggunakan fitur sinkronisasi akun (opsional), data Anda akan dienkripsi dan disimpan dengan aman di server <strong>Google Firebase</strong> menggunakan standar keamanan industri.</p>
 
-    <h2>4. Izin Perangkat (Permissions)</h2>
+    <h2>4. Berbagi Data dengan Pihak Ketiga</h2>
+    <p>Kami hanya membagikan data Anda secara terbatas kepada pihak ketiga berikut untuk keperluan fungsionalitas aplikasi:</p>
+    <ul>
+        <li><strong>Aladhan API</strong> (<code>api.aladhan.com</code>): Menerima koordinat lokasi Anda untuk menghitung jadwal sholat.</li>
+        <li><strong>Google Firebase</strong>: Menyimpan data akun dan log ibadah (Firestore), serta mengumpulkan data diagnostik crash (Crashlytics).</li>
+        <li><strong>Google Play Integrity</strong>: Memverifikasi integritas aplikasi untuk keamanan API.</li>
+    </ul>
+    <p>Kami <strong>tidak</strong> membagikan data Anda kepada pihak ketiga untuk keperluan iklan, pemasaran, atau penjualan data.</p>
+
+    <h2>5. Izin Perangkat (Permissions)</h2>
     <p>Aplikasi akan meminta izin untuk:</p>
     <ul>
-        <li><strong>Lokasi:</strong> Wajib untuk fitur Waktu Sholat & Kiblat.</li>
+        <li><strong>Lokasi:</strong> Wajib untuk fitur Waktu Sholat &amp; Kiblat.</li>
         <li><strong>Notifikasi:</strong> Untuk mengirimkan alarm pengingat ibadah.</li>
-        <li><strong>Penyimpanan:</strong> Untuk menyimpan pengaturan profil atau data offline (seperti konten doa).</li>
+        <li><strong>Exact Alarm:</strong> Untuk memastikan pengingat sholat berbunyi tepat pada waktunya.</li>
     </ul>
 
-    <h2>5. Hak Anda sebagai Pengguna</h2>
+    <h2>6. Hak Anda sebagai Pengguna</h2>
     <p>Anda memiliki hak penuh untuk:</p>
     <ul>
         <li>Menghapus semua data log ibadah melalui menu pengaturan.</li>
         <li>Mematikan akses lokasi kapan saja melalui pengaturan sistem (meskipun fitur waktu sholat tidak akan akurat jika dilakukan).</li>
-        <li>Menghapus akun Anda secara permanen dari server kami.</li>
+        <li>Menghapus akun Anda secara permanen dari server kami, termasuk seluruh data yang tersimpan, melalui menu <strong>Pengaturan &gt; Keamanan Akun &gt; Hapus Akun Permanen</strong> di dalam aplikasi.</li>
     </ul>
 
-    <h2>6. Hubungi Kami</h2>
+    <h2>7. Hubungi Kami</h2>
     <p>Jika ada pertanyaan terkait privasi data Anda di Aha Islamic Tracker, silakan hubungi tim kami di:</p>
     <p><strong>Email:</strong> alhabib.husein13@gmail.com</p>
 

@@ -106,7 +106,8 @@ class SettingsViewModel @Inject constructor(
     private val userHabitDao: UserHabitDao,
     private val habitCompletionDao: HabitCompletionDao,
     private val sharedPreferences: SharedPreferences,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val userHabitRepository: com.islami.Aha.data.repository.UserHabitRepository
 ) : ViewModel() {
     companion object {
         private const val VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
@@ -191,7 +192,7 @@ class SettingsViewModel @Inject constructor(
             )
             hideGenderDialog()
             res.onSuccess {
-                showSnackbar("Profil ibadah berhasil diperbarui")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_profile_updated))
             }.onFailure { err ->
                 val errorMsg = appContext.getString(R.string.error_sync_cloud, err.message ?: "")
                 showSnackbar(errorMsg)
@@ -233,10 +234,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             if (enabled) {
                 rescheduleAllActiveReminders()
-                showSnackbar("Pengingat global diaktifkan")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_reminder_enabled))
             } else {
                 cancelAllExistingReminders()
-                showSnackbar("Pengingat global dimatikan")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_reminder_disabled))
             }
         }
     }
@@ -260,7 +261,7 @@ class SettingsViewModel @Inject constructor(
             )
         }
         NotificationScheduler.applyChannelSettings(appContext)
-        showSnackbar("Suara notifikasi diperbarui")
+        showSnackbar(appContext.getString(R.string.settings_snackbar_sound_updated))
     }
 
     fun toggleNotificationVibration() {
@@ -280,7 +281,7 @@ class SettingsViewModel @Inject constructor(
 
     fun onChangePasswordClick() {
         if (!uiState.value.isLoggedIn) {
-            showSnackbar("Silakan login untuk mengubah password")
+            showSnackbar(appContext.getString(R.string.settings_snackbar_login_required_password))
             return
         }
         _uiState.update { it.copy(showChangePasswordDialog = true) }
@@ -302,23 +303,23 @@ class SettingsViewModel @Inject constructor(
 
         when {
             old.isBlank() -> {
-                showSnackbar("Password lama tidak boleh kosong")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_old_password_empty))
                 return
             }
             new.isBlank() -> {
-                showSnackbar("Password baru tidak boleh kosong")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_new_password_empty))
                 return
             }
             new.length < 6 -> {
-                showSnackbar("Password baru minimal 6 karakter")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_password_min_length))
                 return
             }
             new == old -> {
-                showSnackbar("Password baru harus berbeda dari password lama")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_password_must_differ))
                 return
             }
             confirm != new -> {
-                showSnackbar("Konfirmasi password tidak cocok")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_password_mismatch))
                 return
             }
         }
@@ -337,7 +338,7 @@ class SettingsViewModel @Inject constructor(
                         showChangePasswordDialog = false
                     )
                 }
-                showSnackbar("Password berhasil diubah. Cek email untuk konfirmasi keamanan.")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_password_changed))
             } else {
                 _uiState.update { it.copy(isChangingPassword = false) }
                 showSnackbar(result.exceptionOrNull()?.message ?: appContext.getString(R.string.error_change_password))
@@ -349,13 +350,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val email = authRepository.currentUser?.email
             if (email.isNullOrBlank()) {
-                showSnackbar("Email akun tidak ditemukan")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_email_not_found))
                 return@launch
             }
 
             val result = authRepository.sendPasswordReset(email)
             if (result.isSuccess) {
-                showSnackbar("Link reset password dikirim ke $email")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_reset_link_sent, email))
             } else {
                 showSnackbar(appContext.getString(R.string.error_send_reset_email))
             }
@@ -364,7 +365,7 @@ class SettingsViewModel @Inject constructor(
 
     fun onAccountSecurityClick() {
         if (!uiState.value.isLoggedIn) {
-            showSnackbar("Silakan login untuk membuka keamanan akun")
+            showSnackbar(appContext.getString(R.string.settings_snackbar_login_required_security))
             return
         }
         _uiState.update { it.copy(showAccountSecurityDialog = true) }
@@ -397,7 +398,7 @@ class SettingsViewModel @Inject constructor(
     fun sendEmailVerificationFromSecurity() {
         val cooldownSeconds = uiState.value.verificationResendCooldownSeconds
         if (cooldownSeconds > 0) {
-            showSnackbar("Tunggu $cooldownSeconds detik sebelum kirim ulang verifikasi")
+            showSnackbar(appContext.getString(R.string.settings_snackbar_verify_cooldown, cooldownSeconds))
             return
         }
         if (uiState.value.isSecurityActionInProgress()) return
@@ -406,7 +407,7 @@ class SettingsViewModel @Inject constructor(
             val result = authRepository.sendEmailVerificationToCurrentUser()
             _uiState.update { it.copy(isSendingVerificationEmail = false) }
             if (result.isSuccess) {
-                showSnackbar("Email verifikasi berhasil dikirim")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_verify_email_sent))
                 startVerificationResendCooldown()
             } else {
                 showSnackbar(result.exceptionOrNull()?.message ?: appContext.getString(R.string.error_send_verification_email))
@@ -421,14 +422,14 @@ class SettingsViewModel @Inject constructor(
             val email = authRepository.currentUser?.email
             if (email.isNullOrBlank()) {
                 _uiState.update { it.copy(isSendingResetPasswordEmail = false) }
-                showSnackbar("Email akun tidak ditemukan")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_email_not_found))
                 return@launch
             }
 
             val result = authRepository.sendPasswordReset(email)
             _uiState.update { it.copy(isSendingResetPasswordEmail = false) }
             if (result.isSuccess) {
-                showSnackbar("Link reset password dikirim ke $email")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_reset_link_sent, email))
             } else {
                 showSnackbar(appContext.getString(R.string.error_send_reset_email))
             }
@@ -492,6 +493,7 @@ class SettingsViewModel @Inject constructor(
             habitCompletionDao.deleteAll()
             habitDao.resetTrackerState()
         }
+        userHabitRepository.resetSyncState()
         com.islami.Aha.util.UserPreferencesManager.clearAll()
     }
 
@@ -552,7 +554,7 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(isDeletingAccount = false, showReAuthDialog = false)
                 }
-                showSnackbar("Password salah atau gagal menghapus akun")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_delete_account_failed))
             }
         }
     }
@@ -617,11 +619,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onExportCancelled() {
-        showSnackbar("Ekspor dibatalkan")
+        showSnackbar(appContext.getString(R.string.settings_snackbar_export_cancelled))
     }
 
     fun onImportCancelled() {
-        showSnackbar("Impor dibatalkan")
+        showSnackbar(appContext.getString(R.string.settings_snackbar_import_cancelled))
     }
 
     fun exportDataToUri(uri: Uri) {
@@ -644,7 +646,7 @@ class SettingsViewModel @Inject constructor(
                     } ?: throw IllegalStateException("Tidak dapat membuka file tujuan")
                 }
             }.onSuccess {
-                showSnackbar("Data berhasil diekspor")
+                showSnackbar(appContext.getString(R.string.settings_snackbar_export_success))
             }.onFailure {
                 showSnackbar(appContext.getString(R.string.error_export_data))
             }
@@ -654,7 +656,7 @@ class SettingsViewModel @Inject constructor(
     fun confirmImportData() {
         val pendingUri = _uiState.value.pendingImportUri
         if (pendingUri == null) {
-            showSnackbar("File impor tidak ditemukan")
+            showSnackbar(appContext.getString(R.string.settings_snackbar_import_file_not_found))
             return
         }
         val mode = _uiState.value.selectedImportMode
@@ -682,10 +684,7 @@ class SettingsViewModel @Inject constructor(
                 }
             }.onSuccess { parsed ->
                 _uiState.update { it.copy(isImportingData = false) }
-                showSnackbar(
-                    "Impor selesai: ${parsed.defaultHabits.size} habit, " +
-                        "${parsed.sunnahHabits.size} sunnah, ${parsed.completionRecords.size} riwayat"
-                )
+                showSnackbar(appContext.getString(R.string.settings_snackbar_import_success, parsed.defaultHabits.size, parsed.sunnahHabits.size, parsed.completionRecords.size))
             }.onFailure { error ->
                 _uiState.update { it.copy(isImportingData = false) }
                 showSnackbar(error.message ?: appContext.getString(R.string.error_import_data))
@@ -710,7 +709,7 @@ class SettingsViewModel @Inject constructor(
             }
             sharedPreferences.edit().remove("hasSeeded").apply()
             _uiState.update { it.copy(showResetConfirmation = false) }
-            showSnackbar("Semua data telah direset")
+            showSnackbar(appContext.getString(R.string.settings_snackbar_data_reset_success))
         }
     }
 

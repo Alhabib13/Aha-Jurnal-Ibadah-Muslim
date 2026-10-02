@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.settings.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -35,7 +37,7 @@ fun SettingsHeader(onNavigateBack: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                brush = Brush.verticalGradient(colors = listOf(EmeraldDark, Emerald)),
+                brush = Brush.verticalGradient(colors = listOf(EmeraldDark, MaterialTheme.colorScheme.primary)),
                 shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
             )
     ) {
@@ -123,7 +125,7 @@ fun GuestLoginCard(onLoginClick: () -> Unit) {
             ) {
                 Text(
                     text = stringResource(R.string.settings_guest_login_action),
-                    color = Emerald,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -209,7 +211,7 @@ fun SettingsToggleItem(
                 onCheckedChange = null,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = Emerald,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
                     uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
                     uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant
                 )

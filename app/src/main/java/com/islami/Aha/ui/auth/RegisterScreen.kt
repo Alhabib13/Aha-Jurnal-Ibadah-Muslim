@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.auth
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -334,7 +336,7 @@ fun RegisterScreenContent(
                         .fillMaxSize()
                         .background(
                             brush = Brush.horizontalGradient(
-                                colors = listOf(EmeraldDark, Emerald)
+                                colors = listOf(EmeraldDark, MaterialTheme.colorScheme.primary)
                             ),
                             shape = RoundedCornerShape(28.dp)
                         ),
@@ -411,7 +413,7 @@ fun RegisterScreenContent(
                         text = stringResource(R.string.auth_terms_title),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Emerald
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
                 Text(
@@ -427,7 +429,7 @@ fun RegisterScreenContent(
                         text = stringResource(R.string.auth_privacy_title),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Emerald
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -454,7 +456,7 @@ fun RegisterScreenContent(
                         text = stringResource(R.string.auth_login_action),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Emerald
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }

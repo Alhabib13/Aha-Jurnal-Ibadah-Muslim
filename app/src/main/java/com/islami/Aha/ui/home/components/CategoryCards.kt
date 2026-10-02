@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -214,7 +216,7 @@ fun SubTabRow(
                         }
                         .clickable { onSelectTab(index) },
                     shape = RoundedCornerShape(50),
-                    color = if (isSelected) Emerald else Color.Transparent,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
                     border = if (!isSelected) {
                         androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     } else null
@@ -261,7 +263,7 @@ fun SubTabRow(
                     }
                     .clickable { onSelectTab(index) },
                 shape = RoundedCornerShape(50),
-                color = if (isSelected) Emerald else Color.Transparent,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
                 border = if (!isSelected) {
                     androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 } else null
