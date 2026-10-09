@@ -104,12 +104,12 @@ service cloud.firestore {
     ];
   }
 
-  // nama_detail yang sah per jenis_ibadah. tilawah & iqro wajib null.
+  // nama_detail yang sah per jenis_ibadah. tilawah, iqro & qadha_sholat wajib null.
   function detailPerJenis() {
     return {
       "sholat_wajib": ["subuh", "dzuhur", "ashar", "maghrib", "isya"],
       "sholat_sunnah": ["tahajud", "dhuha", "rawatib", "witir", "tarawih",
-                        "taubat", "istikharah", "qadha", "sunnah_lainnya"],
+                        "taubat", "istikharah", "sunnah_lainnya"],
       "puasa": ["senin_kamis", "ayyamul_bidh", "daud", "syawal", "ramadan",
                 "qadha", "nazar", "sunnah_lainnya"],
       "dzikir": ["pagi", "petang"]
@@ -117,13 +117,37 @@ service cloud.firestore {
   }
 
   function validDetail(data) {
-    return (data.jenis_ibadah in ["tilawah", "iqro"])
+    return (data.jenis_ibadah in ["tilawah", "iqro", "qadha_sholat"])
         ? data.nama_detail == null
         : data.nama_detail in detailPerJenis()[data.jenis_ibadah];
   }
 
+  // ID deterministik, bentuknya diwajibkan per jenis agar sync ulang menimpa
+  // dokumen yang sama dan slot harian tetap tidak bisa punya baris kedua:
+  //   slot tetap        {uid}_{tanggal}_{jenis}_{detail}
+  //   iqro              {uid}_{tanggal}_iqro
+  //   sunnah_lainnya    {uid}_{tanggal}_{jenis}_sunnah_lainnya_{idLokal}
+  //   tilawah           {uid}_{tanggal}_tilawah_{idSesi}       (banyak sesi per hari)
+  //   qadha_sholat      {uid}_{tanggal}_qadha_sholat_{idLokal}
+  function validLogId(data, logId) {
+    let prefix = request.auth.uid + "_" + data.tanggal + "_" + data.jenis_ibadah;
+    let idLokal = "_[A-Za-z0-9-]{1,64}";
+    return logId.size() <= 200 && (
+      (data.jenis_ibadah in ["tilawah", "qadha_sholat"])
+        ? logId.matches(prefix + idLokal)
+        : data.jenis_ibadah == "iqro"
+          ? logId == prefix
+          : data.nama_detail == "sunnah_lainnya"
+            ? logId.matches(prefix + "_sunnah_lainnya" + idLokal)
+            : logId == prefix + "_" + data.nama_detail
+    );
+  }
+
   // "tidak" hanya untuk slot harian tetap (sholat wajib & dzikir).
   // "udzur" hanya untuk ibadah yang gugur saat Mode Cuti (sholat wajib & puasa).
+  // MENUNGGU VALIDASI PAKAR: cakupan udzur adalah keputusan fiqih. Tilawah saat
+  // haid masih khilafiyah; posisi netral sementara = tidak dibuatkan baris apa pun.
+  // Sinkron dengan ResearchSchema.JENIS_BOLEH_UDZUR.
   function validStatus(data) {
     return data.status == "dikerjakan"
         || (data.status == "tidak" && data.jenis_ibadah in ["sholat_wajib", "dzikir"])
@@ -139,12 +163,13 @@ service cloud.firestore {
         : (data.jam_pencatatan == null && data.sumber_pencatatan == null);
   }
 
+  // jilid 1-10: mencakup Iqro, Qiroati, Tilawati, UMMI, An-Nahdliyah.
   function validJumlah(data) {
     return data.jenis_ibadah == "tilawah"
         ? (data.jumlah is int && data.jumlah >= 1 && data.jumlah <= 1000 && data.jilid == null)
         : data.jenis_ibadah == "iqro"
           ? (data.jumlah is int && data.jumlah >= 1 && data.jumlah <= 100
-             && data.jilid is int && data.jilid >= 1 && data.jilid <= 6)
+             && data.jilid is int && data.jilid >= 1 && data.jilid <= 10)
           : (data.jumlah == null && data.jilid == null);
   }
 
@@ -154,11 +179,10 @@ service cloud.firestore {
         && data.user_id == request.auth.uid
         && data.tanggal is string
         && data.tanggal.matches("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
-        // ID deterministik {uid}_{tanggal}_{slot}: mencegah duplikat saat sync ulang.
-        && logId.size() <= 200
-        && logId.matches(request.auth.uid + "_" + data.tanggal + "_[A-Za-z0-9_-]+")
-        && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "puasa", "dzikir", "tilawah", "iqro"]
+        && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "qadha_sholat", "puasa",
+                                 "dzikir", "tilawah", "iqro"]
         && validDetail(data)
+        && validLogId(data, logId)
         && (data.nama_detail_asli == null
             || (data.nama_detail_asli is string && data.nama_detail_asli.size() <= 100))
         && data.status in ["dikerjakan", "tidak", "udzur"]

@@ -39,6 +39,8 @@ object ResearchSchema {
     object Jenis {
         const val SHOLAT_WAJIB = "sholat_wajib"
         const val SHOLAT_SUNNAH = "sholat_sunnah"
+        /** Bukan sunnah dan bukan slot harian wajib; di UI boleh tetap dikelompokkan di sunnah. */
+        const val QADHA_SHOLAT = "qadha_sholat"
         const val PUASA = "puasa"
         const val DZIKIR = "dzikir"
         const val TILAWAH = "tilawah"
@@ -67,6 +69,7 @@ object ResearchSchema {
         const val RAMADAN = "ramadan"
         const val NAZAR = "nazar"
 
+        /** Hanya untuk puasa (pengganti Ramadan). Qadha sholat memakai Jenis.QADHA_SHOLAT. */
         const val QADHA = "qadha"
         const val SUNNAH_LAINNYA = "sunnah_lainnya"
 
@@ -85,12 +88,12 @@ object ResearchSchema {
         const val BUKA_APLIKASI = "buka_aplikasi"
     }
 
-    /** nama_detail yang sah per jenis_ibadah; tilawah & iqro tidak punya detail. */
+    /** nama_detail yang sah per jenis_ibadah; tilawah, iqro & qadha_sholat tidak punya detail. */
     val DETAIL_PER_JENIS: Map<String, Set<String>> = mapOf(
         Jenis.SHOLAT_WAJIB to setOf(Detail.SUBUH, Detail.DZUHUR, Detail.ASHAR, Detail.MAGHRIB, Detail.ISYA),
         Jenis.SHOLAT_SUNNAH to setOf(
             Detail.TAHAJUD, Detail.DHUHA, Detail.RAWATIB, Detail.WITIR, Detail.TARAWIH,
-            Detail.TAUBAT, Detail.ISTIKHARAH, Detail.QADHA, Detail.SUNNAH_LAINNYA
+            Detail.TAUBAT, Detail.ISTIKHARAH, Detail.SUNNAH_LAINNYA
         ),
         Jenis.PUASA to setOf(
             Detail.SENIN_KAMIS, Detail.AYYAMUL_BIDH, Detail.DAUD, Detail.SYAWAL, Detail.RAMADAN,
@@ -102,17 +105,50 @@ object ResearchSchema {
     /** Slot harian tetap: satu-satunya jenis yang boleh punya baris status "tidak". */
     val JENIS_BOLEH_TIDAK = setOf(Jenis.SHOLAT_WAJIB, Jenis.DZIKIR)
 
-    /** Ibadah yang gugur saat Mode Cuti: satu-satunya jenis yang boleh berstatus "udzur". */
+    /**
+     * Ibadah yang gugur saat Mode Cuti: satu-satunya jenis yang boleh berstatus "udzur".
+     *
+     * MENUNGGU VALIDASI PAKAR: cakupan ini keputusan fiqih, bukan teknis. Tilawah saat
+     * haid masih khilafiyah; posisi netral sementara = tilawah (juga dzikir & sunnah)
+     * tidak dibuatkan baris apa pun selama Mode Cuti. Ubah bersama `validStatus` di
+     * firestore.rules setelah divalidasi.
+     */
     val JENIS_BOLEH_UDZUR = setOf(Jenis.SHOLAT_WAJIB, Jenis.PUASA)
 
     /**
-     * ID dokumen log deterministik: `{uid}_{tanggal}_{jenis}[_{detail}][_{localId}]`.
-     * Sync ulang dari antrean offline akan menimpa dokumen yang sama, bukan menggandakan.
-     * [localId] wajib untuk `sunnah_lainnya` karena beberapa habit buatan pengguna
-     * bisa jatuh ke detail yang sama di hari yang sama.
+     * Jenis yang boleh punya beberapa baris per hari (satu per sesi/habit), sehingga
+     * jam_pencatatan tiap sesi tetap utuh. Total harian dihitung di pipeline analisis.
      */
-    fun logId(uid: String, tanggal: String, jenis: String, detail: String?, localId: String? = null): String =
-        listOfNotNull(uid, tanggal, jenis, detail, localId).joinToString("_")
+    val JENIS_MULTI_BARIS = setOf(Jenis.TILAWAH, Jenis.QADHA_SHOLAT)
+
+    /** Batas nilai yang diterima rules. UI hanya boleh menawarkan nilai di rentang ini. */
+    val TILAWAH_HALAMAN = 1..1000
+    /** Mencakup Iqro, Qiroati, Tilawati, UMMI, An-Nahdliyah. */
+    val IQRO_JILID = 1..10
+    val IQRO_HALAMAN = 1..100
+
+    private val ID_LOKAL_REGEX = Regex("[A-Za-z0-9-]{1,64}")
+
+    /**
+     * ID dokumen log deterministik; bentuknya diwajibkan rules per jenis:
+     * - slot tetap:      `{uid}_{tanggal}_{jenis}_{detail}`
+     * - iqro:            `{uid}_{tanggal}_iqro`
+     * - sunnah_lainnya:  `{uid}_{tanggal}_{jenis}_sunnah_lainnya_{localId}`
+     * - tilawah:         `{uid}_{tanggal}_tilawah_{localId}` (localId = id sesi baca)
+     * - qadha_sholat:    `{uid}_{tanggal}_qadha_sholat_{localId}` (localId = id habit)
+     * Sync ulang dari antrean offline menimpa dokumen yang sama, bukan menggandakan.
+     */
+    fun logId(uid: String, tanggal: String, jenis: String, detail: String?, localId: String? = null): String {
+        val butuhIdLokal = jenis in JENIS_MULTI_BARIS || detail == Detail.SUNNAH_LAINNYA
+        if (butuhIdLokal) {
+            require(localId != null && ID_LOKAL_REGEX.matches(localId)) {
+                "localId wajib (huruf, angka, '-', maks 64) untuk $jenis/$detail"
+            }
+        } else {
+            require(localId == null) { "Slot $jenis/$detail hanya satu baris per hari" }
+        }
+        return listOfNotNull(uid, tanggal, jenis, detail, localId).joinToString("_")
+    }
 }
 
 /** Hasil pemetaan habit aplikasi ke kolom jenis_ibadah / nama_detail. */
@@ -141,8 +177,7 @@ object ResearchMapping {
         "witir" to ResearchSchema.Detail.WITIR,
         "tarawih" to ResearchSchema.Detail.TARAWIH,
         "taubat" to ResearchSchema.Detail.TAUBAT,
-        "istikharah" to ResearchSchema.Detail.ISTIKHARAH,
-        "qadha" to ResearchSchema.Detail.QADHA
+        "istikharah" to ResearchSchema.Detail.ISTIKHARAH
     )
 
     private val PUASA_BY_NAME = mapOf(
@@ -177,13 +212,16 @@ object ResearchMapping {
      */
     fun fromSunnahHabit(name: String, category: String): IbadahSlot? {
         val key = normalize(name)
-        return when (category) {
-            "SHOLAT" -> IbadahSlot(
+        return when {
+            // Preset "Qadha" ada di kategori sunnah UI, tapi datanya jenis tersendiri.
+            category == "SHOLAT" && key.removePrefix("sholat ") == "qadha" ->
+                IbadahSlot(ResearchSchema.Jenis.QADHA_SHOLAT, null, name)
+            category == "SHOLAT" -> IbadahSlot(
                 ResearchSchema.Jenis.SHOLAT_SUNNAH,
                 SHOLAT_SUNNAH_BY_NAME[key.removePrefix("sholat ")] ?: ResearchSchema.Detail.SUNNAH_LAINNYA,
                 name
             )
-            "PUASA" -> IbadahSlot(
+            category == "PUASA" -> IbadahSlot(
                 ResearchSchema.Jenis.PUASA,
                 PUASA_BY_NAME[key.removePrefix("puasa ")] ?: ResearchSchema.Detail.SUNNAH_LAINNYA,
                 name

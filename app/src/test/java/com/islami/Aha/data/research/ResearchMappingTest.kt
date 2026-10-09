@@ -3,7 +3,9 @@ package com.islami.Aha.data.research
 import com.islami.Aha.data.research.ResearchSchema.Detail
 import com.islami.Aha.data.research.ResearchSchema.Jenis
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -51,7 +53,6 @@ class ResearchMappingTest {
     fun `preset sunnah terpetakan`() {
         assertEquals(Detail.DHUHA, ResearchMapping.fromSunnahHabit("Dhuha", "SHOLAT")!!.namaDetail)
         assertEquals(Detail.DHUHA, ResearchMapping.fromSunnahHabit("Sholat Dhuha", "SHOLAT")!!.namaDetail)
-        assertEquals(Detail.QADHA, ResearchMapping.fromSunnahHabit("Qadha", "SHOLAT")!!.namaDetail)
         assertEquals(Detail.SENIN_KAMIS, ResearchMapping.fromSunnahHabit("Senin Kamis", "PUASA")!!.namaDetail)
         assertEquals(Detail.AYYAMUL_BIDH, ResearchMapping.fromSunnahHabit("Ayyamul Bidh", "PUASA")!!.namaDetail)
         assertEquals(Detail.DAUD, ResearchMapping.fromSunnahHabit("Puasa Daud", "PUASA")!!.namaDetail)
@@ -89,13 +90,55 @@ class ResearchMappingTest {
     }
 
     @Test
-    fun `logId deterministik dan cocok dengan pola rules`() {
+    fun `preset qadha sholat menjadi jenis qadha_sholat tanpa detail`() {
+        listOf("Qadha", "Sholat Qadha").forEach { name ->
+            val slot = ResearchMapping.fromSunnahHabit(name, "SHOLAT")!!
+            assertEquals(Jenis.QADHA_SHOLAT, slot.jenisIbadah)
+            assertNull(slot.namaDetail)
+            assertEquals(name, slot.namaDetailAsli)
+        }
+        assertFalse(Detail.QADHA in ResearchSchema.DETAIL_PER_JENIS.getValue(Jenis.SHOLAT_SUNNAH))
+        assertFalse(Detail.QADHA in ResearchSchema.DETAIL_PER_JENIS.getValue(Jenis.SHOLAT_WAJIB))
+    }
+
+    @Test
+    fun `logId slot tetap tanpa akhiran`() {
         assertEquals(
             "uid1_2026-10-09_sholat_wajib_subuh",
             ResearchSchema.logId("uid1", "2026-10-09", Jenis.SHOLAT_WAJIB, Detail.SUBUH)
         )
-        assertEquals("uid1_2026-10-09_tilawah", ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, null))
-        val custom = ResearchSchema.logId("uid1", "2026-10-09", Jenis.SHOLAT_SUNNAH, Detail.SUNNAH_LAINNYA, "6f1c-2a9e")
-        assertTrue(custom.matches(Regex("uid1_2026-10-09_[A-Za-z0-9_-]+")))
+        assertEquals("uid1_2026-10-09_iqro", ResearchSchema.logId("uid1", "2026-10-09", Jenis.IQRO, null))
+        assertThrows(IllegalArgumentException::class.java) {
+            ResearchSchema.logId("uid1", "2026-10-09", Jenis.SHOLAT_WAJIB, Detail.SUBUH, "x1")
+        }
+    }
+
+    @Test
+    fun `logId multi baris wajib id lokal`() {
+        assertEquals(
+            "uid1_2026-10-09_tilawah_sesi-a1",
+            ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, null, "sesi-a1")
+        )
+        assertEquals(
+            "uid1_2026-10-09_qadha_sholat_6f1c-2a9e",
+            ResearchSchema.logId("uid1", "2026-10-09", Jenis.QADHA_SHOLAT, null, "6f1c-2a9e")
+        )
+        assertEquals(
+            "uid1_2026-10-09_sholat_sunnah_sunnah_lainnya_6f1c-2a9e",
+            ResearchSchema.logId("uid1", "2026-10-09", Jenis.SHOLAT_SUNNAH, Detail.SUNNAH_LAINNYA, "6f1c-2a9e")
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, null)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, null, "ada_garis_bawah")
+        }
+    }
+
+    @Test
+    fun `batas nilai sama dengan rules`() {
+        assertEquals(1..10, ResearchSchema.IQRO_JILID)
+        assertEquals(1..100, ResearchSchema.IQRO_HALAMAN)
+        assertEquals(1..1000, ResearchSchema.TILAWAH_HALAMAN)
     }
 }

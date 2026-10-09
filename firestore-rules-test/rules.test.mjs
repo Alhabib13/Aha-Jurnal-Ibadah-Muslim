@@ -60,9 +60,14 @@ const log = (o = {}) => ({
   ...o,
 });
 
-const logId = (o = {}, uid = ALICE) => {
+// Cermin ResearchSchema.logId: jenis multi-baris & sunnah_lainnya butuh id lokal.
+const logId = (o = {}, uid = ALICE, idLokal = "sesi-1") => {
   const d = log(o);
-  return `${uid}_${d.tanggal}_${d.jenis_ibadah}${d.nama_detail ? "_" + d.nama_detail : ""}`;
+  const butuhIdLokal =
+    ["tilawah", "qadha_sholat"].includes(d.jenis_ibadah) || d.nama_detail === "sunnah_lainnya";
+  return [uid, d.tanggal, d.jenis_ibadah, d.nama_detail, butuhIdLokal ? idLokal : null]
+    .filter((x) => x != null)
+    .join("_");
 };
 
 const tulisLog = (o = {}, { as = ALICE, id } = {}) =>
@@ -252,14 +257,81 @@ describe("logs: jumlah & jilid", () => {
   test("iqro: jilid dan halaman sebagai dua field terpisah", async () => {
     await assertSucceeds(tulisLog({ ...iqro, jilid: 3, jumlah: 12 }));
     await assertFails(tulisLog({ ...iqro, jilid: null, jumlah: 12 }));
-    await assertFails(tulisLog({ ...iqro, jilid: 7, jumlah: 12 }));
     await assertFails(tulisLog({ ...iqro, jilid: 3.12, jumlah: 12 }));
+  });
+
+  test("iqro: jilid 1-10 (Iqro, Qiroati, Tilawati, UMMI, An-Nahdliyah)", async () => {
+    await assertSucceeds(tulisLog({ ...iqro, jilid: 1, jumlah: 1 }));
+    await assertSucceeds(tulisLog({ ...iqro, jilid: 7, jumlah: 12 }));
+    await assertSucceeds(tulisLog({ ...iqro, jilid: 10, jumlah: 100 }));
+    await assertFails(tulisLog({ ...iqro, jilid: 0, jumlah: 12 }));
+    await assertFails(tulisLog({ ...iqro, jilid: 11, jumlah: 12 }));
+    await assertFails(tulisLog({ ...iqro, jilid: 3, jumlah: 101 }));
   });
 
   test("ibadah lain: jumlah & jilid harus null", async () => {
     await assertFails(tulisLog({ jumlah: 1 }));
     await assertFails(tulisLog({ jilid: 1 }));
   });
+});
+
+describe("logs: bentuk ID per jenis", () => {
+  const tilawah = { jenis_ibadah: "tilawah", nama_detail: null, nama_detail_asli: null };
+  const qadha = { jenis_ibadah: "qadha_sholat", nama_detail: null, nama_detail_asli: "Qadha" };
+
+  test("tilawah: beberapa sesi per hari, masing-masing satu baris", async () => {
+    await assertSucceeds(tulisLog({ ...tilawah, jumlah: 3 }, { id: logId(tilawah, ALICE, "pagi-a1") }));
+    await assertSucceeds(tulisLog({ ...tilawah, jumlah: 2 }, { id: logId(tilawah, ALICE, "malam-b2") }));
+    const snap = await getDocs(
+      query(collection(db(ALICE), "logs"), where("user_id", "==", ALICE), where("jenis_ibadah", "==", "tilawah"))
+    );
+    if (snap.size !== 2) throw new Error(`harusnya 2 sesi, dapat ${snap.size}`);
+  });
+
+  test("tilawah: wajib punya id sesi", () =>
+    assertFails(tulisLog({ ...tilawah, jumlah: 3 }, { id: `${ALICE}_${TGL}_tilawah` })));
+
+  test("slot tetap tidak boleh punya baris kedua (akhiran ditolak)", async () => {
+    await assertFails(tulisLog({}, { id: `${ALICE}_${TGL}_sholat_wajib_subuh_x1` }));
+    await assertFails(tulisLog({}, { id: `${ALICE}_${TGL}_sholat_wajib_dzuhur` }));
+    await assertFails(
+      tulisLog({ jenis_ibadah: "dzikir", nama_detail: "pagi" }, { id: `${ALICE}_${TGL}_dzikir_pagi_2` })
+    );
+  });
+
+  test("iqro satu baris per hari tanpa akhiran", async () => {
+    const iqro = { jenis_ibadah: "iqro", nama_detail: null, jilid: 2, jumlah: 5 };
+    await assertSucceeds(tulisLog(iqro, { id: `${ALICE}_${TGL}_iqro` }));
+    await assertFails(tulisLog(iqro, { id: `${ALICE}_${TGL}_iqro_s1` }));
+  });
+
+  test("sunnah_lainnya wajib punya id lokal", () =>
+    assertFails(
+      tulisLog(
+        { jenis_ibadah: "sholat_sunnah", nama_detail: "sunnah_lainnya" },
+        { id: `${ALICE}_${TGL}_sholat_sunnah_sunnah_lainnya` }
+      )
+    ));
+
+  test("qadha_sholat: jenis sendiri, detail null, id lokal wajib", async () => {
+    await assertSucceeds(tulisLog(qadha));
+    await assertFails(tulisLog(qadha, { id: `${ALICE}_${TGL}_qadha_sholat` }));
+    await assertFails(tulisLog({ ...qadha, nama_detail: "subuh" }));
+  });
+
+  test("qadha tidak lagi diterima sebagai sholat sunnah atau sholat wajib", async () => {
+    await assertFails(tulisLog({ jenis_ibadah: "sholat_sunnah", nama_detail: "qadha" }));
+    await assertFails(tulisLog({ jenis_ibadah: "sholat_wajib", nama_detail: "qadha" }));
+  });
+
+  test("qadha_sholat hanya berstatus dikerjakan", async () => {
+    const nol = { jam_pencatatan: null, sumber_pencatatan: null };
+    await assertFails(tulisLog({ ...qadha, ...nol, status: "tidak" }));
+    await assertFails(tulisLog({ ...qadha, ...nol, status: "udzur" }));
+  });
+
+  test("puasa pengganti Ramadan tetap puasa/qadha", () =>
+    assertSucceeds(tulisLog({ jenis_ibadah: "puasa", nama_detail: "qadha", nama_detail_asli: "Pengganti Ramadan" })));
 });
 
 describe("logs: baca, ubah, hapus", () => {
