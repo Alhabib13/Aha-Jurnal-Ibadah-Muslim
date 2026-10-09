@@ -29,3 +29,7 @@ node_modules/
 keystore.properties
 *.jks
 *.keystore
+
+# Log emulator Firebase
+firestore-debug.log
+firebase-debug.log
