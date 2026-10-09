@@ -77,7 +77,120 @@ service cloud.firestore {
         && data.createdAt > 0;
   }
 
+  // ===================================================================
+  // SKEMA PENELITIAN (pengumpulan data). Nilai enum di sini harus sama
+  // persis dengan com.islami.Aha.data.research.ResearchSchema.
+  // ===================================================================
+
+  function profilFields() {
+    return ["jenis_kelamin", "rentang_umur", "status_aktivitas", "tanggal_mulai"];
+  }
+
+  function validProfilPenelitian(data) {
+    return data.keys().hasOnly(profilFields())
+        && data.keys().hasAll(profilFields())
+        && data.jenis_kelamin in ["laki_laki", "perempuan"]
+        && (data.rentang_umur == null
+            || data.rentang_umur in ["<15", "15-18", "19-25", "26-35", ">35"])
+        && (data.status_aktivitas == null
+            || data.status_aktivitas in ["pelajar", "mahasiswa", "pekerja", "lainnya"])
+        && data.tanggal_mulai is timestamp;
+  }
+
+  function logFields() {
+    return [
+      "user_id", "tanggal", "jenis_ibadah", "nama_detail", "nama_detail_asli",
+      "status", "jumlah", "jilid", "jam_pencatatan", "sumber_pencatatan"
+    ];
+  }
+
+  // nama_detail yang sah per jenis_ibadah. tilawah & iqro wajib null.
+  function detailPerJenis() {
+    return {
+      "sholat_wajib": ["subuh", "dzuhur", "ashar", "maghrib", "isya"],
+      "sholat_sunnah": ["tahajud", "dhuha", "rawatib", "witir", "tarawih",
+                        "taubat", "istikharah", "qadha", "sunnah_lainnya"],
+      "puasa": ["senin_kamis", "ayyamul_bidh", "daud", "syawal", "ramadan",
+                "qadha", "nazar", "sunnah_lainnya"],
+      "dzikir": ["pagi", "petang"]
+    };
+  }
+
+  function validDetail(data) {
+    return (data.jenis_ibadah in ["tilawah", "iqro"])
+        ? data.nama_detail == null
+        : data.nama_detail in detailPerJenis()[data.jenis_ibadah];
+  }
+
+  // "tidak" hanya untuk slot harian tetap (sholat wajib & dzikir).
+  // "udzur" hanya untuk ibadah yang gugur saat Mode Cuti (sholat wajib & puasa).
+  function validStatus(data) {
+    return data.status == "dikerjakan"
+        || (data.status == "tidak" && data.jenis_ibadah in ["sholat_wajib", "dzikir"])
+        || (data.status == "udzur" && data.jenis_ibadah in ["sholat_wajib", "puasa"]);
+  }
+
+  // Jam & sumber hanya ada untuk tindakan nyata pengguna (dikerjakan).
+  // Baris "tidak"/"udzur" adalah hasil penyimpulan aplikasi -> keduanya null.
+  function validJamDanSumber(data) {
+    return data.status == "dikerjakan"
+        ? (data.jam_pencatatan is timestamp
+           && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi"])
+        : (data.jam_pencatatan == null && data.sumber_pencatatan == null);
+  }
+
+  function validJumlah(data) {
+    return data.jenis_ibadah == "tilawah"
+        ? (data.jumlah is int && data.jumlah >= 1 && data.jumlah <= 1000 && data.jilid == null)
+        : data.jenis_ibadah == "iqro"
+          ? (data.jumlah is int && data.jumlah >= 1 && data.jumlah <= 100
+             && data.jilid is int && data.jilid >= 1 && data.jilid <= 6)
+          : (data.jumlah == null && data.jilid == null);
+  }
+
+  function validLog(data, logId) {
+    return data.keys().hasOnly(logFields())
+        && data.keys().hasAll(logFields())
+        && data.user_id == request.auth.uid
+        && data.tanggal is string
+        && data.tanggal.matches("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
+        // ID deterministik {uid}_{tanggal}_{slot}: mencegah duplikat saat sync ulang.
+        && logId.size() <= 200
+        && logId.matches(request.auth.uid + "_" + data.tanggal + "_[A-Za-z0-9_-]+")
+        && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "puasa", "dzikir", "tilawah", "iqro"]
+        && validDetail(data)
+        && (data.nama_detail_asli == null
+            || (data.nama_detail_asli is string && data.nama_detail_asli.size() <= 100))
+        && data.status in ["dikerjakan", "tidak", "udzur"]
+        && validStatus(data)
+        && validJamDanSumber(data)
+        && validJumlah(data);
+  }
+
   match /databases/{database}/documents {
+    // Profil penelitian. Satu dokumen per pengguna, hanya pemiliknya.
+    match /users/{userId} {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && validProfilPenelitian(request.resource.data)
+                    && request.resource.data.tanggal_mulai == request.time;
+      allow update: if isOwner(userId)
+                    && validProfilPenelitian(request.resource.data)
+                    && request.resource.data.tanggal_mulai == resource.data.tanggal_mulai;
+    }
+
+    // Log ibadah penelitian. Kepemilikan lewat field user_id; query klien
+    // wajib menyertakan where("user_id", "==", uid).
+    match /logs/{logId} {
+      allow read, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && validLog(request.resource.data, logId);
+      allow update: if isSignedIn()
+                    && resource.data.user_id == request.auth.uid
+                    && validLog(request.resource.data, logId)
+                    && request.resource.data.diff(resource.data).unchangedKeys()
+                         .hasAll(["user_id", "tanggal", "jenis_ibadah", "nama_detail"]);
+    }
+
     // Client may read default fardhu metadata, but can never write it.
     match /fardhu_defaults/{docId} {
       allow read: if true;
