@@ -1,4 +1,4 @@
-﻿*.iml
+*.iml
 .gradle
 /local.properties
 /.idea/caches
@@ -14,7 +14,7 @@
 .cxx
 local.properties
 hs_err_pid*.log
-# Firebase â€” jangan commit, API key ada di sini
+# Firebase — jangan commit, API key ada di sini
 google-services.json
 app/google-services.json
 app/src/dev/google-services.json
@@ -24,7 +24,7 @@ secrets/
 *.json.key
 node_modules/
 *.png
-# Keystore â€” JANGAN COMMIT
+# Keystore — JANGAN COMMIT
 keystore.properties
 *.jks
 *.keystore
