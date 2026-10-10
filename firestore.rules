@@ -156,10 +156,12 @@ service cloud.firestore {
 
   // Jam & sumber hanya ada untuk tindakan nyata pengguna (dikerjakan).
   // Baris "tidak"/"udzur" adalah hasil penyimpulan aplikasi -> keduanya null.
+  // "tidak_diketahui" = versi aplikasi yang belum bisa membedakan notifikasi vs
+  // buka aplikasi (sebelum Tahap 4). Pipeline membuang baris bernilai ini.
   function validJamDanSumber(data) {
     return data.status == "dikerjakan"
         ? (data.jam_pencatatan is timestamp
-           && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi"])
+           && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi", "tidak_diketahui"])
         : (data.jam_pencatatan == null && data.sumber_pencatatan == null);
   }
 

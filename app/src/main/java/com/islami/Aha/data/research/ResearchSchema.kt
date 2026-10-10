@@ -86,6 +86,12 @@ object ResearchSchema {
     object Sumber {
         const val DARI_NOTIFIKASI = "dari_notifikasi"
         const val BUKA_APLIKASI = "buka_aplikasi"
+        /**
+         * Dipakai sampai Tahap 4 (penanda notifikasi) selesai. Mengisi "buka_aplikasi"
+         * sebelum itu adalah data salah: ketukan notifikasi ikut tercatat sebagai buka
+         * aplikasi. Pipeline analisis membuang baris bernilai ini.
+         */
+        const val TIDAK_DIKETAHUI = "tidak_diketahui"
     }
 
     /** nama_detail yang sah per jenis_ibadah; tilawah, iqro & qadha_sholat tidak punya detail. */

@@ -207,8 +207,15 @@ describe("logs: status tiga nilai", () => {
 
   test("dikerjakan wajib punya sumber_pencatatan yang sah", async () => {
     await assertSucceeds(tulisLog({ sumber_pencatatan: "dari_notifikasi" }));
+    await assertSucceeds(tulisLog({ sumber_pencatatan: "tidak_diketahui" }));
     await assertFails(tulisLog({ sumber_pencatatan: null }));
     await assertFails(tulisLog({ sumber_pencatatan: "widget" }));
+  });
+
+  test("tidak_diketahui hanya untuk dikerjakan, bukan pengganti null", async () => {
+    await assertFails(tulisLog({ status: "tidak", jam_pencatatan: null, sumber_pencatatan: "tidak_diketahui" }));
+    await assertFails(tulisLog({ status: "udzur", jam_pencatatan: null, sumber_pencatatan: "tidak_diketahui" }));
+    await assertFails(tulisLog({ sumber_pencatatan: "tidak diketahui" }));
   });
 
   test("tidak: jam & sumber wajib null", async () => {
