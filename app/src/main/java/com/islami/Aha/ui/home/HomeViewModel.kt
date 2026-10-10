@@ -93,6 +93,8 @@ class HomeViewModel @Inject constructor(
 
     private var hasFetchedInitialCloudData = false
     private val _uiState = MutableStateFlow(HomeUiState())
+    // Dideklarasikan sebelum init: dipakai observeResearchIbadah() yang dipanggil dari init.
+    private val todayKeyFlow = MutableStateFlow(DateUtils.getTodayKey())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var syncHaidhJob: kotlinx.coroutines.Job? = null
     private var lastLocationRefreshAtMs: Long = 0L
@@ -676,8 +678,6 @@ class HomeViewModel @Inject constructor(
     }
 
     // ---------- Dzikir / Tilawah / Iqro (hanya research_logs) ----------
-
-    private val todayKeyFlow = MutableStateFlow(DateUtils.getTodayKey())
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private fun observeResearchIbadah() {

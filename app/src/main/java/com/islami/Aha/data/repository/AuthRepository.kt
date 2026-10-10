@@ -14,6 +14,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
@@ -403,7 +404,7 @@ class AuthRepository @Inject constructor(
         val sunnahSnapshot = db.collection("users")
             .document(uid)
             .collection("sunnah_habits")
-            .get()
+            .get(Source.SERVER) // jangan pakai cache: backup harus lengkap
             .await()
         val sunnahDocs = sunnahSnapshot.documents
         val sunnahBackup = sunnahDocs.map { doc ->
@@ -418,7 +419,7 @@ class AuthRepository @Inject constructor(
         val completionSnapshot = db.collection("users")
             .document(uid)
             .collection("habit_completions")
-            .get()
+            .get(Source.SERVER) // jangan pakai cache: backup harus lengkap
             .await()
         val completionDocs = completionSnapshot.documents
         val completionBackup = completionDocs.map { doc ->
@@ -434,7 +435,7 @@ class AuthRepository @Inject constructor(
             .document(uid)
             .collection("meta")
             .document("profile")
-            .get()
+            .get(Source.SERVER) // jangan pakai cache: backup harus lengkap
             .await()
         val profileBackup = profileSnapshot.data?.mapNotNull { (key, value) ->
             if (value == null) null else key to value
@@ -443,7 +444,7 @@ class AuthRepository @Inject constructor(
         // Data penelitian milik pengguna ini (koleksi tingkat atas, kepemilikan via user_id).
         val researchLogDocs = db.collection(ResearchSchema.COLLECTION_LOGS)
             .whereEqualTo(ResearchSchema.Log.USER_ID, uid)
-            .get()
+            .get(Source.SERVER) // jangan pakai cache: backup harus lengkap
             .await()
             .documents
         val researchLogBackup = researchLogDocs.map { doc -> doc.id to doc.data.orEmpty() }
