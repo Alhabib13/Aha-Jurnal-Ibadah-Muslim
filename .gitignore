@@ -24,6 +24,8 @@ secrets/
 *.json.key
 node_modules/
 *.png
+# Gambar aplikasi WAJIB ikut di git; tanpa ini tidak ada commit yang bisa di-build.
+!app/src/main/res/**/*.png
 # Keystore — JANGAN COMMIT
 keystore.properties
 *.jks
