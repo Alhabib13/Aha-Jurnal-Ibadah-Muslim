@@ -38,8 +38,8 @@ android {
         applicationId = "com.Islamic.Aha"
         minSdk = 23
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.1.1"
+        versionCode = 4
+        versionName = "1.2.0"
         val forceDebugAppCheck = providers
             .gradleProperty("FORCE_APPCHECK_DEBUG")
             .orNull

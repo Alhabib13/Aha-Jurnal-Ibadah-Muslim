@@ -96,7 +96,8 @@ class ProfileViewModel @Inject constructor(
     private val userHabitRepository: UserHabitRepository,
     private val authRepository: AuthRepository,
     private val featureConfigRepository: FeatureConfigRepository,
-    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
+    private val activityStats: com.islami.Aha.data.research.ActivityStatsRepository
 ) : ViewModel() {
 
     companion object {
@@ -136,8 +137,9 @@ class ProfileViewModel @Inject constructor(
             combine(
                 habitDao.getHabits(),
                 userHabitRepository.getAllHabits(),
-                featureConfigRepository.featureConfig
-            ) { habits, sunnahHabits, config ->
+                featureConfigRepository.featureConfig,
+                activityStats.observeChanges()
+            ) { habits, sunnahHabits, config, _ ->
                 Triple(habits, sunnahHabits, config)
             }.collect { (habits, sunnahHabits, config) ->
                 val haidhDates = com.islami.Aha.util.UserPreferencesManager.getHaidhDates()
@@ -163,8 +165,12 @@ class ProfileViewModel @Inject constructor(
                     true
                 }
                 
-                val totalHabits = visibleHabits.size + visibleSunnahHabits.size
-                val totalCompletedToday = visibleHabits.count { it.isCompleted } + visibleSunnahHabits.count { it.isCompletedToday }
+                // Dzikir: 2 slot tetap ikut rasio harian/mingguan (tilawah & iqro tidak punya slot).
+                val dzikirSlots = com.islami.Aha.data.research.ActivityStatsRepository.DZIKIR_SLOTS_PER_DAY
+                val totalHabits = visibleHabits.size + visibleSunnahHabits.size + dzikirSlots
+                val totalCompletedToday = visibleHabits.count { it.isCompleted } +
+                    visibleSunnahHabits.count { it.isCompletedToday } +
+                    activityStats.getDzikirDoneCount(DateUtils.getTodayKey())
                 val allCompleteToday = totalHabits > 0 && totalCompletedToday == totalHabits
 
                 val sholatCount = sunnahHabits.count { it.category == SunnahCategoryType.SHOLAT }
@@ -172,14 +178,14 @@ class ProfileViewModel @Inject constructor(
                 val reminderCount = sunnahHabits.count { it.reminderEnabled }
 
                 // Real historical data from completion records
-                val completionDates = habitCompletionDao.getDistinctCompletionDatesDesc()
-                val historicalTotal = habitCompletionDao.getTotalCompletionCount()
+                val completionDates = activityStats.getDistinctCompletionDatesDesc()
+                val historicalTotal = activityStats.getTotalCompletionCount()
                 val currentStreak = calculateCurrentStreak(completionDates, haidhDates)
 
                 // Weekly active days (last 7 days)
                 val last7DateKeys = DateUtils.getDateKeysLastDays(7)
                 val weeklyDailyCounts = if (last7DateKeys.isNotEmpty()) {
-                    habitCompletionDao.getDailyCountsBetween(last7DateKeys.first(), last7DateKeys.last())
+                    activityStats.getDailyCountsBetween(last7DateKeys.first(), last7DateKeys.last())
                 } else {
                     emptyList()
                 }
@@ -200,7 +206,8 @@ class ProfileViewModel @Inject constructor(
                 val effectiveDays = maxOf(1f, 7f - activeHaidhDaysInLast7Days)
                 val weeklyPercentage = if (totalHabits > 0) {
                     val weeklyTotalCompleted = weeklyDailyCounts.sumOf { it.count }
-                    (weeklyTotalCompleted * 100f) / (totalHabits * effectiveDays)
+                    // Tilawah/iqro menambah pembilang tanpa slot; batasi agar tidak lewat 100%.
+                    minOf(100f, (weeklyTotalCompleted * 100f) / (totalHabits * effectiveDays))
                 } else 0f
 
                 _uiState.update {

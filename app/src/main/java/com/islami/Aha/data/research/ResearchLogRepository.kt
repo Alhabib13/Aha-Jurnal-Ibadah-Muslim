@@ -1,6 +1,7 @@
 package com.islami.Aha.data.research
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -18,10 +19,12 @@ import com.islami.Aha.data.repository.CloudSyncStatus
 import com.islami.Aha.worker.SyncResearchLogsWorker
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Date
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,7 +43,8 @@ data class SlotRef(val slot: IbadahSlot, val localId: String?)
 class ResearchLogRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val researchLogDao: ResearchLogDao,
-    private val deletedSyncDao: DeletedSyncDao
+    private val deletedSyncDao: DeletedSyncDao,
+    private val sharedPreferences: SharedPreferences
 ) {
     companion object {
         const val RECORD_TYPE = "RESEARCH_LOG"
@@ -48,6 +52,23 @@ class ResearchLogRepository @Inject constructor(
         private const val WRITE_TIMEOUT_MS = 15_000L
         private const val FLUSH_TIMEOUT_MS = 5_000L
         private const val UPLOAD_FAILED_NOTICE = "Sinkronisasi log ibadah ke cloud belum berhasil."
+        private const val RESTORE_TIMEOUT_MS = 30_000L
+
+        /** Pengguna sudah membaca pemberitahuan penelitian (dialog sekali muncul). */
+        const val KEY_RESEARCH_NOTICE_ACK = "research_notice_ack_v1"
+        private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
+
+        fun dzikirSlot(detail: String): SlotRef = SlotRef(
+            IbadahSlot(
+                ResearchSchema.Jenis.DZIKIR,
+                detail,
+                if (detail == ResearchSchema.Detail.PAGI) "Dzikir Pagi" else "Dzikir Petang"
+            ),
+            null
+        )
+
+        private val TILAWAH_SLOT = IbadahSlot(ResearchSchema.Jenis.TILAWAH, null, null)
+        private val IQRO_SLOT = IbadahSlot(ResearchSchema.Jenis.IQRO, null, null)
 
         /** Habit bawaan (tabel `habits`). */
         fun slotForDefaultHabit(name: String, category: String): SlotRef? =
@@ -74,9 +95,13 @@ class ResearchLogRepository @Inject constructor(
         ref: SlotRef?,
         tanggal: String,
         jamPencatatanMs: Long = System.currentTimeMillis(),
-        sumber: String = ResearchSchema.Sumber.TIDAK_DIKETAHUI
+        sumber: String = ResearchSchema.Sumber.TIDAK_DIKETAHUI,
+        jumlah: Int? = null,
+        jilid: Int? = null
     ) {
         ref ?: return
+        // Data penelitian hanya dikumpulkan setelah pengguna diberi tahu.
+        if (!isNoticeAcknowledged()) return
         val key = slotKeyOrNull(ref, tanggal) ?: return
         researchLogDao.upsert(
             ResearchLogEntity(
@@ -86,8 +111,8 @@ class ResearchLogRepository @Inject constructor(
                 namaDetail = ref.slot.namaDetail,
                 namaDetailAsli = ref.slot.namaDetailAsli?.take(100),
                 status = ResearchSchema.Status.DIKERJAKAN,
-                jumlah = null,
-                jilid = null,
+                jumlah = jumlah,
+                jilid = jilid,
                 jamPencatatan = jamPencatatanMs,
                 sumberPencatatan = sumber,
                 ownerUid = currentUid(),
@@ -102,11 +127,94 @@ class ResearchLogRepository @Inject constructor(
     /** Centang dibatalkan (keputusan C): baris dihapus, bukan diubah jadi "tidak". */
     suspend fun remove(ref: SlotRef?, tanggal: String) {
         ref ?: return
-        val key = slotKeyOrNull(ref, tanggal) ?: return
+        removeBySlotKey(slotKeyOrNull(ref, tanggal) ?: return)
+    }
+
+    suspend fun removeBySlotKey(key: String) {
         researchLogDao.getBySlotKey(key) ?: return
         researchLogDao.deleteBySlotKey(key)
         if (currentUid() != null) {
             deletedSyncDao.insert(DeletedSyncRecord(recordId = key, recordType = RECORD_TYPE))
+        }
+    }
+
+    // ---------- pemberitahuan penelitian ----------
+
+    fun isNoticeAcknowledged(): Boolean = sharedPreferences.getBoolean(KEY_RESEARCH_NOTICE_ACK, false)
+
+    fun acknowledgeNotice() {
+        sharedPreferences.edit().putBoolean(KEY_RESEARCH_NOTICE_ACK, true).apply()
+    }
+
+    // ---------- dzikir / tilawah / iqro ----------
+
+    fun observeDikerjakan(tanggal: String, jenis: String): Flow<List<ResearchLogEntity>> =
+        researchLogDao.observeDikerjakan(tanggal, jenis)
+
+    fun observeLatestIqro(): Flow<ResearchLogEntity?> = researchLogDao.observeLatestIqro()
+
+    /** Dzikir pagi/petang: slot tetap, centang = catat, centang lagi = hapus. */
+    suspend fun toggleDzikir(detail: String, tanggal: String) {
+        require(detail == ResearchSchema.Detail.PAGI || detail == ResearchSchema.Detail.PETANG)
+        val ref = dzikirSlot(detail)
+        val key = slotKeyOrNull(ref, tanggal) ?: return
+        if (researchLogDao.getBySlotKey(key) != null) remove(ref, tanggal) else recordDikerjakan(ref, tanggal)
+    }
+
+    /** Tilawah: satu baris per sesi baca (idLokal acak), tidak ditimpa & tidak dijumlahkan. */
+    suspend fun addTilawahSession(halaman: Int, tanggal: String): Boolean {
+        if (halaman !in ResearchSchema.TILAWAH_HALAMAN) return false
+        recordDikerjakan(SlotRef(TILAWAH_SLOT, UUID.randomUUID().toString()), tanggal, jumlah = halaman)
+        return true
+    }
+
+    /** Iqro (dan metode sejenis): posisi terakhir, satu baris per hari yang menimpa. */
+    suspend fun saveIqro(jilid: Int, halaman: Int, tanggal: String): Boolean {
+        if (jilid !in ResearchSchema.IQRO_JILID || halaman !in ResearchSchema.IQRO_HALAMAN) return false
+        recordDikerjakan(SlotRef(IQRO_SLOT, null), tanggal, jumlah = halaman, jilid = jilid)
+        return true
+    }
+
+    // ---------- pemulihan dari cloud ----------
+
+    /**
+     * Isi ulang tabel lokal dari koleksi `logs` milik akun ini (setelah install ulang /
+     * login di HP lain), supaya riwayat dzikir & tilawah tetap tampil di heatmap.
+     * Hanya cache tampilan: baris ditandai terkirim dan tidak pernah membuat log baru.
+     * Dijalankan sekali per akun per instalasi untuk menghemat kuota baca Firestore.
+     */
+    suspend fun restoreFromCloudIfNeeded(): CloudSyncStatus {
+        val uid = currentUid() ?: return CloudSyncStatus.success()
+        if (sharedPreferences.getBoolean(KEY_RESTORED_PREFIX + uid, false)) return CloudSyncStatus.success()
+        val col = firestore?.collection(ResearchSchema.COLLECTION_LOGS) ?: return CloudSyncStatus.success()
+        return runCatching {
+            val snapshot = withTimeout(RESTORE_TIMEOUT_MS) {
+                col.whereEqualTo(ResearchSchema.Log.USER_ID, uid).get().await()
+            }
+            val prefix = "${uid}_"
+            val rows = snapshot.documents.mapNotNull { doc ->
+                if (!doc.id.startsWith(prefix)) return@mapNotNull null
+                ResearchLogEntity(
+                    slotKey = doc.id.removePrefix(prefix),
+                    tanggal = doc.getString(ResearchSchema.Log.TANGGAL) ?: return@mapNotNull null,
+                    jenisIbadah = doc.getString(ResearchSchema.Log.JENIS_IBADAH) ?: return@mapNotNull null,
+                    namaDetail = doc.getString(ResearchSchema.Log.NAMA_DETAIL),
+                    namaDetailAsli = doc.getString(ResearchSchema.Log.NAMA_DETAIL_ASLI),
+                    status = doc.getString(ResearchSchema.Log.STATUS) ?: return@mapNotNull null,
+                    jumlah = doc.getLong(ResearchSchema.Log.JUMLAH)?.toInt(),
+                    jilid = doc.getLong(ResearchSchema.Log.JILID)?.toInt(),
+                    jamPencatatan = doc.getTimestamp(ResearchSchema.Log.JAM_PENCATATAN)?.toDate()?.time,
+                    sumberPencatatan = doc.getString(ResearchSchema.Log.SUMBER_PENCATATAN),
+                    ownerUid = uid,
+                    isSynced = true,
+                    updatedAt = 0L
+                )
+            }
+            researchLogDao.insertIgnore(rows)
+            sharedPreferences.edit().putBoolean(KEY_RESTORED_PREFIX + uid, true).apply()
+            CloudSyncStatus.success(rows.size)
+        }.getOrElse { error ->
+            failure(0, retry = error.isRetryable(), error)
         }
     }
 
@@ -177,12 +285,20 @@ class ResearchLogRepository @Inject constructor(
     suspend fun clearLocal() {
         researchLogDao.deleteAll()
         deletedSyncDao.deleteByType(RECORD_TYPE)
+        clearRestoreFlags()
+    }
+
+    private fun clearRestoreFlags() {
+        val editor = sharedPreferences.edit()
+        sharedPreferences.all.keys.filter { it.startsWith(KEY_RESTORED_PREFIX) }.forEach { editor.remove(it) }
+        editor.apply()
     }
 
     /** Akun berganti tanpa lewat logout: buang baris milik akun lain. */
     suspend fun clearRowsNotOwnedBy(uid: String) {
         researchLogDao.deleteNotOwnedBy(uid)
         deletedSyncDao.deleteByType(RECORD_TYPE)
+        clearRestoreFlags()
     }
 
     private fun slotKeyOrNull(ref: SlotRef, tanggal: String): String? =

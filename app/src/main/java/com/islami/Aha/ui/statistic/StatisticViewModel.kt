@@ -27,7 +27,8 @@ private data class StatCombineData(
     val habits: List<com.islami.Aha.data.model.Habit>,
     val sunnahHabits: List<com.islami.Aha.domain.model.SunnahHabit>,
     val config: com.islami.Aha.data.repository.AppFeatureConfig,
-    val haidhDates: Set<String>
+    val haidhDates: Set<String>,
+    val researchTick: String
 )
 
 data class PastDayHabitItem(
@@ -80,7 +81,8 @@ class StatisticViewModel @Inject constructor(
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
     private val featureConfigRepository: FeatureConfigRepository,
     private val completionSyncRepository: com.islami.Aha.data.repository.CompletionSyncRepository,
-    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
+    private val activityStats: com.islami.Aha.data.research.ActivityStatsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StatisticUiState())
@@ -108,9 +110,10 @@ class StatisticViewModel @Inject constructor(
                 habitDao.getHabits(),
                 sunnahHabitSharedViewModel.sunnahHabits,
                 featureConfigRepository.featureConfig,
-                com.islami.Aha.util.UserPreferencesManager.haidhDates
-            ) { habits, sunnahHabits, config, haidhDates ->
-                StatCombineData(habits, sunnahHabits, config, haidhDates)
+                com.islami.Aha.util.UserPreferencesManager.haidhDates,
+                activityStats.observeChanges()
+            ) { habits, sunnahHabits, config, haidhDates, researchTick ->
+                StatCombineData(habits, sunnahHabits, config, haidhDates, researchTick)
             }.collect { data ->
                 val habits = data.habits
                 val sunnahHabits = data.sunnahHabits
@@ -138,8 +141,11 @@ class StatisticViewModel @Inject constructor(
 
                 val fardhuCompleted = visibleHabits.count { it.isCompleted }
                 val sunnahCompleted = visibleSunnahHabits.count { it.isCompletedToday }
-                val todayCompleted = fardhuCompleted + sunnahCompleted
-                val todayTotal = visibleHabits.size + visibleSunnahHabits.size
+                // Dzikir: 2 slot tetap, ikut rasio (juga saat Mode Cuti). Tilawah/iqro di luar rasio.
+                val dzikirDone = activityStats.getDzikirDoneCount(DateUtils.getTodayKey())
+                val todayCompleted = fardhuCompleted + sunnahCompleted + dzikirDone
+                val todayTotal = visibleHabits.size + visibleSunnahHabits.size +
+                    com.islami.Aha.data.research.ActivityStatsRepository.DZIKIR_SLOTS_PER_DAY
                 val todayPercentage = if (todayTotal > 0) (todayCompleted * 100) / todayTotal else 0
 
                 val categoryOrder = buildList {
@@ -193,14 +199,14 @@ class StatisticViewModel @Inject constructor(
 
                 val last7DateKeys = DateUtils.getDateKeysLastDays(7)
                 val dailyCounts = if (last7DateKeys.isNotEmpty()) {
-                    habitCompletionDao.getDailyCountsBetween(last7DateKeys.first(), last7DateKeys.last())
+                    activityStats.getDailyCountsBetween(last7DateKeys.first(), last7DateKeys.last())
                 } else {
                     emptyList()
                 }
-                val completionDates = habitCompletionDao.getDistinctCompletionDatesDesc()
+                val completionDates = activityStats.getDistinctCompletionDatesDesc()
                 val currentStreak = calculateCurrentStreak(completionDates, haidhDates)
                 val longestStreak = calculateLongestStreak(completionDates)
-                val historicalTotal = habitCompletionDao.getTotalCompletionCount()
+                val historicalTotal = activityStats.getTotalCompletionCount()
                 val activeDaysCount = completionDates.size
                 val averagePerDay = if (activeDaysCount > 0) {
                     historicalTotal.toFloat() / activeDaysCount

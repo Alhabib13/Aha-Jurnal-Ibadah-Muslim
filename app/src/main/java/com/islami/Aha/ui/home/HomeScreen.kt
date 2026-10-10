@@ -247,8 +247,28 @@ fun HomeScreen(
             onSelectSubTab = viewModel::selectSubTab,
             onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
             onToggleSunnahReminder = viewModel::toggleSunnahReminder,
-            onDeleteSunnah = viewModel::removeSunnahHabit
+            onDeleteSunnah = viewModel::removeSunnahHabit,
+            onToggleDzikir = viewModel::toggleDzikir,
+            onAddTilawahSession = viewModel::addTilawahSession,
+            onDeleteTilawahSession = viewModel::removeTilawahSession,
+            onSaveIqro = viewModel::saveIqro
         )
+
+        if (uiState.showResearchNotice) {
+            ResearchNoticeDialog(
+                onAcknowledge = viewModel::acknowledgeResearchNotice,
+                onOpenPrivacyPolicy = {
+                    context.startActivity(
+                        android.content.Intent(context, com.islami.Aha.ui.settings.LegalDocumentActivity::class.java).apply {
+                            putExtra(
+                                com.islami.Aha.ui.settings.LegalDocumentActivity.EXTRA_DOCUMENT_TYPE,
+                                com.islami.Aha.ui.settings.LegalDocumentActivity.DOC_PRIVACY
+                            )
+                        }
+                    )
+                }
+            )
+        }
 
         AhaToastHost(
             message = toastMessage,
@@ -413,7 +433,11 @@ fun HomeScreenContent(
     onSelectSubTab: (Int) -> Unit,
     onToggleSunnahCompletion: (String) -> Unit = {},
     onToggleSunnahReminder: (String) -> Unit = {},
-    onDeleteSunnah: (String) -> Unit = {}
+    onDeleteSunnah: (String) -> Unit = {},
+    onToggleDzikir: (String) -> Unit = {},
+    onAddTilawahSession: (Int) -> Unit = {},
+    onDeleteTilawahSession: (String) -> Unit = {},
+    onSaveIqro: (Int, Int) -> Unit = { _, _ -> }
 ) {
     if (uiState.isLoading) {
         return
@@ -504,7 +528,12 @@ fun HomeScreenContent(
             item {
                 HabitSectionHeader(
                     completedCount = uiState.completedHabitsCount,
-                    totalCount = uiState.totalHabitsCount
+                    totalCount = uiState.totalHabitsCount,
+                    progressTextOverride = if (uiState.isTilawahCategory) {
+                        "${uiState.tilawahHalamanToday} halaman"
+                    } else {
+                        null
+                    }
                 )
             }
 
@@ -522,7 +551,27 @@ fun HomeScreenContent(
 
             // Content based on category
             val selectedSubCategory = uiState.subTabCategories.getOrNull(uiState.selectedSubTabIndex)
-            if (uiState.isComingSoon) {
+            if (uiState.isDzikirCategory) {
+                item {
+                    DzikirCard(
+                        pagiDone = uiState.dzikirPagiDone,
+                        petangDone = uiState.dzikirPetangDone,
+                        onToggle = onToggleDzikir
+                    )
+                }
+            } else if (uiState.isTilawahCategory) {
+                item {
+                    TilawahCard(
+                        sessions = uiState.tilawahSessions,
+                        totalHalaman = uiState.tilawahHalamanToday,
+                        onAddSession = onAddTilawahSession,
+                        onDeleteSession = onDeleteTilawahSession
+                    )
+                }
+                item {
+                    IqroCard(progress = uiState.iqroProgress, onSave = onSaveIqro)
+                }
+            } else if (uiState.isComingSoon) {
                 item {
                     ComingSoonState(categoryName = uiState.selectedMainCategory)
                 }

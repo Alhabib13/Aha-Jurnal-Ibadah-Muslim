@@ -41,6 +41,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -115,8 +116,10 @@ class HomeViewModel @Inject constructor(
             val syncStatuses = listOf(
                 sunnahHabitSharedViewModel.syncFromCloudIfLoggedInAwait(),
                 completionSyncRepository.restoreFromCloud(),
-                completionSyncRepository.syncPendingRecords()
+                completionSyncRepository.syncPendingRecords(),
+                researchLogRepository.restoreFromCloudIfNeeded()
             )
+            researchLogRepository.scheduleUpload()
             syncTodayCompletionsToUiState()
             val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
             if (firstIssue.isNullOrBlank()) {
@@ -126,6 +129,8 @@ class HomeViewModel @Inject constructor(
             }
         }
         loadHabits()
+        observeResearchIbadah()
+        _uiState.update { it.copy(showResearchNotice = !researchLogRepository.isNoticeAcknowledged()) }
         startPeriodicHomeUpdates()
         loadDailyIslamicContent()
         
@@ -505,6 +510,7 @@ class HomeViewModel @Inject constructor(
             var lastContentRotateAtMs = System.currentTimeMillis()
             while (currentCoroutineContext().isActive) {
                 updateCurrentTimeAndPrayerInfo()
+                todayKeyFlow.value = DateUtils.getTodayKey()
                 val nowMs = System.currentTimeMillis()
                 if (nowMs - lastContentRotateAtMs >= ISLAMIC_CONTENT_ROTATE_INTERVAL_MS) {
                     rotateIslamicContentIfAvailable()
@@ -666,6 +672,89 @@ class HomeViewModel @Inject constructor(
             // Jadwalkan offline queue: jika sync gagal (offline), worker akan
             // mengupload ulang saat koneksi tersedia — bahkan setelah app restart.
             scheduleSyncCompletionsWork()
+        }
+    }
+
+    // ---------- Dzikir / Tilawah / Iqro (hanya research_logs) ----------
+
+    private val todayKeyFlow = MutableStateFlow(DateUtils.getTodayKey())
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private fun observeResearchIbadah() {
+        val jamFormat = java.text.SimpleDateFormat("HH.mm", java.util.Locale.forLanguageTag("id-ID"))
+        viewModelScope.launch {
+            todayKeyFlow.flatMapLatest { today ->
+                researchLogRepository.observeDikerjakan(today, com.islami.Aha.data.research.ResearchSchema.Jenis.DZIKIR)
+            }.collect { rows ->
+                val details = rows.mapNotNull { it.namaDetail }.toSet()
+                _uiState.update {
+                    it.copy(
+                        dzikirPagiDone = com.islami.Aha.data.research.ResearchSchema.Detail.PAGI in details,
+                        dzikirPetangDone = com.islami.Aha.data.research.ResearchSchema.Detail.PETANG in details
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            todayKeyFlow.flatMapLatest { today ->
+                researchLogRepository.observeDikerjakan(today, com.islami.Aha.data.research.ResearchSchema.Jenis.TILAWAH)
+            }.collect { rows ->
+                val sessions = rows.map { row ->
+                    TilawahSessionUi(
+                        slotKey = row.slotKey,
+                        halaman = row.jumlah ?: 0,
+                        jam = row.jamPencatatan?.let { jamFormat.format(java.util.Date(it)) }.orEmpty()
+                    )
+                }
+                _uiState.update { it.copy(tilawahSessions = sessions) }
+            }
+        }
+        viewModelScope.launch {
+            researchLogRepository.observeLatestIqro().collect { row ->
+                val progress = row?.let { r ->
+                    val jilid = r.jilid ?: return@let null
+                    val halaman = r.jumlah ?: return@let null
+                    IqroProgressUi(jilid, halaman, r.tanggal)
+                }
+                _uiState.update { it.copy(iqroProgress = progress) }
+            }
+        }
+    }
+
+    fun acknowledgeResearchNotice() {
+        researchLogRepository.acknowledgeNotice()
+        _uiState.update { it.copy(showResearchNotice = false) }
+    }
+
+    fun toggleDzikir(detail: String) {
+        launchSafely("toggleDzikir") {
+            researchLogRepository.toggleDzikir(detail, todayKeyFlow.value)
+            researchLogRepository.scheduleUpload()
+        }
+    }
+
+    fun addTilawahSession(halaman: Int) {
+        launchSafely("addTilawahSession") {
+            if (researchLogRepository.addTilawahSession(halaman, todayKeyFlow.value)) {
+                researchLogRepository.scheduleUpload()
+                showSnackbar("Tilawah $halaman halaman dicatat")
+            }
+        }
+    }
+
+    fun removeTilawahSession(slotKey: String) {
+        launchSafely("removeTilawahSession") {
+            researchLogRepository.removeBySlotKey(slotKey)
+            researchLogRepository.scheduleUpload()
+        }
+    }
+
+    fun saveIqro(jilid: Int, halaman: Int) {
+        launchSafely("saveIqro") {
+            if (researchLogRepository.saveIqro(jilid, halaman, todayKeyFlow.value)) {
+                researchLogRepository.scheduleUpload()
+                showSnackbar("Jilid $jilid halaman $halaman disimpan")
+            }
         }
     }
 
@@ -1054,7 +1143,8 @@ class HomeViewModel @Inject constructor(
                 val syncStatuses = listOf(
                     sunnahHabitSharedViewModel.syncFromCloudIfLoggedInAwait(),
                     completionSyncRepository.restoreFromCloud(),
-                    completionSyncRepository.syncPendingRecords()
+                    completionSyncRepository.syncPendingRecords(),
+                    researchLogRepository.restoreFromCloudIfNeeded()
                 )
                 researchLogRepository.scheduleUpload()
                 

@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import com.islami.Aha.BuildConfig
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.islami.Aha.data.research.ResearchSchema
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.GoogleAuthProvider
@@ -55,7 +56,9 @@ class AuthRepository @Inject constructor(
     private data class CloudDeleteBackup(
         val sunnahHabits: List<CloudSunnahBackup>,
         val completionRecords: List<CloudSunnahBackup>,
-        val profileData: Map<String, Any>?
+        val profileData: Map<String, Any>?,
+        /** Log penelitian; nilai null DISIMPAN karena rules mewajibkan semua kunci ada. */
+        val researchLogs: List<Pair<String, Map<String, Any?>>> = emptyList()
     )
 
     val currentUser: FirebaseUser? get() = firebaseAuth.currentUser
@@ -437,30 +440,49 @@ class AuthRepository @Inject constructor(
             if (value == null) null else key to value
         }?.toMap()
 
-        sunnahDocs.chunked(500).forEach { chunk ->
-            val batch = db.batch()
-            chunk.forEach { batch.delete(it.reference) }
-            batch.commit().await()
-        }
-
-        completionDocs.chunked(500).forEach { chunk ->
-            val batch = db.batch()
-            chunk.forEach { batch.delete(it.reference) }
-            batch.commit().await()
-        }
-
-        db.collection("users")
-            .document(uid)
-            .collection("meta")
-            .document("profile")
-            .delete()
+        // Data penelitian milik pengguna ini (koleksi tingkat atas, kepemilikan via user_id).
+        val researchLogDocs = db.collection(ResearchSchema.COLLECTION_LOGS)
+            .whereEqualTo(ResearchSchema.Log.USER_ID, uid)
+            .get()
             .await()
+            .documents
+        val researchLogBackup = researchLogDocs.map { doc -> doc.id to doc.data.orEmpty() }
+        val researchProfileRef = db.collection(ResearchSchema.COLLECTION_USERS).document(uid)
 
-        return CloudDeleteBackup(
+        val backup = CloudDeleteBackup(
             sunnahHabits = sunnahBackup,
             completionRecords = completionBackup,
-            profileData = profileBackup
+            profileData = profileBackup,
+            researchLogs = researchLogBackup
         )
+
+        // Semua penghapusan dalam satu blok: bila satu langkah gagal, pulihkan semuanya
+        // (sebelumnya data yang sudah terhapus hilang karena backup belum dikembalikan).
+        runCatching {
+            (sunnahDocs + completionDocs + researchLogDocs).chunked(500).forEach { chunk ->
+                val batch = db.batch()
+                chunk.forEach { batch.delete(it.reference) }
+                batch.commit().await()
+            }
+
+            db.collection("users")
+                .document(uid)
+                .collection("meta")
+                .document("profile")
+                .delete()
+                .await()
+
+            // users/{uid} (profil penelitian) belum dibuat sebelum Tahap 3. Dokumen ini tidak
+            // bisa dipulihkan dengan tanggal_mulai aslinya (rules: harus waktu server), jadi
+            // dihapus paling akhir. TODO Tahap 3: tentukan cara pemulihannya.
+            researchProfileRef.delete().await()
+        }.onFailure { error ->
+            runCatching { restoreCloudData(uid, backup) }
+                .onFailure { restoreError -> com.islami.Aha.util.logCrashlyticsSafe(restoreError) }
+            throw error
+        }
+
+        return backup
     }
 
     private suspend fun restoreCloudData(uid: String, backup: CloudDeleteBackup) {
@@ -490,6 +512,14 @@ class AuthRepository @Inject constructor(
                         .document(item.id),
                     item.data
                 )
+            }
+            batch.commit().await()
+        }
+
+        backup.researchLogs.chunked(500).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { (id, data) ->
+                batch.set(db.collection(ResearchSchema.COLLECTION_LOGS).document(id), data)
             }
             batch.commit().await()
         }
