@@ -107,7 +107,8 @@ class SettingsViewModel @Inject constructor(
     private val habitCompletionDao: HabitCompletionDao,
     private val sharedPreferences: SharedPreferences,
     private val authRepository: AuthRepository,
-    private val userHabitRepository: com.islami.Aha.data.repository.UserHabitRepository
+    private val userHabitRepository: com.islami.Aha.data.repository.UserHabitRepository,
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
 ) : ViewModel() {
     companion object {
         private const val VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
@@ -459,6 +460,8 @@ class SettingsViewModel @Inject constructor(
             delay(450)
             verificationCooldownJob?.cancel()
             clearTrackedDataForGuestMode()
+            // Unggah log penelitian selagi akun lama masih login, lalu kosongkan.
+            runCatching { researchLogRepository.flushAndClear() }
             authRepository.logout()
             val user = authRepository.currentUser
             val prefs = com.islami.Aha.util.SecurePrefsProvider.get(appContext)
@@ -565,6 +568,7 @@ class SettingsViewModel @Inject constructor(
             userHabitDao.deleteAll()
             habitCompletionDao.deleteAll()
         }
+        runCatching { researchLogRepository.clearLocal() }
         sharedPreferences.edit()
             .remove("hasSeeded")
             .remove("dark_mode_enabled")

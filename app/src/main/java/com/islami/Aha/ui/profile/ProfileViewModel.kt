@@ -95,7 +95,8 @@ class ProfileViewModel @Inject constructor(
     private val sharedPreferences: SharedPreferences,
     private val userHabitRepository: UserHabitRepository,
     private val authRepository: AuthRepository,
-    private val featureConfigRepository: FeatureConfigRepository
+    private val featureConfigRepository: FeatureConfigRepository,
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
 ) : ViewModel() {
 
     companion object {
@@ -344,6 +345,8 @@ class ProfileViewModel @Inject constructor(
                 habitCompletionDao.deleteAll()
                 habitDao.resetTrackerState()
             }
+            // Unggah log penelitian selagi akun lama masih login, lalu kosongkan.
+            runCatching { researchLogRepository.flushAndClear() }
             authRepository.logout()
 
             _uiState.update {

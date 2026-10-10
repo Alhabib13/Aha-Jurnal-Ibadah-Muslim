@@ -74,6 +74,11 @@ android {
         }
     }
 
+    // Snapshot skema Room (app/schemas) untuk MigrationTestHelper.
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "APP_CHECK_MODE", "\"NONE\"")
@@ -181,6 +186,7 @@ dependencies {
     testImplementation("app.cash.turbine:turbine:1.0.0")
     testImplementation("io.mockk:mockk:1.13.13")
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation("androidx.room:room-testing:2.7.1")
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

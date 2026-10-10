@@ -11,6 +11,7 @@ import com.islami.Aha.data.model.HadithContentEntity
 import com.islami.Aha.data.model.SurahVerseEntity
 import com.islami.Aha.data.model.UserHabitEntity
 import com.islami.Aha.data.model.DeletedSyncRecord
+import com.islami.Aha.data.model.ResearchLogEntity
 
 @Database(
     entities = [
@@ -19,9 +20,10 @@ import com.islami.Aha.data.model.DeletedSyncRecord
         HabitCompletionRecord::class,
         HadithContentEntity::class,
         SurahVerseEntity::class,
-        DeletedSyncRecord::class
+        DeletedSyncRecord::class,
+        ResearchLogEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -31,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun habitCompletionDao(): HabitCompletionDao
     abstract fun dailyIslamicContentDao(): DailyIslamicContentDao
     abstract fun deletedSyncDao(): DeletedSyncDao
+    abstract fun researchLogDao(): ResearchLogDao
 
     companion object {
         val MIGRATION_5_6 = object : Migration(5, 6) {
@@ -160,6 +163,38 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            }
+        }
+
+        /**
+         * v14: tabel antrean log penelitian. HANYA membuat tabel & indeks baru;
+         * tidak ada ALTER/UPDATE/DELETE pada tabel yang sudah berisi data pengguna.
+         * Kolom tanpa DEFAULT agar sama persis dengan skema entity (validasi Room).
+         */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS research_logs (
+                        slotKey TEXT NOT NULL,
+                        tanggal TEXT NOT NULL,
+                        jenisIbadah TEXT NOT NULL,
+                        namaDetail TEXT,
+                        namaDetailAsli TEXT,
+                        status TEXT NOT NULL,
+                        jumlah INTEGER,
+                        jilid INTEGER,
+                        jamPencatatan INTEGER,
+                        sumberPencatatan TEXT,
+                        ownerUid TEXT,
+                        isSynced INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(slotKey)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_research_logs_tanggal ON research_logs(tanggal)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_research_logs_isSynced ON research_logs(isSynced)")
             }
         }
 

@@ -69,7 +69,8 @@ class HomeViewModel @Inject constructor(
     private val featureConfigRepository: FeatureConfigRepository,
     private val dailyIslamicContentRepository: DailyIslamicContentRepository,
     private val completionSyncRepository: CompletionSyncRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
 ) : ViewModel() {
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
@@ -327,6 +328,7 @@ class HomeViewModel @Inject constructor(
             }
             !lastActiveUid.isNullOrBlank() && lastActiveUid != currentUid -> {
                 clearUserScopedLocalTrackerData()
+                researchLogRepository.clearRowsNotOwnedBy(currentUid)
                 sharedPreferences.edit()
                     .putString(AuthRepository.KEY_LAST_ACTIVE_USER_UID, currentUid)
                     .apply()
@@ -632,14 +634,19 @@ class HomeViewModel @Inject constructor(
                 category = habit.category,
                 source = "DEFAULT"
             )
+            val researchSlot = com.islami.Aha.data.research.ResearchLogRepository
+                .slotForDefaultHabit(originalHabit.name, originalHabit.category)
             appDatabase.withTransaction {
                 habitDao.updateHabit(updatedHabit)
                 if (willComplete) {
                     habitCompletionDao.insert(record)
+                    researchLogRepository.recordDikerjakan(researchSlot, todayKey)
                 } else {
                     habitCompletionDao.deleteByHabitAndDate(habitKey, todayKey)
+                    researchLogRepository.remove(researchSlot, todayKey)
                 }
             }
+            researchLogRepository.scheduleUpload()
             // Sync ke Firestore (fire-and-forget, gagal → tetap tersimpan lokal)
             val syncStatus = if (willComplete) {
                 completionSyncRepository.syncAdd(record)
@@ -1049,6 +1056,7 @@ class HomeViewModel @Inject constructor(
                     completionSyncRepository.restoreFromCloud(),
                     completionSyncRepository.syncPendingRecords()
                 )
+                researchLogRepository.scheduleUpload()
                 
                 val prefsResult = authRepository.fetchUserPreferences()
                 val prefs = prefsResult.getOrNull()?.takeIf { it.isNotEmpty() }

@@ -80,6 +80,7 @@ class SettingsViewModelTest {
             mockHabitCompletionDao,
             mockSharedPreferences,
             mockAuthRepository,
+            mockk(relaxed = true),
             mockk(relaxed = true)
         )
     }
@@ -218,6 +219,7 @@ class SettingsViewModelTest {
             mockHabitCompletionDao,
             mockSharedPreferences,
             mockAuthRepository,
+            mockk(relaxed = true),
             mockk(relaxed = true)
         )
 
@@ -240,6 +242,7 @@ class SettingsViewModelTest {
             mockHabitCompletionDao,
             mockSharedPreferences,
             mockAuthRepository,
+            mockk(relaxed = true),
             mockk(relaxed = true)
         )
 
@@ -299,6 +302,7 @@ class SettingsViewModelTest {
             mockHabitCompletionDao,
             mockSharedPreferences,
             mockAuthRepository,
+            mockk(relaxed = true),
             mockk(relaxed = true)
         )
 
@@ -425,6 +429,7 @@ class SettingsViewModelTest {
             mockHabitCompletionDao,
             mockSharedPreferences,
             mockAuthRepository,
+            mockk(relaxed = true),
             mockk(relaxed = true)
         )
         val state = loggedInViewModel.uiState.value

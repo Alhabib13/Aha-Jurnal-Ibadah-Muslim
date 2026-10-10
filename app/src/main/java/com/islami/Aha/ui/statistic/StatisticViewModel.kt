@@ -79,7 +79,8 @@ class StatisticViewModel @Inject constructor(
     private val habitDao: HabitDao,
     private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
     private val featureConfigRepository: FeatureConfigRepository,
-    private val completionSyncRepository: com.islami.Aha.data.repository.CompletionSyncRepository
+    private val completionSyncRepository: com.islami.Aha.data.repository.CompletionSyncRepository,
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StatisticUiState())
@@ -366,8 +367,18 @@ class StatisticViewModel @Inject constructor(
                 category = item.category,
                 source = if (item.isSunnah) "SUNNAH" else "DEFAULT"
             )
+            // tanggal = hari ibadahnya; jam_pencatatan = sekarang (pencatatan susulan, keputusan F).
+            val researchSlot = if (item.isSunnah) {
+                com.islami.Aha.data.research.ResearchLogRepository.slotForSunnahHabit(
+                    item.habitKey.removePrefix("sunnah_"), item.name, item.category
+                )
+            } else {
+                com.islami.Aha.data.research.ResearchLogRepository.slotForDefaultHabit(item.name, item.category)
+            }
             if (willComplete) {
                 habitCompletionDao.insert(record)
+                researchLogRepository.recordDikerjakan(researchSlot, dateKey)
+                researchLogRepository.scheduleUpload()
                 // Sync to Cloud
                 launch { 
                     val status = completionSyncRepository.syncAdd(record)
@@ -375,6 +386,8 @@ class StatisticViewModel @Inject constructor(
                 }
             } else {
                 habitCompletionDao.deleteByHabitAndDate(item.habitKey, dateKey)
+                researchLogRepository.remove(researchSlot, dateKey)
+                researchLogRepository.scheduleUpload()
                 // Sync to Cloud
                 launch { 
                     val status = completionSyncRepository.syncDelete(item.habitKey, dateKey)

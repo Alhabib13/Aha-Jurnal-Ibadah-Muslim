@@ -144,16 +144,29 @@ object ResearchSchema {
      * - qadha_sholat:    `{uid}_{tanggal}_qadha_sholat_{localId}` (localId = id habit)
      * Sync ulang dari antrean offline menimpa dokumen yang sama, bukan menggandakan.
      */
-    fun logId(uid: String, tanggal: String, jenis: String, detail: String?, localId: String? = null): String {
-        val butuhIdLokal = jenis in JENIS_MULTI_BARIS || detail == Detail.SUNNAH_LAINNYA
-        if (butuhIdLokal) {
+    fun logId(uid: String, tanggal: String, jenis: String, detail: String?, localId: String? = null): String =
+        logId(uid, slotKey(tanggal, jenis, detail, localId))
+
+    /** ID dokumen Firestore dari slotKey lokal; uid baru diketahui saat upload. */
+    fun logId(uid: String, slotKey: String): String = "${uid}_$slotKey"
+
+    /** Apakah slot ini butuh id lokal (multi-baris per hari atau sunnah buatan pengguna). */
+    fun butuhIdLokal(jenis: String, detail: String?): Boolean =
+        jenis in JENIS_MULTI_BARIS || detail == Detail.SUNNAH_LAINNYA
+
+    /**
+     * Bagian ID log tanpa uid: `{tanggal}_{jenis}[_{detail}][_{localId}]`.
+     * Dipakai sebagai primary key tabel lokal `research_logs`.
+     */
+    fun slotKey(tanggal: String, jenis: String, detail: String?, localId: String? = null): String {
+        if (butuhIdLokal(jenis, detail)) {
             require(localId != null && ID_LOKAL_REGEX.matches(localId)) {
                 "localId wajib (huruf, angka, '-', maks 64) untuk $jenis/$detail"
             }
         } else {
             require(localId == null) { "Slot $jenis/$detail hanya satu baris per hari" }
         }
-        return listOfNotNull(uid, tanggal, jenis, detail, localId).joinToString("_")
+        return listOfNotNull(tanggal, jenis, detail, localId).joinToString("_")
     }
 }
 

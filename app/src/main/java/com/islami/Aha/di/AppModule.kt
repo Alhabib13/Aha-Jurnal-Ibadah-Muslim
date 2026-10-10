@@ -41,7 +41,8 @@ object AppModule {
             AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11,
             AppDatabase.MIGRATION_11_12,
-            AppDatabase.MIGRATION_12_13
+            AppDatabase.MIGRATION_12_13,
+            AppDatabase.MIGRATION_13_14
         )
         .build()
     }
@@ -50,6 +51,12 @@ object AppModule {
     @Singleton
     fun provideDeletedSyncDao(appDatabase: AppDatabase): com.islami.Aha.data.local.DeletedSyncDao {
         return appDatabase.deletedSyncDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideResearchLogDao(appDatabase: AppDatabase): com.islami.Aha.data.local.ResearchLogDao {
+        return appDatabase.researchLogDao()
     }
 
     @Provides
@@ -89,9 +96,13 @@ object AppModule {
         userHabitDao: UserHabitDao,
         habitCompletionDao: HabitCompletionDao,
         completionSyncRepository: CompletionSyncRepository,
-        deletedSyncDao: com.islami.Aha.data.local.DeletedSyncDao
+        deletedSyncDao: com.islami.Aha.data.local.DeletedSyncDao,
+        researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
     ): UserHabitRepository {
-        return UserHabitRepository(appDatabase, userHabitDao, habitCompletionDao, completionSyncRepository, deletedSyncDao)
+        return UserHabitRepository(
+            appDatabase, userHabitDao, habitCompletionDao, completionSyncRepository, deletedSyncDao,
+            researchLogRepository
+        )
     }
 
     @Provides
