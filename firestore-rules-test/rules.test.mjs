@@ -57,6 +57,10 @@ const log = (o = {}) => ({
   jilid: null,
   jam_pencatatan: Timestamp.now(),
   sumber_pencatatan: "buka_aplikasi",
+  jumlah_ayat: null,
+  juz: null,
+  offset_waktu: "+07:00",
+  selisih_menit_dari_adzan: null,
   ...o,
 });
 
@@ -169,7 +173,8 @@ describe("logs: struktur & kepemilikan", () => {
       )
     ));
 
-  for (const key of ["jam_pencatatan", "sumber_pencatatan", "status", "jumlah", "nama_detail_asli", "jilid"]) {
+  for (const key of ["jam_pencatatan", "sumber_pencatatan", "status", "jumlah", "nama_detail_asli", "jilid",
+                     "jumlah_ayat", "juz", "offset_waktu", "selisih_menit_dari_adzan"]) {
     test(`kunci ${key} wajib ada`, () =>
       assertFails(setDoc(doc(db(ALICE), "logs", logId()), tanpa(key))));
   }
@@ -177,7 +182,7 @@ describe("logs: struktur & kepemilikan", () => {
   test("data profil tidak boleh disalin ke log", () =>
     assertFails(tulisLog({ jenis_kelamin: "perempuan" })));
 
-  test("selisih dari adzan tidak boleh disimpan", () =>
+  test("field di luar skema ditolak", () =>
     assertFails(tulisLog({ selisih_menit: 12 })));
 
   test("format tanggal salah ditolak", async () => {
@@ -245,7 +250,7 @@ describe("logs: status tiga nilai", () => {
 });
 
 describe("logs: jumlah & jilid", () => {
-  const tilawah = { jenis_ibadah: "tilawah", nama_detail: null, nama_detail_asli: null };
+  const tilawah = { jenis_ibadah: "tilawah", nama_detail: "bacaan_harian", nama_detail_asli: null, jumlah_ayat: 10, juz: 1 };
   const iqro = { jenis_ibadah: "iqro", nama_detail: null, nama_detail_asli: null };
 
   test("tilawah: jumlah halaman bulat >= 1", async () => {
@@ -256,9 +261,14 @@ describe("logs: jumlah & jilid", () => {
     await assertFails(tulisLog({ ...tilawah, jumlah: "5" }));
   });
 
-  test("tilawah: jilid & nama_detail harus null", async () => {
+  test("tilawah: jilid harus null, nama_detail salah satu dari tiga jenis sesi", async () => {
     await assertFails(tulisLog({ ...tilawah, jumlah: 5, jilid: 1 }));
     await assertFails(tulisLog({ ...tilawah, jumlah: 5, nama_detail: "pagi" }));
+    await assertFails(tulisLog({ ...tilawah, jumlah: 5, nama_detail: null }));
+    for (const jenis of ["bacaan_harian", "hafalan", "murajaah"]) {
+      const t = { ...tilawah, nama_detail: jenis, jumlah: 2 };
+      await assertSucceeds(tulisLog(t, { id: logId(t, ALICE, `s-${jenis.length}`) }));
+    }
   });
 
   test("iqro: jilid dan halaman sebagai dua field terpisah", async () => {
@@ -282,8 +292,124 @@ describe("logs: jumlah & jilid", () => {
   });
 });
 
+describe("logs: tilawah model rentang", () => {
+  const t = { jenis_ibadah: "tilawah", nama_detail: "hafalan", nama_detail_asli: null, jumlah: 1, jumlah_ayat: 5, juz: 30 };
+
+  test("batas jumlah halaman 1-604", async () => {
+    await assertSucceeds(tulisLog({ ...t, jumlah: 604, jumlah_ayat: 6236, juz: 1 }));
+    await assertFails(tulisLog({ ...t, jumlah: 605 }));
+  });
+
+  test("jumlah_ayat bulat 1-6236", async () => {
+    await assertFails(tulisLog({ ...t, jumlah_ayat: 0 }));
+    await assertFails(tulisLog({ ...t, jumlah_ayat: 6237 }));
+    await assertFails(tulisLog({ ...t, jumlah_ayat: 2.5 }));
+    await assertFails(tulisLog({ ...t, jumlah_ayat: null }));
+  });
+
+  test("juz bulat 1-30", async () => {
+    await assertFails(tulisLog({ ...t, juz: 0 }));
+    await assertFails(tulisLog({ ...t, juz: 31 }));
+    await assertFails(tulisLog({ ...t, juz: null }));
+  });
+
+  test("jenis lain tidak boleh punya jumlah_ayat/juz", async () => {
+    await assertFails(tulisLog({ juz: 1 }));
+    await assertFails(tulisLog({ jumlah_ayat: 3 }));
+    const iqro = { jenis_ibadah: "iqro", nama_detail: null, jilid: 2, jumlah: 5 };
+    await assertSucceeds(tulisLog(iqro, { id: `${ALICE}_${TGL}_iqro` }));
+    await assertFails(tulisLog({ ...iqro, juz: 1 }, { id: `${ALICE}_${TGL}_iqro` }));
+    await assertFails(tulisLog({ ...iqro, jumlah_ayat: 5 }, { id: `${ALICE}_${TGL}_iqro` }));
+  });
+
+  test("ID tilawah wajib memuat jenis sesi", async () => {
+    await assertSucceeds(tulisLog(t, { id: `${ALICE}_${TGL}_tilawah_hafalan_abc-1` }));
+    await assertFails(tulisLog(t, { id: `${ALICE}_${TGL}_tilawah_abc-1` }));
+    await assertFails(tulisLog(t, { id: `${ALICE}_${TGL}_tilawah_murajaah_abc-1` }));
+  });
+});
+
+describe("logs: offset_waktu & selisih_menit_dari_adzan", () => {
+  test("offset_waktu wajib, format +HH:MM", async () => {
+    for (const ok of ["+07:00", "+08:00", "+09:00", "-03:30", "+00:00", "+05:45"]) {
+      await assertSucceeds(tulisLog({ offset_waktu: ok }));
+    }
+    for (const bad of [null, "07:00", "+7:00", "+07", "WIB", "+15:00", "+07:60", 7]) {
+      await assertFails(tulisLog({ offset_waktu: bad }));
+    }
+  });
+
+  test("offset_waktu juga wajib untuk baris tidak/udzur", async () => {
+    const nol = { jam_pencatatan: null, sumber_pencatatan: null };
+    await assertSucceeds(tulisLog({ ...nol, status: "udzur" }));
+    await assertFails(tulisLog({ ...nol, status: "udzur", offset_waktu: null }));
+  });
+
+  test("selisih: sholat wajib & dzikir boleh bulat -1440..1440 atau null", async () => {
+    await assertSucceeds(tulisLog({ selisih_menit_dari_adzan: 12 }));
+    await assertSucceeds(tulisLog({ selisih_menit_dari_adzan: -5 }));
+    await assertSucceeds(tulisLog({ selisih_menit_dari_adzan: null }));
+    const dz = { jenis_ibadah: "dzikir", nama_detail: "pagi", selisih_menit_dari_adzan: 30 };
+    await assertSucceeds(tulisLog(dz));
+    await assertFails(tulisLog({ selisih_menit_dari_adzan: 1441 }));
+    await assertFails(tulisLog({ selisih_menit_dari_adzan: 12.5 }));
+    await assertFails(tulisLog({ selisih_menit_dari_adzan: "12" }));
+  });
+
+  test("selisih harus null untuk jenis lain dan untuk status bukan dikerjakan", async () => {
+    await assertFails(tulisLog({ jenis_ibadah: "puasa", nama_detail: "senin_kamis", selisih_menit_dari_adzan: 5 }));
+    const t = { jenis_ibadah: "tilawah", nama_detail: "bacaan_harian", jumlah: 1, jumlah_ayat: 3, juz: 1, selisih_menit_dari_adzan: 5 };
+    await assertFails(tulisLog(t));
+    await assertFails(tulisLog({ status: "tidak", jam_pencatatan: null, sumber_pencatatan: null, selisih_menit_dari_adzan: 5 }));
+  });
+});
+
+describe("penanda & target tilawah", () => {
+  const penanda = (uid, jenis) => doc(db(uid), `users/${uid}/penanda/${jenis}`);
+
+  test("pemilik menyimpan penanda tiga jenis sesi + iqro", async () => {
+    await assertSucceeds(setDoc(penanda(ALICE, "bacaan_harian"), { surah: 2, ayat: 142 }));
+    await assertSucceeds(setDoc(penanda(ALICE, "hafalan"), { surah: 114, ayat: 6 }));
+    await assertSucceeds(setDoc(penanda(ALICE, "murajaah"), { surah: 78, ayat: 1 }));
+    await assertSucceeds(setDoc(penanda(ALICE, "iqro"), { jilid: 3, halaman: 12 }));
+  });
+
+  test("posisi mustahil ditolak (memakai jumlah ayat per surah)", async () => {
+    await assertFails(setDoc(penanda(ALICE, "bacaan_harian"), { surah: 1, ayat: 8 }));
+    await assertFails(setDoc(penanda(ALICE, "bacaan_harian"), { surah: 114, ayat: 7 }));
+    await assertFails(setDoc(penanda(ALICE, "bacaan_harian"), { surah: 0, ayat: 1 }));
+    await assertFails(setDoc(penanda(ALICE, "bacaan_harian"), { surah: 115, ayat: 1 }));
+    await assertSucceeds(setDoc(penanda(ALICE, "bacaan_harian"), { surah: 2, ayat: 286 }));
+    await assertFails(setDoc(penanda(ALICE, "bacaan_harian"), { surah: 2, ayat: 287 }));
+  });
+
+  test("field tambahan / jenis tak dikenal / iqro di luar batas ditolak", async () => {
+    await assertFails(setDoc(penanda(ALICE, "bacaan_harian"), { surah: 2, ayat: 1, juz: 1 }));
+    await assertFails(setDoc(penanda(ALICE, "tadarus"), { surah: 2, ayat: 1 }));
+    await assertFails(setDoc(penanda(ALICE, "iqro"), { jilid: 11, halaman: 1 }));
+    await assertFails(setDoc(penanda(ALICE, "iqro"), { surah: 1, ayat: 1 }));
+  });
+
+  test("penanda orang lain tidak bisa dibaca/ditulis", async () => {
+    await seed(`users/${ALICE}/penanda/bacaan_harian`, { surah: 1, ayat: 1 });
+    await assertFails(getDoc(doc(db(BOB), `users/${ALICE}/penanda/bacaan_harian`)));
+    await assertFails(setDoc(doc(db(BOB), `users/${ALICE}/penanda/bacaan_harian`), { surah: 1, ayat: 1 }));
+    await assertSucceeds(getDoc(penanda(ALICE, "bacaan_harian")));
+  });
+
+  test("target harian hanya dokumen tilawah, satuan halaman 1-604", async () => {
+    const target = (id) => doc(db(ALICE), `users/${ALICE}/target/${id}`);
+    await assertSucceeds(setDoc(target("tilawah"), { halaman_per_hari: 1 }));
+    await assertFails(setDoc(target("tilawah"), { halaman_per_hari: 0 }));
+    await assertFails(setDoc(target("tilawah"), { halaman_per_hari: 2.5 }));
+    await assertFails(setDoc(target("tilawah"), { halaman_per_hari: 1, ayat_per_hari: 5 }));
+    await assertFails(setDoc(target("hafalan"), { halaman_per_hari: 1 }));
+    await assertFails(getDoc(doc(db(BOB), `users/${ALICE}/target/tilawah`)));
+  });
+});
+
 describe("logs: bentuk ID per jenis", () => {
-  const tilawah = { jenis_ibadah: "tilawah", nama_detail: null, nama_detail_asli: null };
+  const tilawah = { jenis_ibadah: "tilawah", nama_detail: "bacaan_harian", nama_detail_asli: null, jumlah_ayat: 10, juz: 1 };
   const qadha = { jenis_ibadah: "qadha_sholat", nama_detail: null, nama_detail_asli: "Qadha" };
 
   test("tilawah: beberapa sesi per hari, masing-masing satu baris", async () => {
