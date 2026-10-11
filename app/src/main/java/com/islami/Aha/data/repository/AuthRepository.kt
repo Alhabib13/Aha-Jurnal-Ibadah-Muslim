@@ -45,7 +45,10 @@ class AuthRepository @Inject constructor(
         private const val KEY_USER_AVATAR_URI = "user_avatar_uri"
         const val KEY_LAST_ACTIVE_USER_UID = "last_active_user_uid"
         const val KEY_LAST_USERNAME_CHANGED = "last_username_changed_at"
-        private const val RECENT_LOGIN_MAX_AGE_MS = 10 * 60 * 1000L
+        // Firebase menolak user.delete() bila login terakhir > 5 menit. Batas aplikasi harus
+        // di bawah itu: kalau tidak, data cloud sudah terhapus dulu baru delete ditolak, lalu
+        // harus dipulihkan (users/{uid} tidak bisa dipulihkan dengan tanggal_mulai aslinya).
+        private const val RECENT_LOGIN_MAX_AGE_MS = 4 * 60 * 1000L
         const val MAX_AVATAR_BASE64_LENGTH = 900_000
     }
 
