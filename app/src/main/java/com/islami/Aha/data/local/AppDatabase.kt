@@ -189,6 +189,10 @@ abstract class AppDatabase : RoomDatabase() {
                         ownerUid TEXT,
                         isSynced INTEGER NOT NULL,
                         updatedAt INTEGER NOT NULL,
+                        jumlahAyat INTEGER,
+                        juz INTEGER,
+                        offsetWaktu TEXT NOT NULL,
+                        selisihMenitDariAdzan INTEGER,
                         PRIMARY KEY(slotKey)
                     )
                     """.trimIndent()

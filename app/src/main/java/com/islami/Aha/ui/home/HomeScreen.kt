@@ -249,10 +249,17 @@ fun HomeScreen(
             onToggleSunnahReminder = viewModel::toggleSunnahReminder,
             onDeleteSunnah = viewModel::removeSunnahHabit,
             onToggleDzikir = viewModel::toggleDzikir,
-            onAddTilawahSession = viewModel::addTilawahSession,
             onDeleteTilawahSession = viewModel::removeTilawahSession,
-            onSaveIqro = viewModel::saveIqro
+            onSaveIqro = viewModel::saveIqro,
+            onSelectTilawahJenis = viewModel::selectTilawahJenis,
+            onSaveTilawahSession = viewModel::saveTilawahSession,
+            onSetTilawahPenanda = viewModel::setTilawahPenanda,
+            onSetTilawahTarget = viewModel::setTilawahTarget
         )
+
+        if (uiState.showKhatamDialog) {
+            KhatamDialog(onDismiss = viewModel::dismissKhatamDialog)
+        }
 
         if (uiState.showResearchNotice) {
             ResearchNoticeDialog(
@@ -435,9 +442,12 @@ fun HomeScreenContent(
     onToggleSunnahReminder: (String) -> Unit = {},
     onDeleteSunnah: (String) -> Unit = {},
     onToggleDzikir: (String) -> Unit = {},
-    onAddTilawahSession: (Int) -> Unit = {},
     onDeleteTilawahSession: (String) -> Unit = {},
-    onSaveIqro: (Int, Int) -> Unit = { _, _ -> }
+    onSaveIqro: (Int, Int) -> Unit = { _, _ -> },
+    onSelectTilawahJenis: (String) -> Unit = {},
+    onSaveTilawahSession: (String, com.islami.Aha.data.quran.AyatPosition, com.islami.Aha.data.quran.AyatPosition) -> Unit = { _, _, _ -> },
+    onSetTilawahPenanda: (String, com.islami.Aha.data.quran.AyatPosition) -> Unit = { _, _ -> },
+    onSetTilawahTarget: (Int?) -> Unit = {}
 ) {
     if (uiState.isLoading) {
         return
@@ -560,17 +570,26 @@ fun HomeScreenContent(
                     )
                 }
             } else if (uiState.isTilawahCategory) {
-                item {
-                    TilawahCard(
-                        sessions = uiState.tilawahSessions,
-                        totalHalaman = uiState.tilawahHalamanToday,
-                        onAddSession = onAddTilawahSession,
-                        onDeleteSession = onDeleteTilawahSession
-                    )
+                if (uiState.isTilawahIqroTab) {
+                    // Iqro satu kelompok tampilan dengan Al-Qur'an; data tetap jenis_ibadah "iqro".
+                    item { IqroCard(progress = uiState.iqroProgress, onSave = onSaveIqro) }
+                } else {
+                    item {
+                        TilawahQuranSection(
+                            jenisDipilih = uiState.tilawahJenisDipilih,
+                            penanda = uiState.tilawahPenanda,
+                            targetHalaman = uiState.tilawahTargetHalaman,
+                            bacaanHarianHariIni = uiState.bacaanHarianHalamanToday,
+                            sessions = uiState.tilawahSessions,
+                            onSelectJenis = onSelectTilawahJenis,
+                            onSave = onSaveTilawahSession,
+                            onDeleteSession = onDeleteTilawahSession,
+                            onSetPenanda = onSetTilawahPenanda,
+                            onSetTarget = onSetTilawahTarget
+                        )
+                    }
                 }
-                item {
-                    IqroCard(progress = uiState.iqroProgress, onSave = onSaveIqro)
-                }
+                item { TanzilAttribution() }
             } else if (uiState.isComingSoon) {
                 item {
                     ComingSoonState(categoryName = uiState.selectedMainCategory)

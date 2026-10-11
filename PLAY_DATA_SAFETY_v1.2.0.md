@@ -25,7 +25,7 @@ Dicek terhadap: `AndroidManifest.xml`, `AuthRepository` (users/{uid}/meta/profil
 | Info pribadi | Info pribadi lainnya | Ya | Tidak | Opsional | Fungsi aplikasi, Analitik | Jenis kelamin (`genderProfile`). Mulai Tahap 3: rentang umur, status aktivitas. |
 | Kesehatan & kebugaran | **Info kesehatan** | Ya | Tidak | Opsional | Fungsi aplikasi, Analitik | Tanggal & status Mode Cuti (`haidhDates`, `isHaidhMode`) = data siklus haid. Status `udzur` di `logs` diturunkan dari sini (Tahap 5). |
 | Foto & video | Foto | Ya | Tidak | Opsional | Fungsi aplikasi | Foto profil (`avatarBase64`) jika pengguna mengunggahnya |
-| Aktivitas aplikasi | **Tindakan lain dalam aplikasi** | Ya | Tidak | Opsional* | Fungsi aplikasi, **Analitik** | Catatan ibadah + jam pencatatan (sholat, puasa, dzikir, tilawah halaman, iqro jilid/halaman). Dipakai untuk penelitian (lihat di bawah). |
+| Aktivitas aplikasi | **Tindakan lain dalam aplikasi** | Ya | Tidak | Opsional* | Fungsi aplikasi, **Analitik** | Catatan ibadah + jam pencatatan + zona waktu (offset, mis. +07:00) + selisih menit dari adzan (dihitung di HP; tanpa lokasi). Tilawah: jenis sesi, jumlah ayat/halaman, juz; penanda posisi & target harian. Iqro: jilid/halaman. Dipakai untuk penelitian. |
 | Info & performa aplikasi | Log error | Ya | Tidak | Wajib | Analitik | Crashlytics |
 | Info & performa aplikasi | Diagnostik | Ya | Tidak | Wajib | Analitik | Crashlytics |
 | ID perangkat atau lainnya | ID perangkat atau lainnya | Ya | Tidak | Wajib | Analitik | Firebase Installation ID (Crashlytics) |

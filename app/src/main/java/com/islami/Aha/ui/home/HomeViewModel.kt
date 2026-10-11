@@ -71,7 +71,8 @@ class HomeViewModel @Inject constructor(
     private val dailyIslamicContentRepository: DailyIslamicContentRepository,
     private val completionSyncRepository: CompletionSyncRepository,
     private val authRepository: AuthRepository,
-    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
+    private val tilawahState: com.islami.Aha.data.research.TilawahStateRepository
 ) : ViewModel() {
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
@@ -121,6 +122,7 @@ class HomeViewModel @Inject constructor(
                 completionSyncRepository.syncPendingRecords(),
                 researchLogRepository.restoreFromCloudIfNeeded()
             )
+            tilawahState.syncOnLogin()
             researchLogRepository.scheduleUpload()
             syncTodayCompletionsToUiState()
             val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
@@ -702,11 +704,25 @@ class HomeViewModel @Inject constructor(
                 val sessions = rows.map { row ->
                     TilawahSessionUi(
                         slotKey = row.slotKey,
+                        jenisSesi = row.namaDetail.orEmpty(),
                         halaman = row.jumlah ?: 0,
+                        ayat = row.jumlahAyat ?: 0,
+                        juz = row.juz ?: 0,
                         jam = row.jamPencatatan?.let { jamFormat.format(java.util.Date(it)) }.orEmpty()
                     )
                 }
                 _uiState.update { it.copy(tilawahSessions = sessions) }
+            }
+        }
+        viewModelScope.launch {
+            tilawahState.version.collect {
+                _uiState.update { state ->
+                    state.copy(
+                        tilawahPenanda = com.islami.Aha.data.research.TilawahStateRepository.JENIS_QURAN
+                            .associateWith { tilawahState.penanda(it) },
+                        tilawahTargetHalaman = tilawahState.targetHalaman()
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -733,13 +749,46 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun addTilawahSession(halaman: Int) {
-        launchSafely("addTilawahSession") {
-            if (researchLogRepository.addTilawahSession(halaman, todayKeyFlow.value)) {
-                researchLogRepository.scheduleUpload()
-                showSnackbar("Tilawah $halaman halaman dicatat")
+    fun selectTilawahJenis(jenis: String) {
+        _uiState.update { it.copy(tilawahJenisDipilih = jenis) }
+    }
+
+    /**
+     * Simpan satu sesi rentang. Penanda jenis sesi itu maju ke posisi akhir rentang.
+     * Hanya bacaan_harian yang memakai penanda sebagai titik mulai berikutnya; bila sampai
+     * 114:6, dialog khatam ditampilkan dulu (tidak di-reset diam-diam).
+     */
+    fun saveTilawahSession(
+        jenis: String,
+        dari: com.islami.Aha.data.quran.AyatPosition,
+        sampai: com.islami.Aha.data.quran.AyatPosition
+    ) {
+        launchSafely("saveTilawahSession") {
+            val range = com.islami.Aha.data.quran.QuranCalculator.hitung(dari, sampai) ?: return@launchSafely
+            if (!researchLogRepository.addTilawahSession(jenis, range, todayKeyFlow.value)) return@launchSafely
+            tilawahState.setPenanda(jenis, sampai)
+            researchLogRepository.scheduleUpload()
+            val khatam = jenis == com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN &&
+                com.islami.Aha.data.quran.QuranCalculator.setelah(sampai) == null
+            if (khatam) {
+                _uiState.update { it.copy(showKhatamDialog = true) }
+            } else {
+                showSnackbar("${range.jumlahAyat} ayat · ${range.jumlahHalaman} halaman dicatat")
             }
         }
+    }
+
+    fun dismissKhatamDialog() {
+        _uiState.update { it.copy(showKhatamDialog = false) }
+    }
+
+    /** "Ubah posisi" manual: posisi AKHIR terakhir untuk jenis sesi itu. */
+    fun setTilawahPenanda(jenis: String, pos: com.islami.Aha.data.quran.AyatPosition) {
+        if (pos.isValid) tilawahState.setPenanda(jenis, pos)
+    }
+
+    fun setTilawahTarget(halaman: Int?) {
+        tilawahState.setTargetHalaman(halaman)
     }
 
     fun removeTilawahSession(slotKey: String) {
@@ -1146,6 +1195,7 @@ class HomeViewModel @Inject constructor(
                     completionSyncRepository.syncPendingRecords(),
                     researchLogRepository.restoreFromCloudIfNeeded()
                 )
+                tilawahState.syncOnLogin()
                 researchLogRepository.scheduleUpload()
                 
                 val prefsResult = authRepository.fetchUserPreferences()

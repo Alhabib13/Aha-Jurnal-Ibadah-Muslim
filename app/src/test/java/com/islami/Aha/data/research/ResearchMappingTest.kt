@@ -116,8 +116,8 @@ class ResearchMappingTest {
     @Test
     fun `logId multi baris wajib id lokal`() {
         assertEquals(
-            "uid1_2026-10-09_tilawah_sesi-a1",
-            ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, null, "sesi-a1")
+            "uid1_2026-10-09_tilawah_hafalan_sesi-a1",
+            ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, Detail.HAFALAN, "sesi-a1")
         )
         assertEquals(
             "uid1_2026-10-09_qadha_sholat_6f1c-2a9e",
@@ -128,10 +128,10 @@ class ResearchMappingTest {
             ResearchSchema.logId("uid1", "2026-10-09", Jenis.SHOLAT_SUNNAH, Detail.SUNNAH_LAINNYA, "6f1c-2a9e")
         )
         assertThrows(IllegalArgumentException::class.java) {
-            ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, null)
+            ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, Detail.BACAAN_HARIAN)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, null, "ada_garis_bawah")
+            ResearchSchema.logId("uid1", "2026-10-09", Jenis.TILAWAH, Detail.BACAAN_HARIAN, "ada_garis_bawah")
         }
     }
 
@@ -139,6 +139,9 @@ class ResearchMappingTest {
     fun `batas nilai sama dengan rules`() {
         assertEquals(1..10, ResearchSchema.IQRO_JILID)
         assertEquals(1..100, ResearchSchema.IQRO_HALAMAN)
-        assertEquals(1..1000, ResearchSchema.TILAWAH_HALAMAN)
+        assertEquals(1..604, ResearchSchema.TILAWAH_HALAMAN)
+        assertEquals(1..6236, ResearchSchema.TILAWAH_AYAT)
+        assertEquals(1..30, ResearchSchema.JUZ)
+        assertEquals(-1440..1440, ResearchSchema.SELISIH_MENIT)
     }
 }

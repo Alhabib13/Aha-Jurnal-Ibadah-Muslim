@@ -34,6 +34,14 @@ object ResearchSchema {
         const val JILID = "jilid"
         const val JAM_PENCATATAN = "jam_pencatatan"
         const val SUMBER_PENCATATAN = "sumber_pencatatan"
+        /** Tilawah: jumlah ayat dalam rentang — ukuran halus untuk model. */
+        const val JUMLAH_AYAT = "jumlah_ayat"
+        /** Tilawah: juz tempat sesi dimulai. */
+        const val JUZ = "juz"
+        /** Zona waktu HP saat mencatat, mis. "+07:00"; per log karena pengguna bisa bepergian. */
+        const val OFFSET_WAKTU = "offset_waktu"
+        /** Menit jam_pencatatan dari adzan, dihitung di HP (sholat_wajib & dzikir). */
+        const val SELISIH_MENIT_DARI_ADZAN = "selisih_menit_dari_adzan"
     }
 
     object Jenis {
@@ -75,6 +83,11 @@ object ResearchSchema {
 
         const val PAGI = "pagi"
         const val PETANG = "petang"
+
+        /** Jenis sesi tilawah. Penanda maju otomatis HANYA untuk bacaan_harian. */
+        const val BACAAN_HARIAN = "bacaan_harian"
+        const val HAFALAN = "hafalan"
+        const val MURAJAAH = "murajaah"
     }
 
     object Status {
@@ -94,7 +107,7 @@ object ResearchSchema {
         const val TIDAK_DIKETAHUI = "tidak_diketahui"
     }
 
-    /** nama_detail yang sah per jenis_ibadah; tilawah, iqro & qadha_sholat tidak punya detail. */
+    /** nama_detail yang sah per jenis_ibadah; iqro & qadha_sholat tidak punya detail. */
     val DETAIL_PER_JENIS: Map<String, Set<String>> = mapOf(
         Jenis.SHOLAT_WAJIB to setOf(Detail.SUBUH, Detail.DZUHUR, Detail.ASHAR, Detail.MAGHRIB, Detail.ISYA),
         Jenis.SHOLAT_SUNNAH to setOf(
@@ -105,8 +118,12 @@ object ResearchSchema {
             Detail.SENIN_KAMIS, Detail.AYYAMUL_BIDH, Detail.DAUD, Detail.SYAWAL, Detail.RAMADAN,
             Detail.QADHA, Detail.NAZAR, Detail.SUNNAH_LAINNYA
         ),
-        Jenis.DZIKIR to setOf(Detail.PAGI, Detail.PETANG)
+        Jenis.DZIKIR to setOf(Detail.PAGI, Detail.PETANG),
+        Jenis.TILAWAH to setOf(Detail.BACAAN_HARIAN, Detail.HAFALAN, Detail.MURAJAAH)
     )
+
+    /** Jenis yang mencatat selisih_menit_dari_adzan (selain itu wajib null). */
+    val JENIS_DENGAN_SELISIH = setOf(Jenis.SHOLAT_WAJIB, Jenis.DZIKIR)
 
     /** Slot harian tetap: satu-satunya jenis yang boleh punya baris status "tidak". */
     val JENIS_BOLEH_TIDAK = setOf(Jenis.SHOLAT_WAJIB, Jenis.DZIKIR)
@@ -128,7 +145,12 @@ object ResearchSchema {
     val JENIS_MULTI_BARIS = setOf(Jenis.TILAWAH, Jenis.QADHA_SHOLAT)
 
     /** Batas nilai yang diterima rules. UI hanya boleh menawarkan nilai di rentang ini. */
-    val TILAWAH_HALAMAN = 1..1000
+    val TILAWAH_HALAMAN = 1..604
+    val TILAWAH_AYAT = 1..6236
+    val JUZ = 1..30
+    val SELISIH_MENIT = -1440..1440
+    /** Target harian bacaan_harian (halaman). Rules menerima 1..604; UI menawarkan pilihan kecil. */
+    val TARGET_HALAMAN = 1..604
     /** Mencakup Iqro, Qiroati, Tilawati, UMMI, An-Nahdliyah. */
     val IQRO_JILID = 1..10
     val IQRO_HALAMAN = 1..100
@@ -140,7 +162,7 @@ object ResearchSchema {
      * - slot tetap:      `{uid}_{tanggal}_{jenis}_{detail}`
      * - iqro:            `{uid}_{tanggal}_iqro`
      * - sunnah_lainnya:  `{uid}_{tanggal}_{jenis}_sunnah_lainnya_{localId}`
-     * - tilawah:         `{uid}_{tanggal}_tilawah_{localId}` (localId = id sesi baca)
+     * - tilawah:         `{uid}_{tanggal}_tilawah_{jenisSesi}_{localId}` (localId = id sesi baca)
      * - qadha_sholat:    `{uid}_{tanggal}_qadha_sholat_{localId}` (localId = id habit)
      * Sync ulang dari antrean offline menimpa dokumen yang sama, bukan menggandakan.
      */

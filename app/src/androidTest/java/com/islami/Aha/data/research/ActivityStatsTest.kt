@@ -46,7 +46,7 @@ class ActivityStatsTest {
             status = status, jumlah = jumlah, jilid = jilid,
             jamPencatatan = if (status == "dikerjakan") 1L else null,
             sumberPencatatan = if (status == "dikerjakan") "tidak_diketahui" else null,
-            ownerUid = null, updatedAt = 1L
+            ownerUid = null, updatedAt = 1L, offsetWaktu = "+07:00"
         )
     )
 
@@ -68,9 +68,9 @@ class ActivityStatsTest {
         log("${day(0)}_sholat_wajib_subuh", day(0), "sholat_wajib", "subuh") // ganda, diabaikan
         log("${day(0)}_dzikir_pagi", day(0), "dzikir", "pagi")
         log("${day(0)}_dzikir_petang", day(0), "dzikir", "petang")
-        log("${day(0)}_tilawah_a", day(0), "tilawah", null, jumlah = 3)
-        log("${day(0)}_tilawah_b", day(0), "tilawah", null, jumlah = 2)
-        log("${day(0)}_tilawah_c", day(0), "tilawah", null, jumlah = 5)
+        log("${day(0)}_tilawah_bacaan_harian_a", day(0), "tilawah", "bacaan_harian", jumlah = 3)
+        log("${day(0)}_tilawah_hafalan_b", day(0), "tilawah", "hafalan", jumlah = 2)
+        log("${day(0)}_tilawah_murajaah_c", day(0), "tilawah", "murajaah", jumlah = 5)
         log("${day(0)}_iqro", day(0), "iqro", null, jumlah = 12, jilid = 3)
         log("${day(1)}_dzikir_pagi", day(1), "dzikir", "pagi", status = "tidak")   // bukan dikerjakan
         log("${day(1)}_puasa_ramadan", day(1), "puasa", "ramadan", status = "udzur")
@@ -87,7 +87,7 @@ class ActivityStatsTest {
     fun dzikirOnlyDay_keepsStreak() = runBlocking {
         completion("default_1", day(0))
         log("${day(1)}_dzikir_pagi", day(1), "dzikir", "pagi")   // hanya dzikir
-        log("${day(2)}_tilawah_x", day(2), "tilawah", null, jumlah = 1)  // hanya tilawah
+        log("${day(2)}_tilawah_hafalan_x", day(2), "tilawah", "hafalan", jumlah = 1)  // hanya tilawah
         completion("default_2", day(3))
         assertEquals(listOf(day(0), day(1), day(2), day(3)), stats.getDistinctCompletionDatesDesc())
         assertEquals(4, stats.getTotalCompletionCount())

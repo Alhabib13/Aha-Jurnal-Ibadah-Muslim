@@ -71,7 +71,7 @@ class HomeViewModelTest {
     fun `tilawah is available and sums session pages`() {
         val state = HomeUiState(
             selectedMainCategory = "Tilawah",
-            tilawahSessions = listOf(TilawahSessionUi("a", 3, "05.00"), TilawahSessionUi("b", 2, "20.00"))
+            tilawahSessions = listOf(TilawahSessionUi("a", "bacaan_harian", 3, 20, 1, "05.00"), TilawahSessionUi("b", "hafalan", 2, 5, 30, "20.00"))
         )
         assertFalse(state.isComingSoon)
         assertEquals(5, state.tilawahHalamanToday)

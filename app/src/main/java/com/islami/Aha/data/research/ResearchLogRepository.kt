@@ -12,6 +12,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.islami.Aha.data.local.DeletedSyncDao
+import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.quran.TilawahRange
 import com.islami.Aha.data.local.ResearchLogDao
 import com.islami.Aha.data.model.DeletedSyncRecord
 import com.islami.Aha.data.model.ResearchLogEntity
@@ -44,7 +46,9 @@ class ResearchLogRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val researchLogDao: ResearchLogDao,
     private val deletedSyncDao: DeletedSyncDao,
-    private val sharedPreferences: SharedPreferences
+    private val sharedPreferences: SharedPreferences,
+    private val habitDao: HabitDao,
+    private val tilawahState: TilawahStateRepository
 ) {
     companion object {
         const val RECORD_TYPE = "RESEARCH_LOG"
@@ -67,7 +71,10 @@ class ResearchLogRepository @Inject constructor(
             null
         )
 
-        private val TILAWAH_SLOT = IbadahSlot(ResearchSchema.Jenis.TILAWAH, null, null)
+        // Kunci jadwal sholat yang ditulis HomeViewModel.
+        private const val KEY_PRAYER_TIME_SOURCE = "prayer_time_source"
+        private const val KEY_PRAYER_TIME_LAST_SYNC_AT = "prayer_time_last_sync_at"
+        private const val PRAYER_TIME_SOURCE_API = "API"
         private val IQRO_SLOT = IbadahSlot(ResearchSchema.Jenis.IQRO, null, null)
 
         /** Habit bawaan (tabel `habits`). */
@@ -97,12 +104,19 @@ class ResearchLogRepository @Inject constructor(
         jamPencatatanMs: Long = System.currentTimeMillis(),
         sumber: String = ResearchSchema.Sumber.TIDAK_DIKETAHUI,
         jumlah: Int? = null,
-        jilid: Int? = null
+        jilid: Int? = null,
+        jumlahAyat: Int? = null,
+        juz: Int? = null
     ) {
         ref ?: return
         // Data penelitian hanya dikumpulkan setelah pengguna diberi tahu.
         if (!isNoticeAcknowledged()) return
         val key = slotKeyOrNull(ref, tanggal) ?: return
+        val selisih = if (ref.slot.jenisIbadah in ResearchSchema.JENIS_DENGAN_SELISIH) {
+            hitungSelisihAdzan(ref.slot, tanggal, jamPencatatanMs)
+        } else {
+            null
+        }
         researchLogDao.upsert(
             ResearchLogEntity(
                 slotKey = key,
@@ -117,7 +131,11 @@ class ResearchLogRepository @Inject constructor(
                 sumberPencatatan = sumber,
                 ownerUid = currentUid(),
                 isSynced = false,
-                updatedAt = System.currentTimeMillis()
+                updatedAt = System.currentTimeMillis(),
+                jumlahAyat = jumlahAyat,
+                juz = juz,
+                offsetWaktu = ResearchTime.offsetString(jamPencatatanMs),
+                selisihMenitDariAdzan = selisih
             )
         )
         // Dicentang ulang sebelum hapusan sempat terkirim: cukup timpa dokumennya.
@@ -161,17 +179,44 @@ class ResearchLogRepository @Inject constructor(
         if (researchLogDao.getBySlotKey(key) != null) remove(ref, tanggal) else recordDikerjakan(ref, tanggal)
     }
 
-    /** Tilawah: satu baris per sesi baca (idLokal acak), tidak ditimpa & tidak dijumlahkan. */
-    suspend fun addTilawahSession(halaman: Int, tanggal: String): Boolean {
-        if (halaman !in ResearchSchema.TILAWAH_HALAMAN) return false
-        recordDikerjakan(SlotRef(TILAWAH_SLOT, UUID.randomUUID().toString()), tanggal, jumlah = halaman)
+    /**
+     * Tilawah model rentang: satu baris per sesi (idLokal acak), tidak ditimpa & tidak dijumlahkan.
+     * jumlah = halaman tersentuh (untuk tampilan), jumlah_ayat = ukuran halus (untuk model),
+     * juz = juz awal sesi. Semuanya dihitung QuranCalculator, bukan diketik pengguna.
+     */
+    suspend fun addTilawahSession(jenisSesi: String, range: TilawahRange, tanggal: String): Boolean {
+        if (jenisSesi !in ResearchSchema.DETAIL_PER_JENIS.getValue(ResearchSchema.Jenis.TILAWAH)) return false
+        if (range.jumlahHalaman !in ResearchSchema.TILAWAH_HALAMAN ||
+            range.jumlahAyat !in ResearchSchema.TILAWAH_AYAT ||
+            range.juzAwal !in ResearchSchema.JUZ
+        ) return false
+        recordDikerjakan(
+            SlotRef(IbadahSlot(ResearchSchema.Jenis.TILAWAH, jenisSesi, null), UUID.randomUUID().toString()),
+            tanggal,
+            jumlah = range.jumlahHalaman,
+            jumlahAyat = range.jumlahAyat,
+            juz = range.juzAwal
+        )
         return true
+    }
+
+    private suspend fun hitungSelisihAdzan(slot: IbadahSlot, tanggal: String, jamMs: Long): Int? {
+        val acuan = ResearchTime.habitAcuanAdzan(slot.jenisIbadah, slot.namaDetail) ?: return null
+        val adzan = runCatching { habitDao.getFardhuHabits().firstOrNull { it.name == acuan }?.time }.getOrNull()
+        return ResearchTime.selisihMenitDariAdzan(
+            jamPencatatanMs = jamMs,
+            tanggalIbadah = tanggal,
+            adzanHHmm = adzan,
+            jadwalDariLokasi = sharedPreferences.getString(KEY_PRAYER_TIME_SOURCE, null) == PRAYER_TIME_SOURCE_API,
+            jadwalDisinkronMs = sharedPreferences.getLong(KEY_PRAYER_TIME_LAST_SYNC_AT, 0L)
+        )
     }
 
     /** Iqro (dan metode sejenis): posisi terakhir, satu baris per hari yang menimpa. */
     suspend fun saveIqro(jilid: Int, halaman: Int, tanggal: String): Boolean {
         if (jilid !in ResearchSchema.IQRO_JILID || halaman !in ResearchSchema.IQRO_HALAMAN) return false
         recordDikerjakan(SlotRef(IQRO_SLOT, null), tanggal, jumlah = halaman, jilid = jilid)
+        tilawahState.setPenandaIqro(jilid, halaman)
         return true
     }
 
@@ -207,7 +252,11 @@ class ResearchLogRepository @Inject constructor(
                     sumberPencatatan = doc.getString(ResearchSchema.Log.SUMBER_PENCATATAN),
                     ownerUid = uid,
                     isSynced = true,
-                    updatedAt = 0L
+                    updatedAt = 0L,
+                    jumlahAyat = doc.getLong(ResearchSchema.Log.JUMLAH_AYAT)?.toInt(),
+                    juz = doc.getLong(ResearchSchema.Log.JUZ)?.toInt(),
+                    offsetWaktu = doc.getString(ResearchSchema.Log.OFFSET_WAKTU) ?: return@mapNotNull null,
+                    selisihMenitDariAdzan = doc.getLong(ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN)?.toInt()
                 )
             }
             researchLogDao.insertIgnore(rows)
@@ -286,6 +335,7 @@ class ResearchLogRepository @Inject constructor(
         researchLogDao.deleteAll()
         deletedSyncDao.deleteByType(RECORD_TYPE)
         clearRestoreFlags()
+        tilawahState.clearLocal()
     }
 
     private fun clearRestoreFlags() {
@@ -299,6 +349,7 @@ class ResearchLogRepository @Inject constructor(
         researchLogDao.deleteNotOwnedBy(uid)
         deletedSyncDao.deleteByType(RECORD_TYPE)
         clearRestoreFlags()
+        tilawahState.clearLocal()
     }
 
     private fun slotKeyOrNull(ref: SlotRef, tanggal: String): String? =
@@ -316,7 +367,11 @@ class ResearchLogRepository @Inject constructor(
         ResearchSchema.Log.JUMLAH to jumlah?.toLong(),
         ResearchSchema.Log.JILID to jilid?.toLong(),
         ResearchSchema.Log.JAM_PENCATATAN to jamPencatatan?.let { Timestamp(Date(it)) },
-        ResearchSchema.Log.SUMBER_PENCATATAN to sumberPencatatan
+        ResearchSchema.Log.SUMBER_PENCATATAN to sumberPencatatan,
+        ResearchSchema.Log.JUMLAH_AYAT to jumlahAyat?.toLong(),
+        ResearchSchema.Log.JUZ to juz?.toLong(),
+        ResearchSchema.Log.OFFSET_WAKTU to offsetWaktu,
+        ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN to selisihMenitDariAdzan?.toLong()
     )
 
     private fun failure(changed: Int, retry: Boolean, error: Throwable): CloudSyncStatus {

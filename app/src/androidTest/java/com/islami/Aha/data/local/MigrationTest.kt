@@ -307,7 +307,7 @@ class MigrationTest {
             slotKey = "${day(0)}_sholat_wajib_subuh", tanggal = day(0), jenisIbadah = "sholat_wajib",
             namaDetail = "subuh", namaDetailAsli = "Sholat Subuh", status = "dikerjakan",
             jumlah = null, jilid = null, jamPencatatan = 1L, sumberPencatatan = "tidak_diketahui",
-            ownerUid = null, updatedAt = 1L
+            ownerUid = null, updatedAt = 1L, offsetWaktu = "+07:00"
         )
         dao.upsert(row)
         assertEquals(row, dao.getBySlotKey(row.slotKey))

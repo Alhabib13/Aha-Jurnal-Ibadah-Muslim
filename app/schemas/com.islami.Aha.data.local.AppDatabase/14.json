@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 14,
-    "identityHash": "fbef703436495c08b672fdb62c42e7a1",
+    "identityHash": "4469cb0ba07e3531d0298c1a15a9ecaa",
     "entities": [
       {
         "tableName": "habits",
@@ -315,7 +315,7 @@
       },
       {
         "tableName": "research_logs",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`slotKey` TEXT NOT NULL, `tanggal` TEXT NOT NULL, `jenisIbadah` TEXT NOT NULL, `namaDetail` TEXT, `namaDetailAsli` TEXT, `status` TEXT NOT NULL, `jumlah` INTEGER, `jilid` INTEGER, `jamPencatatan` INTEGER, `sumberPencatatan` TEXT, `ownerUid` TEXT, `isSynced` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`slotKey`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`slotKey` TEXT NOT NULL, `tanggal` TEXT NOT NULL, `jenisIbadah` TEXT NOT NULL, `namaDetail` TEXT, `namaDetailAsli` TEXT, `status` TEXT NOT NULL, `jumlah` INTEGER, `jilid` INTEGER, `jamPencatatan` INTEGER, `sumberPencatatan` TEXT, `ownerUid` TEXT, `isSynced` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `jumlahAyat` INTEGER, `juz` INTEGER, `offsetWaktu` TEXT NOT NULL, `selisihMenitDariAdzan` INTEGER, PRIMARY KEY(`slotKey`))",
         "fields": [
           {
             "fieldPath": "slotKey",
@@ -387,6 +387,27 @@
             "columnName": "updatedAt",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "jumlahAyat",
+            "columnName": "jumlahAyat",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "juz",
+            "columnName": "juz",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "offsetWaktu",
+            "columnName": "offsetWaktu",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selisihMenitDariAdzan",
+            "columnName": "selisihMenitDariAdzan",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -419,7 +440,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fbef703436495c08b672fdb62c42e7a1')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4469cb0ba07e3531d0298c1a15a9ecaa')"
     ]
   }
 }

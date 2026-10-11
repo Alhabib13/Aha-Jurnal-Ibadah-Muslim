@@ -59,7 +59,9 @@ class AuthRepository @Inject constructor(
         val completionRecords: List<CloudSunnahBackup>,
         val profileData: Map<String, Any>?,
         /** Log penelitian; nilai null DISIMPAN karena rules mewajibkan semua kunci ada. */
-        val researchLogs: List<Pair<String, Map<String, Any?>>> = emptyList()
+        val researchLogs: List<Pair<String, Map<String, Any?>>> = emptyList(),
+        /** Penanda & target tilawah: path relatif "penanda/{jenis}" / "target/tilawah". */
+        val tilawahState: List<Pair<String, Map<String, Any>>> = emptyList()
     )
 
     val currentUser: FirebaseUser? get() = firebaseAuth.currentUser
@@ -449,18 +451,24 @@ class AuthRepository @Inject constructor(
             .documents
         val researchLogBackup = researchLogDocs.map { doc -> doc.id to doc.data.orEmpty() }
         val researchProfileRef = db.collection(ResearchSchema.COLLECTION_USERS).document(uid)
+        val tilawahStateDocs = listOf("penanda", "target").flatMap { sub ->
+            researchProfileRef.collection(sub).get(Source.SERVER).await().documents
+        }
 
         val backup = CloudDeleteBackup(
             sunnahHabits = sunnahBackup,
             completionRecords = completionBackup,
             profileData = profileBackup,
-            researchLogs = researchLogBackup
+            researchLogs = researchLogBackup,
+            tilawahState = tilawahStateDocs.map { doc ->
+                "${doc.reference.parent.id}/${doc.id}" to doc.data.orEmpty().filterValues { it != null }.mapValues { it.value!! }
+            }
         )
 
         // Semua penghapusan dalam satu blok: bila satu langkah gagal, pulihkan semuanya
         // (sebelumnya data yang sudah terhapus hilang karena backup belum dikembalikan).
         runCatching {
-            (sunnahDocs + completionDocs + researchLogDocs).chunked(500).forEach { chunk ->
+            (sunnahDocs + completionDocs + researchLogDocs + tilawahStateDocs).chunked(500).forEach { chunk ->
                 val batch = db.batch()
                 chunk.forEach { batch.delete(it.reference) }
                 batch.commit().await()
@@ -515,6 +523,11 @@ class AuthRepository @Inject constructor(
                 )
             }
             batch.commit().await()
+        }
+
+        backup.tilawahState.forEach { (path, data) ->
+            db.collection(ResearchSchema.COLLECTION_USERS).document(uid).collection(path.substringBefore("/"))
+                .document(path.substringAfter("/")).set(data).await()
         }
 
         backup.researchLogs.chunked(500).forEach { chunk ->

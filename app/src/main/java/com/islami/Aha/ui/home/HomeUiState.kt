@@ -8,7 +8,14 @@ import com.islami.Aha.util.GenderProfile
 import java.util.Calendar
 
 /** Satu sesi tilawah hari ini (satu baris research_logs). */
-data class TilawahSessionUi(val slotKey: String, val halaman: Int, val jam: String)
+data class TilawahSessionUi(
+    val slotKey: String,
+    val jenisSesi: String,
+    val halaman: Int,
+    val ayat: Int,
+    val juz: Int,
+    val jam: String
+)
 
 /** Posisi terakhir Iqro/metode sejenis. */
 data class IqroProgressUi(val jilid: Int, val halaman: Int, val tanggal: String)
@@ -59,8 +66,22 @@ data class HomeUiState(
     val dzikirPagiDone: Boolean = false,
     val dzikirPetangDone: Boolean = false,
     val tilawahSessions: List<TilawahSessionUi> = emptyList(),
-    val iqroProgress: IqroProgressUi? = null
+    val iqroProgress: IqroProgressUi? = null,
+    val tilawahJenisDipilih: String = com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN,
+    /** Posisi AKHIR sesi terakhir per jenis sesi Al-Qur'an. */
+    val tilawahPenanda: Map<String, com.islami.Aha.data.quran.AyatPosition?> = emptyMap(),
+    /** Target harian bacaan_harian (halaman); null = tanpa target. */
+    val tilawahTargetHalaman: Int? = null,
+    val showKhatamDialog: Boolean = false
 ) {
+    val bacaanHarianHalamanToday: Int
+        get() = tilawahSessions
+            .filter { it.jenisSesi == com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN }
+            .sumOf { it.halaman }
+
+    val isTilawahIqroTab: Boolean
+        get() = isTilawahCategory && selectedSubTabIndex == 1
+
     val dzikirDoneCount: Int
         get() = (if (dzikirPagiDone) 1 else 0) + (if (dzikirPetangDone) 1 else 0)
 
@@ -110,6 +131,8 @@ data class HomeUiState(
                 }
             }
             "Puasa" -> listOf("Puasa Sunnah", "Puasa Wajib")
+            // Iqro satu kelompok tampilan dengan Al-Qur'an, tetapi jenis_ibadah-nya tetap terpisah.
+            "Tilawah" -> listOf("Tilawah Al-Qur'an", "Tilawah Iqro")
             else -> emptyList()
         }
 
@@ -123,6 +146,7 @@ data class HomeUiState(
                 }
             }
             "Puasa" -> listOf("Sunnah", "Wajib (Ramadan)")
+            "Tilawah" -> listOf("Al-Qur'an", "Iqro")
             else -> emptyList()
         }
 
@@ -139,7 +163,7 @@ data class HomeUiState(
 
     val filteredHabits: List<Habit>
         get() {
-            if (isComingSoon) return emptyList()
+            if (isComingSoon || isTilawahCategory) return emptyList()
             val subCategory = subTabCategories.getOrNull(selectedSubTabIndex) ?: return emptyList()
             return allHabits.filter { habit ->
                 if (habit.category != subCategory) return@filter false

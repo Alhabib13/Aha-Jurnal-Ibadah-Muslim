@@ -35,5 +35,13 @@ data class ResearchLogEntity(
      */
     val ownerUid: String?,
     val isSynced: Boolean = false,
-    val updatedAt: Long
+    val updatedAt: Long,
+    /** Tilawah: jumlah ayat (ukuran halus untuk model); jenis lain null. */
+    val jumlahAyat: Int? = null,
+    /** Tilawah: juz awal sesi; jenis lain null. */
+    val juz: Int? = null,
+    /** Zona waktu HP saat baris dibuat, mis. "+07:00". Wajib untuk semua jenis. */
+    val offsetWaktu: String,
+    /** Menit dari adzan (sholat_wajib & dzikir), dihitung di HP; null bila tak bisa dihitung. */
+    val selisihMenitDariAdzan: Int? = null
 )

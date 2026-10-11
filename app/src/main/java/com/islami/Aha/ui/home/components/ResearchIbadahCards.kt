@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -21,8 +19,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -40,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.islami.Aha.data.research.ResearchSchema
 import com.islami.Aha.ui.home.IqroProgressUi
-import com.islami.Aha.ui.home.TilawahSessionUi
 
 // Versi paling sederhana (keputusan skripsi): tanpa tasbih, tanpa teks/audio Al-Qur'an,
 // tanpa isi materi Iqro. Hanya centang dan angka.
@@ -91,62 +86,6 @@ private fun DzikirRow(title: String, subtitle: String, checked: Boolean, onToggl
 private fun parseInRange(text: String, range: IntRange): Int? = text.toIntOrNull()?.takeIf { it in range }
 
 private fun digitsOnly(input: String, maxLen: Int) = input.filter(Char::isDigit).take(maxLen)
-
-@Composable
-fun TilawahCard(
-    sessions: List<TilawahSessionUi>,
-    totalHalaman: Int,
-    onAddSession: (halaman: Int) -> Unit,
-    onDeleteSession: (slotKey: String) -> Unit
-) {
-    var input by rememberSaveable { mutableStateOf("") }
-    val range = ResearchSchema.TILAWAH_HALAMAN
-    val value = parseInRange(input, range)
-    SectionCard {
-        Text("Tilawah hari ini", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-        Text(
-            "Berapa halaman yang baru kamu baca? Setiap sesi dicatat terpisah.",
-            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = digitsOnly(it, 4) },
-                label = { Text("Halaman") },
-                singleLine = true,
-                isError = input.isNotEmpty() && value == null,
-                supportingText = { Text("${range.first}–${range.last}") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(12.dp))
-            Button(
-                onClick = { value?.let(onAddSession); input = "" },
-                enabled = value != null
-            ) { Text("Catat") }
-        }
-        if (sessions.isNotEmpty()) {
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            Text(
-                "Total hari ini: $totalHalaman halaman",
-                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary
-            )
-            sessions.forEach { session ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "${session.halaman} halaman · ${session.jam}",
-                        fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { onDeleteSession(session.slotKey) }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Hapus sesi ${session.halaman} halaman")
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun IqroCard(
