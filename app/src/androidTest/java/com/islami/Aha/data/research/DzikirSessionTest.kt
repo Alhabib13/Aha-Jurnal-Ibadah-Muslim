@@ -29,7 +29,8 @@ class DzikirSessionTest {
         val prefs = context.getSharedPreferences("dzikir-session-test", Context.MODE_PRIVATE)
         prefs.edit().clear().putBoolean(ResearchLogRepository.KEY_RESEARCH_NOTICE_ACK, true).commit()
         repo = ResearchLogRepository(
-            context, db.researchLogDao(), db.deletedSyncDao(), prefs, db.habitDao(), TilawahStateRepository(prefs)
+            context, db.researchLogDao(), db.deletedSyncDao(), prefs, db.habitDao(), TilawahStateRepository(prefs),
+            db.dzikirHabitDao()
         )
     }
 
@@ -99,13 +100,24 @@ class DzikirSessionTest {
     }
 
     @Test
-    fun kartuLama_centangLaluBatal() = runBlocking {
-        repo.toggleDzikir(ResearchSchema.Detail.PAGI, tanggal, nowMs = t0)
-        val row = db.researchLogDao().getAll().single()
-        assertEquals("${tanggal}_dzikir_dzikir_pagi_kartu-pagi_$t0", row.slotKey)
-        assertEquals(ResearchSchema.ModePencatatan.CENTANG, row.modePencatatan)
-        assertEquals(ResearchSchema.WaktuDzikir.PAGI, row.waktuDzikir)
-        repo.toggleDzikir(ResearchSchema.Detail.PAGI, tanggal, nowMs = t0 + 5_000)
-        assertTrue(db.researchLogDao().getAll().isEmpty())
+    fun batalkanTerakhir_hanyaMenghapusSesiTerakhirHabitItu() = runBlocking {
+        catat(t0)
+        catat(t0 + 3_600_000L)
+        catat(t0 + 1_000, habit = "habit-b")
+        assertTrue(repo.removeLatestDzikirSession(ResearchSchema.Detail.DZIKIR_BADA_SHOLAT, "habit-a", tanggal))
+        val sisa = db.researchLogDao().getAll().map { it.slotKey }.toSet()
+        assertEquals(
+            setOf(
+                "${tanggal}_dzikir_dzikir_bada_sholat_habit-a_$t0",
+                "${tanggal}_dzikir_dzikir_bada_sholat_habit-b_${t0 + 1_000}"
+            ),
+            sisa
+        )
+    }
+
+    @Test
+    fun sumberPencatatanSelaluTidakDiketahui() = runBlocking {
+        catat(t0)
+        assertEquals(ResearchSchema.Sumber.TIDAK_DIKETAHUI, db.researchLogDao().getAll().single().sumberPencatatan)
     }
 }

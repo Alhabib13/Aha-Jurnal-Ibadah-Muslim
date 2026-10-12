@@ -63,7 +63,7 @@ class AuthRepository @Inject constructor(
         val profileData: Map<String, Any>?,
         /** Log penelitian; nilai null DISIMPAN karena rules mewajibkan semua kunci ada. */
         val researchLogs: List<Pair<String, Map<String, Any?>>> = emptyList(),
-        /** Penanda & target tilawah: path relatif "penanda/{jenis}" / "target/tilawah". */
+        /** Penanda/target tilawah & habit dzikir: path relatif "penanda/{jenis}", "target/tilawah", "dzikir_habits/{id}". */
         val tilawahState: List<Pair<String, Map<String, Any>>> = emptyList()
     )
 
@@ -454,7 +454,7 @@ class AuthRepository @Inject constructor(
             .documents
         val researchLogBackup = researchLogDocs.map { doc -> doc.id to doc.data.orEmpty() }
         val researchProfileRef = db.collection(ResearchSchema.COLLECTION_USERS).document(uid)
-        val tilawahStateDocs = listOf("penanda", "target").flatMap { sub ->
+        val tilawahStateDocs = listOf("penanda", "target", "dzikir_habits").flatMap { sub ->
             researchProfileRef.collection(sub).get(Source.SERVER).await().documents
         }
 

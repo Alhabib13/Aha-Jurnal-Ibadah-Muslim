@@ -300,6 +300,26 @@ service cloud.firestore {
         && data.halaman_per_hari >= 1 && data.halaman_per_hari <= 604;
   }
 
+  // Habit dzikir = KONFIGURASI pilihan pengguna (bukan kejadian; tidak masuk logs).
+  // Kunci bernilai null tidak ditulis. Mode "layar" tetap sah di skema (dipakai Tahap 3).
+  function validDzikirHabit(habitId, data) {
+    return habitId.matches("[A-Za-z0-9-]{1,64}")
+        && data.keys().hasAll(["slug", "mode_pencatatan", "waktu_dzikir", "dibuat_pada"])
+        && data.keys().hasOnly(["slug", "nama_detail_asli", "mode_pencatatan", "waktu_dzikir",
+                                "target_hitungan", "dibuat_pada"])
+        && data.slug in ["dzikir_bada_sholat", "dzikir_pagi", "dzikir_petang", "dzikir_sebelum_tidur",
+                         "istighfar", "sholawat", "tahlil", "asmaul_husna", "dzikir_lainnya"]
+        && data.mode_pencatatan in ["layar", "centang"]
+        && data.waktu_dzikir in ["bada_sholat", "pagi", "petang", "sebelum_tidur", "bebas"]
+        && data.dibuat_pada is int
+        && (!("target_hitungan" in data) || (data.target_hitungan is int
+            && data.target_hitungan >= 1 && data.target_hitungan <= 100000))
+        && (data.slug == "dzikir_lainnya"
+            ? ("nama_detail_asli" in data && data.nama_detail_asli is string
+               && data.nama_detail_asli.size() >= 1 && data.nama_detail_asli.size() <= 100)
+            : !("nama_detail_asli" in data));
+  }
+
   match /databases/{database}/documents {
     // Profil penelitian. Satu dokumen per pengguna, hanya pemiliknya.
     match /users/{userId} {
@@ -327,6 +347,11 @@ service cloud.firestore {
     match /users/{userId}/penanda/{jenis} {
       allow read, delete: if isOwner(userId);
       allow create, update: if isOwner(userId) && validPenanda(jenis, request.resource.data);
+    }
+
+    match /users/{userId}/dzikir_habits/{habitId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validDzikirHabit(habitId, request.resource.data);
     }
 
     match /users/{userId}/target/{docId} {

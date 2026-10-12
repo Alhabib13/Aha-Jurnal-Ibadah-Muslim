@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.islami.Aha.data.local.DeletedSyncDao
+import com.islami.Aha.data.local.DzikirHabitDao
 import com.islami.Aha.data.local.HabitDao
 import com.islami.Aha.data.quran.TilawahRange
 import com.islami.Aha.data.local.ResearchLogDao
@@ -48,7 +49,8 @@ class ResearchLogRepository @Inject constructor(
     private val deletedSyncDao: DeletedSyncDao,
     private val sharedPreferences: SharedPreferences,
     private val habitDao: HabitDao,
-    private val tilawahState: TilawahStateRepository
+    private val tilawahState: TilawahStateRepository,
+    private val dzikirHabitDao: DzikirHabitDao
 ) {
     companion object {
         const val RECORD_TYPE = "RESEARCH_LOG"
@@ -63,8 +65,8 @@ class ResearchLogRepository @Inject constructor(
         private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
 
         /**
-         * Kartu dzikir lama (dua centang) belum punya habit dzikir sungguhan; id habit tetap
-         * berikut dipakai sampai UI katalog (Tahap 2) membuat habit per pengguna.
+         * Id habit kartu dzikir lama (dua centang, sebelum Tahap 2). Baris lama memakai id ini;
+         * migrasi Tahap 2 membuat habit dzikir dengan id yang sama (DzikirHabitRepository).
          */
         const val ID_HABIT_KARTU_PAGI = "kartu-pagi"
         const val ID_HABIT_KARTU_PETANG = "kartu-petang"
@@ -224,28 +226,15 @@ class ResearchLogRepository @Inject constructor(
         return slotKeyOrNull(ref, tanggal)
     }
 
-    /**
-     * Kartu dzikir lama (kunci UI pagi/petang): centang = satu sesi mode centang (jumlah &
-     * durasi null); centang lagi = hapus sesi kartu itu untuk hari ini (keputusan C).
-     */
-    suspend fun toggleDzikir(detail: String, tanggal: String, nowMs: Long = System.currentTimeMillis()) {
-        require(detail == ResearchSchema.Detail.PAGI || detail == ResearchSchema.Detail.PETANG)
-        val pagi = detail == ResearchSchema.Detail.PAGI
-        val slug = if (pagi) ResearchSchema.Detail.DZIKIR_PAGI else ResearchSchema.Detail.DZIKIR_PETANG
-        val idHabit = if (pagi) ID_HABIT_KARTU_PAGI else ID_HABIT_KARTU_PETANG
-        val sesiHariIni = researchLogDao.getBySlotKeyPrefix(prefixSesiDzikir(tanggal, slug, idHabit))
-        if (sesiHariIni.isNotEmpty()) {
-            sesiHariIni.forEach { removeBySlotKey(it.slotKey) }
-        } else {
-            recordDzikirSession(
-                slug = slug,
-                idHabit = idHabit,
-                tanggal = tanggal,
-                modePencatatan = ResearchSchema.ModePencatatan.CENTANG,
-                waktuDzikir = if (pagi) ResearchSchema.WaktuDzikir.PAGI else ResearchSchema.WaktuDzikir.PETANG,
-                nowMs = nowMs
-            )
-        }
+    /** Sesi dzikir [idHabit] pada [tanggal], urut jam pencatatan. */
+    suspend fun getDzikirSessions(slug: String, idHabit: String, tanggal: String): List<ResearchLogEntity> =
+        researchLogDao.getBySlotKeyPrefix(prefixSesiDzikir(tanggal, slug, idHabit)).sortedBy { it.jamPencatatan ?: 0L }
+
+    /** Batalkan sesi TERAKHIR habit ini hari itu (keputusan C: baris dihapus, bukan "tidak"). */
+    suspend fun removeLatestDzikirSession(slug: String, idHabit: String, tanggal: String): Boolean {
+        val terakhir = getDzikirSessions(slug, idHabit, tanggal).lastOrNull() ?: return false
+        removeBySlotKey(terakhir.slotKey)
+        return true
     }
 
     /**
@@ -409,6 +398,7 @@ class ResearchLogRepository @Inject constructor(
         deletedSyncDao.deleteByType(RECORD_TYPE)
         clearRestoreFlags()
         tilawahState.clearLocal()
+        dzikirHabitDao.deleteAll()
     }
 
     private fun clearRestoreFlags() {
@@ -423,6 +413,7 @@ class ResearchLogRepository @Inject constructor(
         deletedSyncDao.deleteByType(RECORD_TYPE)
         clearRestoreFlags()
         tilawahState.clearLocal()
+        dzikirHabitDao.deleteNotOwnedBy(uid)
     }
 
     private fun slotKeyOrNull(ref: SlotRef, tanggal: String): String? =

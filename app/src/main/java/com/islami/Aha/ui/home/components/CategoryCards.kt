@@ -76,6 +76,7 @@ val categoryCards = listOf(
 fun CategoryCardsRow(
     selectedCategory: String,
     comingSoonCategories: List<String>,
+    hiddenCategories: List<String> = emptyList(),
     onSelectCategory: (String) -> Unit,
     getBadge: (String) -> String
 ) {
@@ -86,7 +87,7 @@ fun CategoryCardsRow(
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        categoryCards.forEach { card ->
+        categoryCards.filterNot { it.name in hiddenCategories }.forEach { card ->
             val isSelected = card.name == selectedCategory
             val isComingSoon = card.name in comingSoonCategories
             val categoryStateDescription = when {

@@ -518,6 +518,47 @@ describe("penanda & target tilawah", () => {
   });
 });
 
+describe("habit dzikir (konfigurasi, bukan log)", () => {
+  const hd = (uid, id, who = uid) => doc(db(who), `users/${uid}/dzikir_habits/${id}`);
+  const H = { slug: "dzikir_pagi", mode_pencatatan: "centang", waktu_dzikir: "pagi", dibuat_pada: 1791600000000 };
+
+  test("pemilik menyimpan habit katalog; target & nama opsional sesuai slug", async () => {
+    await assertSucceeds(setDoc(hd(ALICE, "kartu-pagi"), H));
+    await assertSucceeds(setDoc(hd(ALICE, "3f2a9c1e-7b4d"), { ...H, slug: "istighfar", waktu_dzikir: "bebas", target_hitungan: 7 }));
+    await assertSucceeds(setDoc(hd(ALICE, "lain-1"), { ...H, slug: "dzikir_lainnya", waktu_dzikir: "bebas", nama_detail_asli: "Ratib" }));
+    // Mode layar sah di skema (dipakai Tahap 3); UI yang membatasinya.
+    await assertSucceeds(setDoc(hd(ALICE, "layar-1"), { ...H, mode_pencatatan: "layar" }));
+    await assertSucceeds(getDoc(hd(ALICE, "kartu-pagi")));
+    await assertSucceeds(deleteDoc(hd(ALICE, "kartu-pagi")));
+  });
+
+  test("bentuk tidak sah ditolak", async () => {
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, slug: "wirid" }));
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, mode_pencatatan: "tasbih" }));
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, waktu_dzikir: "malam" }));
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, target_hitungan: 0 }));
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, target_hitungan: 100001 }));
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, target_hitungan: 33.5 }));
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, jumlah: 33 }));
+    const { dibuat_pada, ...tanpaDibuat } = H;
+    await assertFails(setDoc(hd(ALICE, "x"), tanpaDibuat));
+    // nama_detail_asli: wajib untuk dzikir_lainnya, dilarang untuk slug lain.
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, slug: "dzikir_lainnya", waktu_dzikir: "bebas" }));
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, slug: "dzikir_lainnya", waktu_dzikir: "bebas", nama_detail_asli: "" }));
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, slug: "dzikir_lainnya", waktu_dzikir: "bebas", nama_detail_asli: "a".repeat(101) }));
+    await assertFails(setDoc(hd(ALICE, "x"), { ...H, nama_detail_asli: "Dzikir pagi" }));
+    // ID harus cocok dengan pola idHabit di ID log.
+    await assertFails(setDoc(hd(ALICE, "habit_1"), H));
+  });
+
+  test("habit orang lain tidak bisa dibaca/ditulis/dihapus", async () => {
+    await seed(`users/${ALICE}/dzikir_habits/h1`, H);
+    await assertFails(getDoc(hd(ALICE, "h1", BOB)));
+    await assertFails(setDoc(hd(ALICE, "h2", BOB), H));
+    await assertFails(deleteDoc(hd(ALICE, "h1", BOB)));
+  });
+});
+
 describe("logs: bentuk ID per jenis", () => {
   const tilawah = { jenis_ibadah: "tilawah", nama_detail: "bacaan_harian", nama_detail_asli: null, jumlah_ayat: 10, juz: 1 };
   const qadha = { jenis_ibadah: "qadha_sholat", nama_detail: null, nama_detail_asli: "Qadha" };

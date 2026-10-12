@@ -60,12 +60,28 @@ class HomeViewModelTest {
 
     // ===================== Dzikir & Tilawah (v1.2.0, bukan lagi "segera hadir") =====================
 
+    private fun dz(id: String, sesi: Int, waktu: String = "Pagi") =
+        DzikirHabitUi(id, "dzikir_pagi", "Dzikir pagi", waktu, null, sesi, if (sesi > 0) "05.10" else null)
+
     @Test
-    fun `dzikir is available and counts two fixed slots`() {
-        val state = HomeUiState(selectedMainCategory = "Dzikir", dzikirPagiDone = true)
+    fun `dzikir ratio follows user's dzikir habits, sessions count once per habit`() {
+        val state = HomeUiState(
+            selectedMainCategory = "Dzikir",
+            dzikirHabits = listOf(dz("a", 3), dz("b", 0), dz("c", 1, waktu = "Kapan saja"))
+        )
         assertFalse(state.isComingSoon)
-        assertEquals(1, state.completedHabitsCount)
-        assertEquals(2, state.totalHabitsCount)
+        assertEquals(2, state.completedHabitsCount)
+        // Habit ber-waktu "bebas" tetap masuk penyebut.
+        assertEquals(3, state.totalHabitsCount)
+        assertEquals("2/3", state.getCategoryBadge("Dzikir"))
+        assertTrue(state.hiddenCategories.isEmpty())
+    }
+
+    @Test
+    fun `no dzikir habit means dzikir category is hidden, not shown as zero`() {
+        val state = HomeUiState()
+        assertEquals(listOf("Dzikir"), state.hiddenCategories)
+        assertEquals(0, state.dzikirTotalCount)
     }
 
     @Test
@@ -81,8 +97,9 @@ class HomeViewModelTest {
 
     @Test
     fun `dzikir and tilawah stay visible in haidh mode`() {
-        val state = HomeUiState(isHaidhMode = true, dzikirPetangDone = true)
+        val state = HomeUiState(isHaidhMode = true, dzikirHabits = listOf(dz("a", 1), dz("b", 0)))
         assertEquals("1/2", state.getCategoryBadge("Dzikir"))
+        assertTrue(state.hiddenCategories.isEmpty())
         assertEquals("0 hlm", state.getCategoryBadge("Tilawah"))
     }
 
@@ -236,9 +253,9 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `getCategoryBadge for dzikir returns slot progress`() {
-        val state = HomeUiState()
-        assertEquals("0/2", state.getCategoryBadge("Dzikir"))
+    fun `getCategoryBadge for dzikir returns habit progress`() {
+        val state = HomeUiState(dzikirHabits = listOf(dz("a", 0)))
+        assertEquals("0/1", state.getCategoryBadge("Dzikir"))
     }
 
     // ===================== Display Names =====================

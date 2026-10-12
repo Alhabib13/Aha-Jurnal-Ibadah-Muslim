@@ -3,6 +3,7 @@ package com.islami.Aha.ui.home.components
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +17,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.islami.Aha.data.research.ResearchSchema
+import com.islami.Aha.ui.home.DzikirHabitUi
 import com.islami.Aha.ui.home.IqroProgressUi
 
 // Versi paling sederhana (keputusan skripsi): tanpa tasbih, tanpa teks/audio Al-Qur'an,
@@ -54,31 +55,69 @@ private fun SectionCard(content: @Composable () -> Unit) {
     }
 }
 
+/**
+ * Daftar habit dzikir pilihan pengguna (mode centang). Tidak dipanggil sama sekali bila
+ * pengguna belum menambahkan habit dzikir. Nada netral: "belum dicatat", bukan "terlewat".
+ */
 @Composable
 fun DzikirCard(
-    pagiDone: Boolean,
-    petangDone: Boolean,
-    onToggle: (detail: String) -> Unit
+    habits: List<DzikirHabitUi>,
+    onRecord: (habitId: String) -> Unit,
+    onUndo: (habitId: String) -> Unit,
+    onDelete: (habitId: String) -> Unit
 ) {
+    var hapusId by rememberSaveable { mutableStateOf<String?>(null) }
     SectionCard {
-        DzikirRow("Dzikir Pagi", "Setelah Subuh hingga terbit matahari", pagiDone) {
-            onToggle(ResearchSchema.Detail.PAGI)
+        habits.forEachIndexed { i, h ->
+            if (i > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            DzikirHabitRow(h, onRecord = { onRecord(h.id) }, onUndo = { onUndo(h.id) }, onDelete = { hapusId = h.id })
         }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-        DzikirRow("Dzikir Petang", "Setelah Ashar hingga Maghrib", petangDone) {
-            onToggle(ResearchSchema.Detail.PETANG)
-        }
+    }
+    val target = habits.firstOrNull { it.id == hapusId }
+    if (target != null) {
+        AlertDialog(
+            onDismissRequest = { hapusId = null },
+            title = { Text("Hapus dari daftar?") },
+            text = { Text("${target.nama} tidak lagi tampil di daftar dzikirmu. Catatan yang sudah ada tetap tersimpan.") },
+            confirmButton = { TextButton(onClick = { onDelete(target.id); hapusId = null }) { Text("Hapus") } },
+            dismissButton = { TextButton(onClick = { hapusId = null }) { Text("Batal") } }
+        )
     }
 }
 
 @Composable
-private fun DzikirRow(title: String, subtitle: String, checked: Boolean, onToggle: () -> Unit) {
+private fun DzikirHabitRow(h: DzikirHabitUi, onRecord: () -> Unit, onUndo: () -> Unit, onDelete: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(h.nama, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+            val info = buildList {
+                add(h.waktuLabel)
+                h.targetHitungan?.let { add("target $it") }
+            }.joinToString(" · ")
+            Text(info, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = when {
+                    !h.dicatatHariIni -> "Belum dicatat hari ini"
+                    h.sesiHariIni == 1 -> "Dicatat pukul ${h.jamTerakhir.orEmpty()}"
+                    else -> "Dicatat ${h.sesiHariIni}× hari ini, terakhir ${h.jamTerakhir.orEmpty()}"
+                },
+                fontSize = 12.sp,
+                color = if (h.dicatatHariIni) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row {
+                if (h.dicatatHariIni) {
+                    TextButton(onClick = onUndo, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                        Text("Batalkan terakhir", fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                }
+                TextButton(onClick = onDelete, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                    Text("Hapus", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
-        Checkbox(checked = checked, onCheckedChange = { onToggle() })
+        Spacer(Modifier.width(8.dp))
+        Button(onClick = onRecord) { Text("Catat") }
     }
 }
 

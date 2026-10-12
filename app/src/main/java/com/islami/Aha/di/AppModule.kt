@@ -43,7 +43,8 @@ object AppModule {
             AppDatabase.MIGRATION_11_12,
             AppDatabase.MIGRATION_12_13,
             AppDatabase.MIGRATION_13_14,
-            AppDatabase.MIGRATION_14_15
+            AppDatabase.MIGRATION_14_15,
+            AppDatabase.MIGRATION_15_16
         )
         .build()
     }
@@ -58,6 +59,12 @@ object AppModule {
     @Singleton
     fun provideResearchLogDao(appDatabase: AppDatabase): com.islami.Aha.data.local.ResearchLogDao {
         return appDatabase.researchLogDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideDzikirHabitDao(appDatabase: AppDatabase): com.islami.Aha.data.local.DzikirHabitDao {
+        return appDatabase.dzikirHabitDao()
     }
 
     @Provides

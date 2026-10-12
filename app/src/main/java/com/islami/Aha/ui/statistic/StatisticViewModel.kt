@@ -141,11 +141,11 @@ class StatisticViewModel @Inject constructor(
 
                 val fardhuCompleted = visibleHabits.count { it.isCompleted }
                 val sunnahCompleted = visibleSunnahHabits.count { it.isCompletedToday }
-                // Dzikir: 2 slot tetap, ikut rasio (juga saat Mode Cuti). Tilawah/iqro di luar rasio.
-                val dzikirDone = activityStats.getDzikirDoneCount(DateUtils.getTodayKey())
-                val todayCompleted = fardhuCompleted + sunnahCompleted + dzikirDone
-                val todayTotal = visibleHabits.size + visibleSunnahHabits.size +
-                    com.islami.Aha.data.research.ActivityStatsRepository.DZIKIR_SLOTS_PER_DAY
+                // Dzikir: mengikuti habit dzikir pilihan pengguna (Mode Cuti: ModeCutiPolicy).
+                // Tilawah/iqro di luar rasio.
+                val dzikir = activityStats.getDzikirProgress(DateUtils.getTodayKey(), isTodayHaidh)
+                val todayCompleted = fardhuCompleted + sunnahCompleted + dzikir.done
+                val todayTotal = visibleHabits.size + visibleSunnahHabits.size + dzikir.total
                 val todayPercentage = if (todayTotal > 0) (todayCompleted * 100) / todayTotal else 0
 
                 val categoryOrder = buildList {

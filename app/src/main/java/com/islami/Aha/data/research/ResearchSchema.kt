@@ -89,13 +89,6 @@ object ResearchSchema {
         const val QADHA = "qadha"
         const val SUNNAH_LAINNYA = "sunnah_lainnya"
 
-        /**
-         * Kunci UI kartu dzikir lama (dua centang). BUKAN nilai data: repository
-         * memetakannya ke DZIKIR_PAGI / DZIKIR_PETANG sampai UI katalog (Tahap 2) jadi.
-         */
-        const val PAGI = "pagi"
-        const val PETANG = "petang"
-
         /** Katalog dzikir (assets/dzikir_katalog.json). Slug = nama_detail di logs. */
         const val DZIKIR_BADA_SHOLAT = "dzikir_bada_sholat"
         const val DZIKIR_PAGI = "dzikir_pagi"

@@ -81,20 +81,33 @@ interface ResearchLogDao {
     )
     fun observeLatestIqro(): Flow<ResearchLogEntity?>
 
+    /**
+     * Awalan sesi dzikir per habit ({tanggal}_dzikir_{slug}_{idHabit}) yang punya minimal satu
+     * sesi dikerjakan pada [tanggal]. slotKey dzikir selalu diakhiri "_{sesiMs 13 digit}"
+     * (14 karakter), jadi awalan habit = slotKey tanpa 14 karakter terakhir.
+     */
     @Query(
-        "SELECT COUNT(*) FROM research_logs WHERE tanggal = :tanggal AND jenisIbadah = 'dzikir' " +
-            "AND status = 'dikerjakan'"
+        "SELECT DISTINCT substr(slotKey, 1, length(slotKey) - 14) FROM research_logs " +
+            "WHERE tanggal = :tanggal AND jenisIbadah = 'dzikir' AND status = 'dikerjakan'"
     )
-    suspend fun countDzikirDikerjakan(tanggal: String): Int
+    suspend fun getDzikirHabitPrefixesDikerjakan(tanggal: String): List<String>
+
+    /** Ada baris dzikir dari kartu lama (id habit kartu-pagi / kartu-petang)? Hanya membaca. */
+    @Query(
+        "SELECT COUNT(*) FROM research_logs WHERE jenisIbadah = 'dzikir' " +
+            "AND instr(slotKey, :penandaHabit) > 0"
+    )
+    suspend fun countDzikirByHabitMarker(penandaHabit: String): Int
 
     // ---------- Statistik (heatmap/streak/total) ----------
     // HANYA jenis yang tidak ada di habit_completion_records. Sholat & puasa ditulis ke
     // kedua tabel, jadi memasukkannya di sini akan menghitung ganda.
-    // Satuan: dzikir per slot (maks 2/hari), tilawah 1/hari (berapa pun sesinya), iqro 1/hari.
+    // Satuan: dzikir 1 per HABIT per hari (berapa pun sesinya), tilawah 1/hari, iqro 1/hari.
 
     @Query(
         "SELECT tanggal AS dateKey, " +
-            "SUM(CASE WHEN jenisIbadah = 'dzikir' THEN 1 ELSE 0 END) " +
+            "COUNT(DISTINCT CASE WHEN jenisIbadah = 'dzikir' " +
+            "THEN substr(slotKey, 1, length(slotKey) - 14) END) " +
             "+ MAX(CASE WHEN jenisIbadah = 'tilawah' THEN 1 ELSE 0 END) " +
             "+ MAX(CASE WHEN jenisIbadah = 'iqro' THEN 1 ELSE 0 END) AS count " +
             "FROM research_logs WHERE status = 'dikerjakan' " +
@@ -114,7 +127,8 @@ interface ResearchLogDao {
 
     @Query(
         "SELECT COALESCE(SUM(c), 0) FROM (SELECT " +
-            "SUM(CASE WHEN jenisIbadah = 'dzikir' THEN 1 ELSE 0 END) " +
+            "COUNT(DISTINCT CASE WHEN jenisIbadah = 'dzikir' " +
+            "THEN substr(slotKey, 1, length(slotKey) - 14) END) " +
             "+ MAX(CASE WHEN jenisIbadah = 'tilawah' THEN 1 ELSE 0 END) " +
             "+ MAX(CASE WHEN jenisIbadah = 'iqro' THEN 1 ELSE 0 END) AS c " +
             "FROM research_logs WHERE status = 'dikerjakan' " +

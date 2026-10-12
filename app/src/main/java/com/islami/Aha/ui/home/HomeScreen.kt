@@ -248,7 +248,9 @@ fun HomeScreen(
             onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
             onToggleSunnahReminder = viewModel::toggleSunnahReminder,
             onDeleteSunnah = viewModel::removeSunnahHabit,
-            onToggleDzikir = viewModel::toggleDzikir,
+            onRecordDzikir = viewModel::recordDzikir,
+            onUndoDzikir = viewModel::undoLastDzikir,
+            onDeleteDzikirHabit = viewModel::removeDzikirHabit,
             onDeleteTilawahSession = viewModel::removeTilawahSession,
             onSaveIqro = viewModel::saveIqro,
             onSelectTilawahJenis = viewModel::selectTilawahJenis,
@@ -441,7 +443,9 @@ fun HomeScreenContent(
     onToggleSunnahCompletion: (String) -> Unit = {},
     onToggleSunnahReminder: (String) -> Unit = {},
     onDeleteSunnah: (String) -> Unit = {},
-    onToggleDzikir: (String) -> Unit = {},
+    onRecordDzikir: (String) -> Unit = {},
+    onUndoDzikir: (String) -> Unit = {},
+    onDeleteDzikirHabit: (String) -> Unit = {},
     onDeleteTilawahSession: (String) -> Unit = {},
     onSaveIqro: (Int, Int) -> Unit = { _, _ -> },
     onSelectTilawahJenis: (String) -> Unit = {},
@@ -527,6 +531,7 @@ fun HomeScreenContent(
                 CategoryCardsRow(
                     selectedCategory = uiState.selectedMainCategory,
                     comingSoonCategories = uiState.comingSoonCategories,
+                    hiddenCategories = uiState.hiddenCategories,
                     onSelectCategory = onSelectMainCategory,
                     getBadge = { uiState.getCategoryBadge(it) }
                 )
@@ -541,6 +546,8 @@ fun HomeScreenContent(
                     totalCount = uiState.totalHabitsCount,
                     progressTextOverride = if (uiState.isTilawahCategory) {
                         "${uiState.tilawahHalamanToday} halaman"
+                    } else if (uiState.isDzikirCategory) {
+                        "${uiState.dzikirDoneCount} dari ${uiState.dzikirTotalCount} dicatat"
                     } else {
                         null
                     }
@@ -562,12 +569,15 @@ fun HomeScreenContent(
             // Content based on category
             val selectedSubCategory = uiState.subTabCategories.getOrNull(uiState.selectedSubTabIndex)
             if (uiState.isDzikirCategory) {
-                item {
-                    DzikirCard(
-                        pagiDone = uiState.dzikirPagiDone,
-                        petangDone = uiState.dzikirPetangDone,
-                        onToggle = onToggleDzikir
-                    )
+                if (uiState.dzikirHabits.isNotEmpty()) {
+                    item {
+                        DzikirCard(
+                            habits = uiState.dzikirHabits,
+                            onRecord = onRecordDzikir,
+                            onUndo = onUndoDzikir,
+                            onDelete = onDeleteDzikirHabit
+                        )
+                    }
                 }
             } else if (uiState.isTilawahCategory) {
                 if (uiState.isTilawahIqroTab) {

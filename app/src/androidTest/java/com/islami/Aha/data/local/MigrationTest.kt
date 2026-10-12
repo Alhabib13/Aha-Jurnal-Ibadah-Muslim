@@ -38,7 +38,8 @@ class MigrationTest {
         AppDatabase.MIGRATION_11_12,
         AppDatabase.MIGRATION_12_13,
         AppDatabase.MIGRATION_13_14,
-        AppDatabase.MIGRATION_14_15
+        AppDatabase.MIGRATION_14_15,
+        AppDatabase.MIGRATION_15_16
     )
 
     @get:Rule
@@ -236,6 +237,61 @@ class MigrationTest {
         }
         val after = helper.runMigrationsAndValidate(
             name, 15, true, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15
+        ).use { db -> tablesV13.take(3).associate { (t, pk) -> t to dumpTable(db, t, pk) } }
+        assertEquals(before, after)
+    }
+
+    // ---------- 15 -> 16: tabel dzikir_habits baru, tabel lain tidak berubah ----------
+
+    @Test
+    fun migrate15To16_addsEmptyDzikirHabits_researchLogsUntouched() {
+        val name = "migration-15-16"
+        val tables = tablesV13 + ("research_logs" to "slotKey")
+        helper.createDatabase(name, 15).apply {
+            seedHabits(this); seedUserHabits(this, withSyncColumns = true); seedCompletions(this, withIsSynced = true)
+            seedContent(this)
+            // Baris dari kartu dzikir lama (id habit kartu-pagi) + tilawah.
+            insert(this, "research_logs", "slotKey" to "${day(0)}_dzikir_dzikir_pagi_kartu-pagi_1791600000000",
+                "tanggal" to day(0), "jenisIbadah" to "dzikir", "namaDetail" to "dzikir_pagi", "namaDetailAsli" to null,
+                "status" to "dikerjakan", "jumlah" to null, "jilid" to null, "jamPencatatan" to 1_791_600_000_000L,
+                "sumberPencatatan" to "tidak_diketahui", "ownerUid" to "uidA", "isSynced" to 1L, "updatedAt" to 5L,
+                "jumlahAyat" to null, "juz" to null, "offsetWaktu" to "+07:00", "selisihMenitDariAdzan" to 3L,
+                "modePencatatan" to "centang", "waktuDzikir" to "pagi", "targetHitungan" to null, "durasiDetik" to null)
+            insert(this, "research_logs", "slotKey" to "${day(1)}_tilawah_hafalan_s9", "tanggal" to day(1),
+                "jenisIbadah" to "tilawah", "namaDetail" to "hafalan", "namaDetailAsli" to null,
+                "status" to "dikerjakan", "jumlah" to 1L, "jilid" to null, "jamPencatatan" to 1_791_500_000_000L,
+                "sumberPencatatan" to "tidak_diketahui", "ownerUid" to null, "isSynced" to 0L, "updatedAt" to 6L,
+                "jumlahAyat" to 5L, "juz" to 30L, "offsetWaktu" to "+07:00", "selisihMenitDariAdzan" to null,
+                "modePencatatan" to null, "waktuDzikir" to null, "targetHitungan" to null, "durasiDetik" to null)
+            close()
+        }
+        val before = helper.runMigrationsAndValidate(name, 15, false).use { db ->
+            tables.associate { (t, pk) -> t to dumpTable(db, t, pk) }
+        }
+        val after = helper.runMigrationsAndValidate(name, 16, true, AppDatabase.MIGRATION_15_16).use { db ->
+            assertEquals(0L, scalar(db, "SELECT COUNT(*) FROM dzikir_habits"))
+            tables.associate { (t, pk) -> t to dumpTable(db, t, pk) }
+        }
+        assertEquals(2, before.getValue("research_logs").size)
+        tables.forEach { (t, _) -> assertEquals("isi tabel $t berubah", before.getValue(t), after.getValue(t)) }
+        withRoom(name) { room ->
+            assertEquals(2, runBlocking { room.researchLogDao().getAll() }.size)
+            assertTrue(runBlocking { room.dzikirHabitDao().getAll() }.isEmpty())
+        }
+    }
+
+    @Test
+    fun migrate13To16_chain() {
+        val name = "migration-13-16"
+        helper.createDatabase(name, 13).apply {
+            seedHabits(this); seedUserHabits(this, withSyncColumns = true); seedCompletions(this, withIsSynced = true)
+            close()
+        }
+        val before = helper.runMigrationsAndValidate(name, 13, false).use { db ->
+            tablesV13.take(3).associate { (t, pk) -> t to dumpTable(db, t, pk) }
+        }
+        val after = helper.runMigrationsAndValidate(
+            name, 16, true, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16
         ).use { db -> tablesV13.take(3).associate { (t, pk) -> t to dumpTable(db, t, pk) } }
         assertEquals(before, after)
     }

@@ -1,8 +1,45 @@
-# Fitur Dzikir — Tahap 1 (katalog + skema data)
+# Fitur Dzikir — Tahap 2 (UI mode centang)
 
-Status: **wadah data saja, belum ada UI baru.** Kartu dzikir lama (dua centang pagi/petang)
-masih dipakai dan kini menulis log dengan skema baru: `dzikir_pagi` / `dzikir_petang`,
-`mode_pencatatan = "centang"`, `jumlah = null`.
+Status: **mode centang aktif; mode layar ditunda ke Tahap 3** (menunggu buku rujukan).
+Kartu dua slot pagi/petang sudah diganti daftar habit dzikir pilihan pengguna.
+
+## Tahap 2 — ringkasan
+
+- **Habit dzikir = konfigurasi**, bukan log: Room `dzikir_habits` (v16) dan Firestore
+  `users/{uid}/dzikir_habits/{id}` (`slug`, `mode_pencatatan`, `waktu_dzikir`, `dibuat_pada`,
+  opsional `nama_detail_asli` [wajib untuk dzikir_lainnya] dan `target_hitungan`).
+  Kode: `data/dzikir/DzikirHabitRepository.kt`. Tidak pernah menulis `logs`/`research_logs`.
+- **Add Habit → Dzikir**: 9 entri katalog, boleh pilih beberapa sekaligus, dzikir_lainnya boleh
+  lebih dari satu asal namanya beda. Mode "layar" tampil tetapi nonaktif ("bacaannya belum
+  tersedia"). Target hitungan opsional, kosong secara bawaan, tanpa nilai anjuran.
+- **Beranda**: kategori Dzikir hanya tampil bila ada habit dzikir. Tiap habit punya tombol
+  "Catat" (satu sesi; ketukan ganda ≤ 60 detik = sesi yang sama), "Batalkan terakhir"
+  (baris dihapus), dan "Hapus" (habit keluar dari daftar, catatan lama tetap).
+  `sumber_pencatatan` = `tidak_diketahui`.
+- **Rasio "Progress Hari Ini"**: habit dengan ≥ 1 sesi hari ini / semua habit dzikir, termasuk
+  yang ber-waktu `bebas` (yang tidak pernah disimpulkan "tidak"). Heatmap: 1 per habit per hari.
+- **Migrasi pengguna kartu lama** (sekali per instalasi, pref `dzikir_habit_migrasi_kartu_v1`):
+  bila ada baris research_logs dari kartu lama, dibuat habit `kartu-pagi` (dzikir_pagi) dan/atau
+  `kartu-petang` (dzikir_petang), mode centang. ID habit = id kartu lama sehingga riwayat menyambung.
+  Hanya membaca research_logs. Rilis produksi tidak pernah memakai kartu dua slot, jadi migrasi
+  ini praktis hanya mengenai instalasi uji.
+
+## Mode Cuti — MENUNGGU_VALIDASI_PAKAR
+
+Cakupan Mode Cuti adalah peta per `jenis_ibadah` di satu tempat:
+`data/research/ModeCutiPolicy.kt` (`ModeCutiPolicy.CAKUPAN`, dipakai lewat `ModeCutiPolicy.aktif()`).
+
+| jenis_ibadah | Bawaan sekarang |
+|---|---|
+| sholat_wajib, sholat_sunnah, qadha_sholat, puasa | NONAKTIF (perilaku lama) |
+| dzikir | **TETAP_AKTIF** |
+| tilawah, iqro | TETAP_AKTIF (perilaku v1.2.0) |
+
+Alasan dzikir tetap aktif (sementara, perlu dikonfirmasi pakar): dzikir tidak mensyaratkan suci
+dari hadats besar, sehingga menyembunyikannya bisa terbaca sebagai larangan. Selama Mode Cuti,
+habit dzikir tetap tampil dan tetap masuk penyebut rasio. Bila pakar memutuskan lain, ubah nilai
+`DZIKIR` di peta itu; Beranda, Statistik, dan Profil membacanya dari sana.
+Catatan: kode lama sholat/puasa masih memeriksa kategori secara langsung (nilainya sama dengan peta).
 
 ## Keputusan desain (final)
 
@@ -58,10 +95,10 @@ mode `layar` baru terbuka otomatis setelah bacaan diisi. Aplikasi tidak crash bi
 | `durasi_detik` | layar: int 1–86400 · **centang: null** |
 
 Untuk jenis ibadah lain keempat kolom dzikir wajib null. ID dokumen:
-`{uid}_{tanggal}_dzikir_{slug}`, atau `{uid}_{tanggal}_dzikir_dzikir_lainnya_{idHabit}`.
+`{uid}_{tanggal}_dzikir_{slug}_{idHabit}_{sesiMs}` (satu dokumen per sesi; sesiMs = epoch ms 13 digit).
 `selisih_menit_dari_adzan`: dzikir_pagi dari Subuh, dzikir_petang dari Ashar, slug lain null.
 
-Room: `research_logs` v15 (kolom `modePencatatan`, `waktuDzikir`, `targetHitungan`, `durasiDetik`,
+Room v16: tabel `dzikir_habits` (migrasi 15→16 hanya CREATE TABLE). `research_logs` v15 (kolom `modePencatatan`, `waktuDzikir`, `targetHitungan`, `durasiDetik`,
 semuanya nullable; migrasi 14→15 hanya `ALTER TABLE ADD COLUMN`).
 
 ## MENUNGGU_VALIDASI_PAKAR
@@ -69,4 +106,4 @@ semuanya nullable; migrasi 14→15 hanya `ALTER TABLE ADD COLUMN`).
 - Isi `bacaan` ke-9 entri dan `target_default`.
 - Pemetaan waktu default tiap slug (terutama `tahlil` dan `asmaul_husna` sebagai `bebas`).
 - Acuan selisih adzan: dzikir pagi diukur dari Subuh, dzikir petang dari Ashar.
-- Cakupan Mode Cuti terhadap dzikir (saat ini: tetap boleh, tanpa notifikasi, tidak dihitung "tidak").
+- Cakupan Mode Cuti terhadap dzikir (saat ini: TETAP_AKTIF; lihat bagian "Mode Cuti" di atas).

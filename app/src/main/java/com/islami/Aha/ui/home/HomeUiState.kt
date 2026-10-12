@@ -17,6 +17,21 @@ data class TilawahSessionUi(
     val jam: String
 )
 
+/** Satu habit dzikir pilihan pengguna beserta catatannya hari ini. */
+data class DzikirHabitUi(
+    val id: String,
+    val slug: String,
+    val nama: String,
+    /** Keterangan waktu netral, mis. "Pagi" / "Kapan saja". */
+    val waktuLabel: String,
+    val targetHitungan: Int?,
+    /** Jumlah sesi yang dicatat hari ini (0 = belum dicatat, BUKAN "tidak dikerjakan"). */
+    val sesiHariIni: Int,
+    val jamTerakhir: String?
+) {
+    val dicatatHariIni: Boolean get() = sesiHariIni > 0
+}
+
 /** Posisi terakhir Iqro/metode sejenis. */
 data class IqroProgressUi(val jilid: Int, val halaman: Int, val tanggal: String)
 
@@ -63,8 +78,8 @@ data class HomeUiState(
     val isRamadanMonth: Boolean = DateUtils.isRamadanMonth(),
     val showGenderPrompt: Boolean = false,
     val showResearchNotice: Boolean = false,
-    val dzikirPagiDone: Boolean = false,
-    val dzikirPetangDone: Boolean = false,
+    /** Habit dzikir pilihan pengguna; kosong = kategori Dzikir tidak ditampilkan sama sekali. */
+    val dzikirHabits: List<DzikirHabitUi> = emptyList(),
     val tilawahSessions: List<TilawahSessionUi> = emptyList(),
     val iqroProgress: IqroProgressUi? = null,
     val tilawahJenisDipilih: String = com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN,
@@ -82,8 +97,23 @@ data class HomeUiState(
     val isTilawahIqroTab: Boolean
         get() = isTilawahCategory && selectedSubTabIndex == 1
 
+    /** Habit dzikir yang punya minimal satu catatan hari ini (berapa pun sesinya). */
     val dzikirDoneCount: Int
-        get() = (if (dzikirPagiDone) 1 else 0) + (if (dzikirPetangDone) 1 else 0)
+        get() = dzikirHabits.count { it.dicatatHariIni }
+
+    /**
+     * Penyebut rasio dzikir = semua habit dzikir, termasuk yang ber-waktu "bebas".
+     * Dzikir tetap aktif saat Mode Cuti: lihat ModeCutiPolicy.
+     */
+    val dzikirTotalCount: Int
+        get() = if (com.islami.Aha.data.research.ModeCutiPolicy.aktif(
+                com.islami.Aha.data.research.ResearchSchema.Jenis.DZIKIR, isHaidhMode
+            )
+        ) dzikirHabits.size else 0
+
+    /** Kategori yang disembunyikan dari baris kategori (bukan ditampilkan kosong / nol). */
+    val hiddenCategories: List<String>
+        get() = if (dzikirTotalCount == 0) listOf("Dzikir") else emptyList()
 
     val tilawahHalamanToday: Int
         get() = tilawahSessions.sumOf { it.halaman }
@@ -215,7 +245,7 @@ data class HomeUiState(
 
     val totalHabitsCount: Int
         get() {
-            if (isDzikirCategory) return 2
+            if (isDzikirCategory) return dzikirTotalCount
             val habitCount = if (showRamadanUnifiedCard) {
                 ramadanUnifiedHabits.size
             } else {
@@ -246,9 +276,8 @@ data class HomeUiState(
                 val total = habits.size + sunnah.size
                 "$completed/$total"
             }
-            // Dzikir & tilawah tetap tampil saat Mode Cuti (tanpa udzur).
-            // MENUNGGU VALIDASI PAKAR: tilawah saat haid khilafiyah; tidak disembunyikan = netral.
-            "Dzikir" -> "$dzikirDoneCount/2"
+            // Cakupan Mode Cuti untuk dzikir & tilawah: ModeCutiPolicy (MENUNGGU VALIDASI PAKAR).
+            "Dzikir" -> "$dzikirDoneCount/$dzikirTotalCount"
             "Tilawah" -> "$tilawahHalamanToday hlm"
             else -> "Segera"
         }

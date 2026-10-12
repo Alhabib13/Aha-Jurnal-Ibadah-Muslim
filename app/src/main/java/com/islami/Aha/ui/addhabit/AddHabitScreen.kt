@@ -76,7 +76,16 @@ fun AddHabitScreen(
         onReminderTimeChange = viewModel::onReminderTimeChange,
         onSaveClick = viewModel::saveHabit,
         getFormattedReminderTime = { viewModel.getFormattedReminderTime(uiState) },
-        onNavigateBack = onNavigateBack
+        onNavigateBack = onNavigateBack,
+        dzikirActions = DzikirActions(
+            onSelectCategory = viewModel::selectDzikirCategory,
+            onToggleEntry = viewModel::toggleDzikirEntry,
+            onAddLainnya = viewModel::addDzikirLainnya,
+            onRemove = viewModel::removeDzikirPilihan,
+            onTargetChange = viewModel::updateDzikirTarget,
+            onNamaChange = viewModel::updateDzikirNama,
+            onModeChange = viewModel::selectDzikirMode
+        )
     )
 }
 
@@ -98,7 +107,8 @@ fun AddHabitScreenContent(
     onReminderTimeChange: (Int, Int) -> Unit,
     onSaveClick: () -> Unit,
     getFormattedReminderTime: () -> String,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    dzikirActions: DzikirActions = DzikirActions()
 ) {
     val scrollState = rememberScrollState()
     val secondaryIconTint = rememberAddHabitSecondaryIconTint()
@@ -153,6 +163,8 @@ fun AddHabitScreenContent(
                             Text(
                                 text = if (uiState.isSaving) {
                                     stringResource(R.string.settings_saving)
+                                } else if (uiState.isDzikir) {
+                                    "Simpan Dzikir"
                                 } else {
                                     stringResource(R.string.save_sunnah_worship)
                                 },
@@ -211,18 +223,29 @@ fun AddHabitScreenContent(
                 // ── Kategori ──
                 SectionHeading(stringResource(R.string.category_heading))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     SunnahCategoryType.entries.forEach { category ->
-                        val isSelected = uiState.selectedCategory == category
+                        val isSelected = !uiState.isDzikir && uiState.selectedCategory == category
                         SelectableChip(
                             text = category.displayName,
                             isSelected = isSelected,
                             onClick = { onSelectCategory(category) }
                         )
                     }
+                    SelectableChip(
+                        text = "Dzikir",
+                        isSelected = uiState.isDzikir,
+                        onClick = dzikirActions.onSelectCategory
+                    )
                 }
+
+                if (uiState.isDzikir) {
+                    DzikirSection(uiState = uiState, actions = dzikirActions)
+                } else {
 
                 // ── Pilih Ibadah ──
                 SectionHeading(stringResource(R.string.select_worship_heading))
@@ -354,6 +377,7 @@ fun AddHabitScreenContent(
                     onToggle = onToggleReminder,
                     onShowTimePicker = onShowTimePicker
                 )
+                } // End of non-dzikir sections
 
                 // Bottom spacer so content isn't hidden behind save button
                 Spacer(modifier = Modifier.height(80.dp))

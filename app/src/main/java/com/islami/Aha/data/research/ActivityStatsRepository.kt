@@ -1,5 +1,6 @@
 package com.islami.Aha.data.research
 
+import com.islami.Aha.data.local.DzikirHabitDao
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.ResearchLogDao
 import com.islami.Aha.data.model.DailyCompletionCount
@@ -16,7 +17,8 @@ import javax.inject.Singleton
 @Singleton
 class ActivityStatsRepository @Inject constructor(
     private val habitCompletionDao: HabitCompletionDao,
-    private val researchLogDao: ResearchLogDao
+    private val researchLogDao: ResearchLogDao,
+    private val dzikirHabitDao: DzikirHabitDao
 ) {
     suspend fun getDailyCountsBetween(startDateKey: String, endDateKey: String): List<DailyCompletionCount> =
         mergeCounts(
@@ -32,13 +34,28 @@ class ActivityStatsRepository @Inject constructor(
     suspend fun getTotalCompletionCount(): Int =
         habitCompletionDao.getTotalCompletionCount() + researchLogDao.getActivityTotalCount()
 
-    fun observeChanges(): kotlinx.coroutines.flow.Flow<String> = researchLogDao.observeChangeTick()
+    /** Berubah bila research_logs ATAU daftar habit dzikir berubah (rasio dzikir ikut habit). */
+    fun observeChanges(): kotlinx.coroutines.flow.Flow<String> =
+        kotlinx.coroutines.flow.combine(researchLogDao.observeChangeTick(), dzikirHabitDao.observeAll()) { tick, habits ->
+            "$tick-${habits.joinToString(",") { it.id }}"
+        }
 
-    /** Slot dzikir yang sudah dicentang pada [tanggal] (0..2), untuk rasio "Progress Hari Ini". */
-    suspend fun getDzikirDoneCount(tanggal: String): Int = researchLogDao.countDzikirDikerjakan(tanggal)
+    /**
+     * Rasio dzikir "Progress Hari Ini": (habit dengan minimal satu sesi pada [tanggal]) /
+     * (semua habit dzikir pilihan pengguna, termasuk yang ber-waktu "bebas").
+     * Mode Cuti mengikuti ModeCutiPolicy (bawaan: dzikir tetap aktif).
+     */
+    suspend fun getDzikirProgress(tanggal: String, modeCutiAktif: Boolean): DzikirProgress {
+        if (!ModeCutiPolicy.aktif(ResearchSchema.Jenis.DZIKIR, modeCutiAktif)) return DzikirProgress(0, 0)
+        val habits = dzikirHabitDao.getAll()
+        val prefixes = researchLogDao.getDzikirHabitPrefixesDikerjakan(tanggal).toSet()
+        val done = habits.count { "${tanggal}_${ResearchSchema.Jenis.DZIKIR}_${it.slug}_${it.id}" in prefixes }
+        return DzikirProgress(done = done, total = habits.size)
+    }
+
+    data class DzikirProgress(val done: Int, val total: Int)
 
     companion object {
-        const val DZIKIR_SLOTS_PER_DAY = 2
 
         internal fun mergeCounts(
             a: List<DailyCompletionCount>,
