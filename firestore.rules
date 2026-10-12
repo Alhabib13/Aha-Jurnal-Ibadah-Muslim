@@ -77,7 +77,216 @@ service cloud.firestore {
         && data.createdAt > 0;
   }
 
+  // ===================================================================
+  // SKEMA PENELITIAN (pengumpulan data). Nilai enum di sini harus sama
+  // persis dengan com.islami.Aha.data.research.ResearchSchema.
+  // ===================================================================
+
+  function profilFields() {
+    return ["jenis_kelamin", "rentang_umur", "status_aktivitas", "tanggal_mulai"];
+  }
+
+  function validProfilPenelitian(data) {
+    return data.keys().hasOnly(profilFields())
+        && data.keys().hasAll(profilFields())
+        && data.jenis_kelamin in ["laki_laki", "perempuan"]
+        && (data.rentang_umur == null
+            || data.rentang_umur in ["<15", "15-18", "19-25", "26-35", ">35"])
+        && (data.status_aktivitas == null
+            || data.status_aktivitas in ["pelajar", "mahasiswa", "pekerja", "lainnya"])
+        && data.tanggal_mulai is timestamp;
+  }
+
+  function logFields() {
+    return [
+      "user_id", "tanggal", "jenis_ibadah", "nama_detail", "nama_detail_asli",
+      "status", "jumlah", "jilid", "jam_pencatatan", "sumber_pencatatan",
+      "jumlah_ayat", "juz", "offset_waktu", "selisih_menit_dari_adzan"
+    ];
+  }
+
+  // Jumlah ayat tiap surah 1..114 (Tanzil metadata v1.0, CC BY 3.0). Sama dengan QuranData.kt.
+  function ayatPerSurah() {
+    return [7, 286, 200, 176, 120, 165, 206, 75, 129, 109, 123, 111, 43, 52, 99, 128, 111, 110, 98, 135, 112, 78, 118, 64, 77, 227, 93, 88, 69, 60, 34, 30, 73, 54, 45, 83, 182, 88, 75, 85, 54, 53, 89, 59, 37, 35, 38, 29, 18, 45, 60, 49, 62, 55, 78, 96, 29, 22, 24, 13, 14, 11, 11, 18, 12, 12, 30, 52, 52, 44, 28, 28, 20, 56, 40, 31, 50, 40, 46, 42, 29, 19, 36, 25, 22, 17, 19, 26, 30, 20, 15, 21, 11, 8, 8, 19, 5, 8, 8, 11, 11, 8, 3, 9, 5, 4, 7, 3, 6, 3, 5, 4, 5, 6];
+  }
+
+  function validAyatPosition(surah, ayat) {
+    return surah is int && surah >= 1 && surah <= 114
+        && ayat is int && ayat >= 1 && ayat <= ayatPerSurah()[surah - 1];
+  }
+
+  // nama_detail yang sah per jenis_ibadah. iqro & qadha_sholat wajib null.
+  function detailPerJenis() {
+    return {
+      "sholat_wajib": ["subuh", "dzuhur", "ashar", "maghrib", "isya"],
+      "sholat_sunnah": ["tahajud", "dhuha", "rawatib", "witir", "tarawih",
+                        "taubat", "istikharah", "sunnah_lainnya"],
+      "puasa": ["senin_kamis", "ayyamul_bidh", "daud", "syawal", "ramadan",
+                "qadha", "nazar", "sunnah_lainnya"],
+      "dzikir": ["pagi", "petang"],
+      "tilawah": ["bacaan_harian", "hafalan", "murajaah"]
+    };
+  }
+
+  function validDetail(data) {
+    return (data.jenis_ibadah in ["iqro", "qadha_sholat"])
+        ? data.nama_detail == null
+        : data.nama_detail in detailPerJenis()[data.jenis_ibadah];
+  }
+
+  // ID deterministik, bentuknya diwajibkan per jenis agar sync ulang menimpa
+  // dokumen yang sama dan slot harian tetap tidak bisa punya baris kedua:
+  //   slot tetap        {uid}_{tanggal}_{jenis}_{detail}
+  //   iqro              {uid}_{tanggal}_iqro
+  //   sunnah_lainnya    {uid}_{tanggal}_{jenis}_sunnah_lainnya_{idLokal}
+  //   tilawah           {uid}_{tanggal}_tilawah_{detail}_{idSesi}  (banyak sesi per hari)
+  //   qadha_sholat      {uid}_{tanggal}_qadha_sholat_{idLokal}
+  function validLogId(data, logId) {
+    let prefix = request.auth.uid + "_" + data.tanggal + "_" + data.jenis_ibadah;
+    let idLokal = "_[A-Za-z0-9-]{1,64}";
+    return logId.size() <= 200 && (
+      data.jenis_ibadah == "tilawah"
+        ? logId.matches(prefix + "_" + data.nama_detail + idLokal)
+        : data.jenis_ibadah == "qadha_sholat"
+        ? logId.matches(prefix + idLokal)
+        : data.jenis_ibadah == "iqro"
+          ? logId == prefix
+          : data.nama_detail == "sunnah_lainnya"
+            ? logId.matches(prefix + "_sunnah_lainnya" + idLokal)
+            : logId == prefix + "_" + data.nama_detail
+    );
+  }
+
+  // "tidak" hanya untuk slot harian tetap (sholat wajib & dzikir).
+  // "udzur" hanya untuk ibadah yang gugur saat Mode Cuti (sholat wajib & puasa).
+  // MENUNGGU VALIDASI PAKAR: cakupan udzur adalah keputusan fiqih. Tilawah saat
+  // haid masih khilafiyah; posisi netral sementara = tidak dibuatkan baris apa pun.
+  // Sinkron dengan ResearchSchema.JENIS_BOLEH_UDZUR.
+  function validStatus(data) {
+    return data.status == "dikerjakan"
+        || (data.status == "tidak" && data.jenis_ibadah in ["sholat_wajib", "dzikir"])
+        || (data.status == "udzur" && data.jenis_ibadah in ["sholat_wajib", "puasa"]);
+  }
+
+  // Jam & sumber hanya ada untuk tindakan nyata pengguna (dikerjakan).
+  // Baris "tidak"/"udzur" adalah hasil penyimpulan aplikasi -> keduanya null.
+  // "tidak_diketahui" = versi aplikasi yang belum bisa membedakan notifikasi vs
+  // buka aplikasi (sebelum Tahap 4). Pipeline membuang baris bernilai ini.
+  function validJamDanSumber(data) {
+    return data.status == "dikerjakan"
+        ? (data.jam_pencatatan is timestamp
+           && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi", "tidak_diketahui"])
+        : (data.jam_pencatatan == null && data.sumber_pencatatan == null);
+  }
+
+  // tilawah: jumlah = halaman tersentuh (dihitung aplikasi), jumlah_ayat = ukuran halus,
+  //          juz = juz awal sesi. iqro: jilid 1-10 (Iqro, Qiroati, Tilawati, UMMI,
+  //          An-Nahdliyah) + halaman. Jenis lain: keempatnya null.
+  function validJumlah(data) {
+    return data.jenis_ibadah == "tilawah"
+        ? (data.jumlah is int && data.jumlah >= 1 && data.jumlah <= 604
+           && data.jumlah_ayat is int && data.jumlah_ayat >= 1 && data.jumlah_ayat <= 6236
+           && data.juz is int && data.juz >= 1 && data.juz <= 30
+           && data.jilid == null)
+        : data.jenis_ibadah == "iqro"
+          ? (data.jumlah is int && data.jumlah >= 1 && data.jumlah <= 100
+             && data.jilid is int && data.jilid >= 1 && data.jilid <= 10
+             && data.jumlah_ayat == null && data.juz == null)
+          : (data.jumlah == null && data.jilid == null
+             && data.jumlah_ayat == null && data.juz == null);
+  }
+
+  // Zona waktu HP saat mencatat, per log (pengguna bisa bepergian): "+07:00", "-03:30".
+  function validOffset(data) {
+    return data.offset_waktu is string
+        && data.offset_waktu.matches("^[+-](0[0-9]|1[0-4]):[0-5][0-9]$");
+  }
+
+  // Selisih menit jam_pencatatan dari adzan, dihitung di HP dari jadwal aplikasi
+  // (tanpa lokasi/jadwal dikirim ke server). Hanya sholat_wajib & dzikir; null bila
+  // jadwal tidak berasal dari lokasi, pencatatan susulan, atau status bukan dikerjakan.
+  function validSelisih(data) {
+    return (data.jenis_ibadah in ["sholat_wajib", "dzikir"] && data.status == "dikerjakan")
+        ? (data.selisih_menit_dari_adzan == null
+           || (data.selisih_menit_dari_adzan is int
+               && data.selisih_menit_dari_adzan >= -1440
+               && data.selisih_menit_dari_adzan <= 1440))
+        : data.selisih_menit_dari_adzan == null;
+  }
+
+  function validLog(data, logId) {
+    return data.keys().hasOnly(logFields())
+        && data.keys().hasAll(logFields())
+        && data.user_id == request.auth.uid
+        && data.tanggal is string
+        && data.tanggal.matches("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
+        && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "qadha_sholat", "puasa",
+                                 "dzikir", "tilawah", "iqro"]
+        && validDetail(data)
+        && validLogId(data, logId)
+        && (data.nama_detail_asli == null
+            || (data.nama_detail_asli is string && data.nama_detail_asli.size() <= 100))
+        && data.status in ["dikerjakan", "tidak", "udzur"]
+        && validStatus(data)
+        && validJamDanSumber(data)
+        && validJumlah(data)
+        && validOffset(data)
+        && validSelisih(data);
+  }
+
+  // Penanda tilawah = KEADAAN (posisi terakhir), bukan kejadian; tidak masuk logs.
+  function validPenanda(jenis, data) {
+    return (jenis in ["bacaan_harian", "hafalan", "murajaah"])
+        ? (data.keys().hasOnly(["surah", "ayat"]) && data.keys().hasAll(["surah", "ayat"])
+           && validAyatPosition(data.surah, data.ayat))
+        : jenis == "iqro"
+          && data.keys().hasOnly(["jilid", "halaman"]) && data.keys().hasAll(["jilid", "halaman"])
+          && data.jilid is int && data.jilid >= 1 && data.jilid <= 10
+          && data.halaman is int && data.halaman >= 1 && data.halaman <= 100;
+  }
+
+  // Target harian HANYA untuk bacaan_harian, satuan halaman.
+  function validTargetTilawah(data) {
+    return data.keys().hasOnly(["halaman_per_hari"]) && data.keys().hasAll(["halaman_per_hari"])
+        && data.halaman_per_hari is int
+        && data.halaman_per_hari >= 1 && data.halaman_per_hari <= 604;
+  }
+
   match /databases/{database}/documents {
+    // Profil penelitian. Satu dokumen per pengguna, hanya pemiliknya.
+    match /users/{userId} {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && validProfilPenelitian(request.resource.data)
+                    && request.resource.data.tanggal_mulai == request.time;
+      allow update: if isOwner(userId)
+                    && validProfilPenelitian(request.resource.data)
+                    && request.resource.data.tanggal_mulai == resource.data.tanggal_mulai;
+    }
+
+    // Log ibadah penelitian. Kepemilikan lewat field user_id; query klien
+    // wajib menyertakan where("user_id", "==", uid).
+    match /logs/{logId} {
+      allow read, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && validLog(request.resource.data, logId);
+      allow update: if isSignedIn()
+                    && resource.data.user_id == request.auth.uid
+                    && validLog(request.resource.data, logId)
+                    && request.resource.data.diff(resource.data).unchangedKeys()
+                         .hasAll(["user_id", "tanggal", "jenis_ibadah", "nama_detail"]);
+    }
+
+    match /users/{userId}/penanda/{jenis} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validPenanda(jenis, request.resource.data);
+    }
+
+    match /users/{userId}/target/{docId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && docId == "tilawah"
+                            && validTargetTilawah(request.resource.data);
+    }
+
     // Client may read default fardhu metadata, but can never write it.
     match /fardhu_defaults/{docId} {
       allow read: if true;

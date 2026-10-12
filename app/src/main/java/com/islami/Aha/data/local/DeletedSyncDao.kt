@@ -22,4 +22,7 @@ interface DeletedSyncDao {
 
     @Query("DELETE FROM deleted_sync_records")
     suspend fun deleteAll()
+
+    @Query("DELETE FROM deleted_sync_records WHERE recordType = :recordType")
+    suspend fun deleteByType(recordType: String)
 }

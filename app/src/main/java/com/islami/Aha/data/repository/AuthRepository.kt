@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import com.islami.Aha.BuildConfig
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.islami.Aha.data.research.ResearchSchema
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.GoogleAuthProvider
@@ -13,6 +14,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
@@ -43,7 +45,10 @@ class AuthRepository @Inject constructor(
         private const val KEY_USER_AVATAR_URI = "user_avatar_uri"
         const val KEY_LAST_ACTIVE_USER_UID = "last_active_user_uid"
         const val KEY_LAST_USERNAME_CHANGED = "last_username_changed_at"
-        private const val RECENT_LOGIN_MAX_AGE_MS = 10 * 60 * 1000L
+        // Firebase menolak user.delete() bila login terakhir > 5 menit. Batas aplikasi harus
+        // di bawah itu: kalau tidak, data cloud sudah terhapus dulu baru delete ditolak, lalu
+        // harus dipulihkan (users/{uid} tidak bisa dipulihkan dengan tanggal_mulai aslinya).
+        private const val RECENT_LOGIN_MAX_AGE_MS = 4 * 60 * 1000L
         const val MAX_AVATAR_BASE64_LENGTH = 900_000
     }
 
@@ -55,7 +60,11 @@ class AuthRepository @Inject constructor(
     private data class CloudDeleteBackup(
         val sunnahHabits: List<CloudSunnahBackup>,
         val completionRecords: List<CloudSunnahBackup>,
-        val profileData: Map<String, Any>?
+        val profileData: Map<String, Any>?,
+        /** Log penelitian; nilai null DISIMPAN karena rules mewajibkan semua kunci ada. */
+        val researchLogs: List<Pair<String, Map<String, Any?>>> = emptyList(),
+        /** Penanda & target tilawah: path relatif "penanda/{jenis}" / "target/tilawah". */
+        val tilawahState: List<Pair<String, Map<String, Any>>> = emptyList()
     )
 
     val currentUser: FirebaseUser? get() = firebaseAuth.currentUser
@@ -400,7 +409,7 @@ class AuthRepository @Inject constructor(
         val sunnahSnapshot = db.collection("users")
             .document(uid)
             .collection("sunnah_habits")
-            .get()
+            .get(Source.SERVER) // jangan pakai cache: backup harus lengkap
             .await()
         val sunnahDocs = sunnahSnapshot.documents
         val sunnahBackup = sunnahDocs.map { doc ->
@@ -415,7 +424,7 @@ class AuthRepository @Inject constructor(
         val completionSnapshot = db.collection("users")
             .document(uid)
             .collection("habit_completions")
-            .get()
+            .get(Source.SERVER) // jangan pakai cache: backup harus lengkap
             .await()
         val completionDocs = completionSnapshot.documents
         val completionBackup = completionDocs.map { doc ->
@@ -431,36 +440,61 @@ class AuthRepository @Inject constructor(
             .document(uid)
             .collection("meta")
             .document("profile")
-            .get()
+            .get(Source.SERVER) // jangan pakai cache: backup harus lengkap
             .await()
         val profileBackup = profileSnapshot.data?.mapNotNull { (key, value) ->
             if (value == null) null else key to value
         }?.toMap()
 
-        sunnahDocs.chunked(500).forEach { chunk ->
-            val batch = db.batch()
-            chunk.forEach { batch.delete(it.reference) }
-            batch.commit().await()
-        }
-
-        completionDocs.chunked(500).forEach { chunk ->
-            val batch = db.batch()
-            chunk.forEach { batch.delete(it.reference) }
-            batch.commit().await()
-        }
-
-        db.collection("users")
-            .document(uid)
-            .collection("meta")
-            .document("profile")
-            .delete()
+        // Data penelitian milik pengguna ini (koleksi tingkat atas, kepemilikan via user_id).
+        val researchLogDocs = db.collection(ResearchSchema.COLLECTION_LOGS)
+            .whereEqualTo(ResearchSchema.Log.USER_ID, uid)
+            .get(Source.SERVER) // jangan pakai cache: backup harus lengkap
             .await()
+            .documents
+        val researchLogBackup = researchLogDocs.map { doc -> doc.id to doc.data.orEmpty() }
+        val researchProfileRef = db.collection(ResearchSchema.COLLECTION_USERS).document(uid)
+        val tilawahStateDocs = listOf("penanda", "target").flatMap { sub ->
+            researchProfileRef.collection(sub).get(Source.SERVER).await().documents
+        }
 
-        return CloudDeleteBackup(
+        val backup = CloudDeleteBackup(
             sunnahHabits = sunnahBackup,
             completionRecords = completionBackup,
-            profileData = profileBackup
+            profileData = profileBackup,
+            researchLogs = researchLogBackup,
+            tilawahState = tilawahStateDocs.map { doc ->
+                "${doc.reference.parent.id}/${doc.id}" to doc.data.orEmpty().filterValues { it != null }.mapValues { it.value!! }
+            }
         )
+
+        // Semua penghapusan dalam satu blok: bila satu langkah gagal, pulihkan semuanya
+        // (sebelumnya data yang sudah terhapus hilang karena backup belum dikembalikan).
+        runCatching {
+            (sunnahDocs + completionDocs + researchLogDocs + tilawahStateDocs).chunked(500).forEach { chunk ->
+                val batch = db.batch()
+                chunk.forEach { batch.delete(it.reference) }
+                batch.commit().await()
+            }
+
+            db.collection("users")
+                .document(uid)
+                .collection("meta")
+                .document("profile")
+                .delete()
+                .await()
+
+            // users/{uid} (profil penelitian) belum dibuat sebelum Tahap 3. Dokumen ini tidak
+            // bisa dipulihkan dengan tanggal_mulai aslinya (rules: harus waktu server), jadi
+            // dihapus paling akhir. TODO Tahap 3: tentukan cara pemulihannya.
+            researchProfileRef.delete().await()
+        }.onFailure { error ->
+            runCatching { restoreCloudData(uid, backup) }
+                .onFailure { restoreError -> com.islami.Aha.util.logCrashlyticsSafe(restoreError) }
+            throw error
+        }
+
+        return backup
     }
 
     private suspend fun restoreCloudData(uid: String, backup: CloudDeleteBackup) {
@@ -490,6 +524,19 @@ class AuthRepository @Inject constructor(
                         .document(item.id),
                     item.data
                 )
+            }
+            batch.commit().await()
+        }
+
+        backup.tilawahState.forEach { (path, data) ->
+            db.collection(ResearchSchema.COLLECTION_USERS).document(uid).collection(path.substringBefore("/"))
+                .document(path.substringAfter("/")).set(data).await()
+        }
+
+        backup.researchLogs.chunked(500).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { (id, data) ->
+                batch.set(db.collection(ResearchSchema.COLLECTION_LOGS).document(id), data)
             }
             batch.commit().await()
         }

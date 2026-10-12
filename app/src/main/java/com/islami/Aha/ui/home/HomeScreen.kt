@@ -247,8 +247,35 @@ fun HomeScreen(
             onSelectSubTab = viewModel::selectSubTab,
             onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
             onToggleSunnahReminder = viewModel::toggleSunnahReminder,
-            onDeleteSunnah = viewModel::removeSunnahHabit
+            onDeleteSunnah = viewModel::removeSunnahHabit,
+            onToggleDzikir = viewModel::toggleDzikir,
+            onDeleteTilawahSession = viewModel::removeTilawahSession,
+            onSaveIqro = viewModel::saveIqro,
+            onSelectTilawahJenis = viewModel::selectTilawahJenis,
+            onSaveTilawahSession = viewModel::saveTilawahSession,
+            onSetTilawahPenanda = viewModel::setTilawahPenanda,
+            onSetTilawahTarget = viewModel::setTilawahTarget
         )
+
+        if (uiState.showKhatamDialog) {
+            KhatamDialog(onDismiss = viewModel::dismissKhatamDialog)
+        }
+
+        if (uiState.showResearchNotice) {
+            ResearchNoticeDialog(
+                onAcknowledge = viewModel::acknowledgeResearchNotice,
+                onOpenPrivacyPolicy = {
+                    context.startActivity(
+                        android.content.Intent(context, com.islami.Aha.ui.settings.LegalDocumentActivity::class.java).apply {
+                            putExtra(
+                                com.islami.Aha.ui.settings.LegalDocumentActivity.EXTRA_DOCUMENT_TYPE,
+                                com.islami.Aha.ui.settings.LegalDocumentActivity.DOC_PRIVACY
+                            )
+                        }
+                    )
+                }
+            )
+        }
 
         AhaToastHost(
             message = toastMessage,
@@ -413,7 +440,14 @@ fun HomeScreenContent(
     onSelectSubTab: (Int) -> Unit,
     onToggleSunnahCompletion: (String) -> Unit = {},
     onToggleSunnahReminder: (String) -> Unit = {},
-    onDeleteSunnah: (String) -> Unit = {}
+    onDeleteSunnah: (String) -> Unit = {},
+    onToggleDzikir: (String) -> Unit = {},
+    onDeleteTilawahSession: (String) -> Unit = {},
+    onSaveIqro: (Int, Int) -> Unit = { _, _ -> },
+    onSelectTilawahJenis: (String) -> Unit = {},
+    onSaveTilawahSession: (String, com.islami.Aha.data.quran.AyatPosition, com.islami.Aha.data.quran.AyatPosition) -> Unit = { _, _, _ -> },
+    onSetTilawahPenanda: (String, com.islami.Aha.data.quran.AyatPosition) -> Unit = { _, _ -> },
+    onSetTilawahTarget: (Int?) -> Unit = {}
 ) {
     if (uiState.isLoading) {
         return
@@ -504,7 +538,12 @@ fun HomeScreenContent(
             item {
                 HabitSectionHeader(
                     completedCount = uiState.completedHabitsCount,
-                    totalCount = uiState.totalHabitsCount
+                    totalCount = uiState.totalHabitsCount,
+                    progressTextOverride = if (uiState.isTilawahCategory) {
+                        "${uiState.tilawahHalamanToday} halaman"
+                    } else {
+                        null
+                    }
                 )
             }
 
@@ -522,7 +561,36 @@ fun HomeScreenContent(
 
             // Content based on category
             val selectedSubCategory = uiState.subTabCategories.getOrNull(uiState.selectedSubTabIndex)
-            if (uiState.isComingSoon) {
+            if (uiState.isDzikirCategory) {
+                item {
+                    DzikirCard(
+                        pagiDone = uiState.dzikirPagiDone,
+                        petangDone = uiState.dzikirPetangDone,
+                        onToggle = onToggleDzikir
+                    )
+                }
+            } else if (uiState.isTilawahCategory) {
+                if (uiState.isTilawahIqroTab) {
+                    // Iqro satu kelompok tampilan dengan Al-Qur'an; data tetap jenis_ibadah "iqro".
+                    item { IqroCard(progress = uiState.iqroProgress, onSave = onSaveIqro) }
+                } else {
+                    item {
+                        TilawahQuranSection(
+                            jenisDipilih = uiState.tilawahJenisDipilih,
+                            penanda = uiState.tilawahPenanda,
+                            targetHalaman = uiState.tilawahTargetHalaman,
+                            bacaanHarianHariIni = uiState.bacaanHarianHalamanToday,
+                            sessions = uiState.tilawahSessions,
+                            onSelectJenis = onSelectTilawahJenis,
+                            onSave = onSaveTilawahSession,
+                            onDeleteSession = onDeleteTilawahSession,
+                            onSetPenanda = onSetTilawahPenanda,
+                            onSetTarget = onSetTilawahTarget
+                        )
+                    }
+                }
+                item { TanzilAttribution() }
+            } else if (uiState.isComingSoon) {
                 item {
                     ComingSoonState(categoryName = uiState.selectedMainCategory)
                 }

@@ -79,7 +79,9 @@ class SettingsViewModelTest {
             mockUserHabitDao,
             mockHabitCompletionDao,
             mockSharedPreferences,
-            mockAuthRepository
+            mockAuthRepository,
+            mockk(relaxed = true),
+            mockk(relaxed = true)
         )
     }
 
@@ -216,7 +218,9 @@ class SettingsViewModelTest {
             mockUserHabitDao,
             mockHabitCompletionDao,
             mockSharedPreferences,
-            mockAuthRepository
+            mockAuthRepository,
+            mockk(relaxed = true),
+            mockk(relaxed = true)
         )
 
         loggedInViewModel.onChangePasswordClick()
@@ -237,7 +241,9 @@ class SettingsViewModelTest {
             mockUserHabitDao,
             mockHabitCompletionDao,
             mockSharedPreferences,
-            mockAuthRepository
+            mockAuthRepository,
+            mockk(relaxed = true),
+            mockk(relaxed = true)
         )
 
         loggedInViewModel.onAccountSecurityClick()
@@ -295,7 +301,9 @@ class SettingsViewModelTest {
             mockUserHabitDao,
             mockHabitCompletionDao,
             mockSharedPreferences,
-            mockAuthRepository
+            mockAuthRepository,
+            mockk(relaxed = true),
+            mockk(relaxed = true)
         )
 
         loggedInViewModel.onChangePasswordClick()
@@ -420,7 +428,9 @@ class SettingsViewModelTest {
             mockUserHabitDao,
             mockHabitCompletionDao,
             mockSharedPreferences,
-            mockAuthRepository
+            mockAuthRepository,
+            mockk(relaxed = true),
+            mockk(relaxed = true)
         )
         val state = loggedInViewModel.uiState.value
         assertTrue(state.isLoggedIn)

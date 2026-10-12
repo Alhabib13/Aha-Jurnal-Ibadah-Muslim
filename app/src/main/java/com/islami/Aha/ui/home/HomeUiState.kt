@@ -7,6 +7,19 @@ import com.islami.Aha.util.DateUtils
 import com.islami.Aha.util.GenderProfile
 import java.util.Calendar
 
+/** Satu sesi tilawah hari ini (satu baris research_logs). */
+data class TilawahSessionUi(
+    val slotKey: String,
+    val jenisSesi: String,
+    val halaman: Int,
+    val ayat: Int,
+    val juz: Int,
+    val jam: String
+)
+
+/** Posisi terakhir Iqro/metode sejenis. */
+data class IqroProgressUi(val jilid: Int, val halaman: Int, val tanggal: String)
+
 data class HomeUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
@@ -48,8 +61,39 @@ data class HomeUiState(
     val showSyncNotice: Boolean = false,
     val syncNoticeMessage: String = "",
     val isRamadanMonth: Boolean = DateUtils.isRamadanMonth(),
-    val showGenderPrompt: Boolean = false
+    val showGenderPrompt: Boolean = false,
+    val showResearchNotice: Boolean = false,
+    val dzikirPagiDone: Boolean = false,
+    val dzikirPetangDone: Boolean = false,
+    val tilawahSessions: List<TilawahSessionUi> = emptyList(),
+    val iqroProgress: IqroProgressUi? = null,
+    val tilawahJenisDipilih: String = com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN,
+    /** Posisi AKHIR sesi terakhir per jenis sesi Al-Qur'an. */
+    val tilawahPenanda: Map<String, com.islami.Aha.data.quran.AyatPosition?> = emptyMap(),
+    /** Target harian bacaan_harian (halaman); null = tanpa target. */
+    val tilawahTargetHalaman: Int? = null,
+    val showKhatamDialog: Boolean = false
 ) {
+    val bacaanHarianHalamanToday: Int
+        get() = tilawahSessions
+            .filter { it.jenisSesi == com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN }
+            .sumOf { it.halaman }
+
+    val isTilawahIqroTab: Boolean
+        get() = isTilawahCategory && selectedSubTabIndex == 1
+
+    val dzikirDoneCount: Int
+        get() = (if (dzikirPagiDone) 1 else 0) + (if (dzikirPetangDone) 1 else 0)
+
+    val tilawahHalamanToday: Int
+        get() = tilawahSessions.sumOf { it.halaman }
+
+    val isDzikirCategory: Boolean
+        get() = selectedMainCategory == "Dzikir"
+
+    val isTilawahCategory: Boolean
+        get() = selectedMainCategory == "Tilawah"
+
     private val selectedSubCategory: String?
         get() = subTabCategories.getOrNull(selectedSubTabIndex)
 
@@ -87,6 +131,8 @@ data class HomeUiState(
                 }
             }
             "Puasa" -> listOf("Puasa Sunnah", "Puasa Wajib")
+            // Iqro satu kelompok tampilan dengan Al-Qur'an, tetapi jenis_ibadah-nya tetap terpisah.
+            "Tilawah" -> listOf("Tilawah Al-Qur'an", "Tilawah Iqro")
             else -> emptyList()
         }
 
@@ -100,10 +146,11 @@ data class HomeUiState(
                 }
             }
             "Puasa" -> listOf("Sunnah", "Wajib (Ramadan)")
+            "Tilawah" -> listOf("Al-Qur'an", "Iqro")
             else -> emptyList()
         }
 
-    val comingSoonCategories = listOf("Dzikir", "Tilawah")
+    val comingSoonCategories: List<String> = emptyList()
 
     val isComingSoon: Boolean
         get() = selectedMainCategory in comingSoonCategories
@@ -116,7 +163,7 @@ data class HomeUiState(
 
     val filteredHabits: List<Habit>
         get() {
-            if (isComingSoon) return emptyList()
+            if (isComingSoon || isTilawahCategory) return emptyList()
             val subCategory = subTabCategories.getOrNull(selectedSubTabIndex) ?: return emptyList()
             return allHabits.filter { habit ->
                 if (habit.category != subCategory) return@filter false
@@ -157,6 +204,7 @@ data class HomeUiState(
 
     val completedHabitsCount: Int
         get() {
+            if (isDzikirCategory) return dzikirDoneCount
             val habitCount = if (showRamadanUnifiedCard) {
                 ramadanUnifiedHabits.count { it.isCompleted }
             } else {
@@ -167,6 +215,7 @@ data class HomeUiState(
 
     val totalHabitsCount: Int
         get() {
+            if (isDzikirCategory) return 2
             val habitCount = if (showRamadanUnifiedCard) {
                 ramadanUnifiedHabits.size
             } else {
@@ -197,6 +246,10 @@ data class HomeUiState(
                 val total = habits.size + sunnah.size
                 "$completed/$total"
             }
+            // Dzikir & tilawah tetap tampil saat Mode Cuti (tanpa udzur).
+            // MENUNGGU VALIDASI PAKAR: tilawah saat haid khilafiyah; tidak disembunyikan = netral.
+            "Dzikir" -> "$dzikirDoneCount/2"
+            "Tilawah" -> "$tilawahHalamanToday hlm"
             else -> "Segera"
         }
     }

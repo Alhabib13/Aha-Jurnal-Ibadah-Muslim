@@ -57,18 +57,32 @@ class HomeViewModelTest {
         assertTrue(state.subTabCategories.isEmpty())
     }
 
-    // ===================== Coming Soon =====================
+    // ===================== Dzikir & Tilawah (v1.2.0, bukan lagi "segera hadir") =====================
 
     @Test
-    fun `dzikir is coming soon`() {
-        val state = HomeUiState(selectedMainCategory = "Dzikir")
-        assertTrue(state.isComingSoon)
+    fun `dzikir is available and counts two fixed slots`() {
+        val state = HomeUiState(selectedMainCategory = "Dzikir", dzikirPagiDone = true)
+        assertFalse(state.isComingSoon)
+        assertEquals(1, state.completedHabitsCount)
+        assertEquals(2, state.totalHabitsCount)
     }
 
     @Test
-    fun `tilawah is coming soon`() {
-        val state = HomeUiState(selectedMainCategory = "Tilawah")
-        assertTrue(state.isComingSoon)
+    fun `tilawah is available and sums session pages`() {
+        val state = HomeUiState(
+            selectedMainCategory = "Tilawah",
+            tilawahSessions = listOf(TilawahSessionUi("a", "bacaan_harian", 3, 20, 1, "05.00"), TilawahSessionUi("b", "hafalan", 2, 5, 30, "20.00"))
+        )
+        assertFalse(state.isComingSoon)
+        assertEquals(5, state.tilawahHalamanToday)
+        assertEquals("5 hlm", state.getCategoryBadge("Tilawah"))
+    }
+
+    @Test
+    fun `dzikir and tilawah stay visible in haidh mode`() {
+        val state = HomeUiState(isHaidhMode = true, dzikirPetangDone = true)
+        assertEquals("1/2", state.getCategoryBadge("Dzikir"))
+        assertEquals("0 hlm", state.getCategoryBadge("Tilawah"))
     }
 
     @Test
@@ -122,7 +136,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `filtered habits returns empty for coming soon category`() {
+    fun `filtered habits returns empty for dzikir category`() {
         val state = HomeUiState(
             selectedMainCategory = "Dzikir",
             selectedSubTabIndex = 0,
@@ -220,9 +234,9 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `getCategoryBadge for dzikir returns segera`() {
+    fun `getCategoryBadge for dzikir returns slot progress`() {
         val state = HomeUiState()
-        assertEquals("Segera", state.getCategoryBadge("Dzikir"))
+        assertEquals("0/2", state.getCategoryBadge("Dzikir"))
     }
 
     // ===================== Display Names =====================

@@ -22,10 +22,19 @@ app/src/prod/google-services.json
 # Service account keys
 secrets/
 *.json.key
-app/schemas/
 node_modules/
 *.png
+# Gambar aplikasi WAJIB ikut di git; tanpa ini tidak ada commit yang bisa di-build.
+!app/src/main/res/**/*.png
+# Bahan mentah desain (tidak bisa dibuat ulang).
+!icon/*.png
+!icon_transparent/*.png
+!flower.png
 # Keystore — JANGAN COMMIT
 keystore.properties
 *.jks
 *.keystore
+
+# Log emulator Firebase
+firestore-debug.log
+firebase-debug.log

@@ -29,7 +29,8 @@ class UserHabitRepository @Inject constructor(
     private val userHabitDao: UserHabitDao,
     private val habitCompletionDao: HabitCompletionDao,
     private val completionSyncRepository: CompletionSyncRepository,
-    private val deletedSyncDao: DeletedSyncDao
+    private val deletedSyncDao: DeletedSyncDao,
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
 ) {
     companion object {
         private const val MIN_SYNC_INTERVAL_MS = 30_000L
@@ -86,9 +87,13 @@ class UserHabitRepository @Inject constructor(
                 updatedAt = System.currentTimeMillis()
             )
             userHabitDao.updateHabit(updatedEntity!!)
+            val researchSlot = com.islami.Aha.data.research.ResearchLogRepository
+                .slotForSunnahHabit(current.id, current.name, current.category)
             if (wasCompletedToday) {
                 habitCompletionDao.deleteByHabitAndDate(habitKey, todayKey)
+                researchLogRepository.remove(researchSlot, todayKey)
             } else {
+                researchLogRepository.recordDikerjakan(researchSlot, todayKey)
                 habitCompletionDao.insert(
                     HabitCompletionRecord(
                         habitKey = habitKey,
@@ -100,6 +105,7 @@ class UserHabitRepository @Inject constructor(
             }
         }
         val entity = updatedEntity ?: return null
+        researchLogRepository.scheduleUpload()
         syncUpsertToCloud(entity)
         // Sync completion record ke Firestore
         val wasCompletedNow = entity.completedDateKey == DateUtils.getTodayKey()

@@ -44,7 +44,9 @@ class UserHabitRepositoryTest {
             appDatabase = mockDatabase,
             userHabitDao = mockDao,
             habitCompletionDao = mockHabitCompletionDao,
-            completionSyncRepository = mockk(relaxed = true)
+            completionSyncRepository = mockk(relaxed = true),
+            deletedSyncDao = mockk(relaxed = true),
+            researchLogRepository = mockk(relaxed = true)
         )
     }
 

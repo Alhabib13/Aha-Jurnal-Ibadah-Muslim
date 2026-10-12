@@ -42,7 +42,7 @@ import com.islami.Aha.ui.theme.Gold
 import com.islami.Aha.ui.theme.InfoBlue
 
 @Composable
-fun HabitSectionHeader(completedCount: Int, totalCount: Int) {
+fun HabitSectionHeader(completedCount: Int, totalCount: Int, progressTextOverride: String? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -61,7 +61,8 @@ fun HabitSectionHeader(completedCount: Int, totalCount: Int) {
             color = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Text(
-                text = stringResource(R.string.home_habit_progress_format, completedCount, totalCount),
+                text = progressTextOverride
+                    ?: stringResource(R.string.home_habit_progress_format, completedCount, totalCount),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Gold,

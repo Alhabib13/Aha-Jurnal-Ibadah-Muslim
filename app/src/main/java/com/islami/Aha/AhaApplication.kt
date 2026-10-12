@@ -42,6 +42,7 @@ class AhaApplication : Application() {
         fun userHabitRepository(): UserHabitRepository
         fun habitDao(): HabitDao
         fun completionSyncRepository(): CompletionSyncRepository
+        fun researchLogRepository(): com.islami.Aha.data.research.ResearchLogRepository
     }
 
     override fun onCreate() {

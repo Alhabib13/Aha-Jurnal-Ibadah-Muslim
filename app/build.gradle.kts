@@ -38,8 +38,8 @@ android {
         applicationId = "com.Islamic.Aha"
         minSdk = 23
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.1.1"
+        versionCode = 4
+        versionName = "1.2.0"
         val forceDebugAppCheck = providers
             .gradleProperty("FORCE_APPCHECK_DEBUG")
             .orNull
@@ -72,6 +72,11 @@ android {
                 keyPassword = keystoreProperties["keyPassword"] as String
             }
         }
+    }
+
+    // Snapshot skema Room (app/schemas) untuk MigrationTestHelper.
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
     }
 
     buildTypes {
@@ -181,6 +186,7 @@ dependencies {
     testImplementation("app.cash.turbine:turbine:1.0.0")
     testImplementation("io.mockk:mockk:1.13.13")
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation("androidx.room:room-testing:2.7.1")
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
