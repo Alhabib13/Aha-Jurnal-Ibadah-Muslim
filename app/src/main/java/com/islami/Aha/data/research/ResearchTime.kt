@@ -59,10 +59,11 @@ object ResearchTime {
             ResearchSchema.Detail.ISYA -> "Sholat Isya"
             else -> null
         }
-        // Dzikir pagi diukur dari Subuh, dzikir petang dari Ashar.
+        // Dzikir pagi diukur dari Subuh, dzikir petang dari Ashar. Dzikir lain (bada sholat
+        // = sholat yang mana tidak diketahui, sebelum tidur, bebas) tidak punya acuan -> null.
         ResearchSchema.Jenis.DZIKIR -> when (detail) {
-            ResearchSchema.Detail.PAGI -> "Sholat Subuh"
-            ResearchSchema.Detail.PETANG -> "Sholat Ashar"
+            ResearchSchema.Detail.DZIKIR_PAGI -> "Sholat Subuh"
+            ResearchSchema.Detail.DZIKIR_PETANG -> "Sholat Ashar"
             else -> null
         }
         else -> null

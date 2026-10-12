@@ -1,0 +1,78 @@
+{
+  "versi": 1,
+  "catatan": "Array 'bacaan' SENGAJA dikosongkan. Diisi pemilik proyek dari buku rujukan cetak (lihat FITUR_DZIKIR_README.md). target_default juga null sampai divalidasi.",
+  "entri": [
+    {
+      "slug": "dzikir_bada_sholat",
+      "nama": "Dzikir setelah sholat fardhu",
+      "waktu_default": "bada_sholat",
+      "target_default": null,
+      "status_validasi": "MENUNGGU_VALIDASI_PAKAR",
+      "bacaan": []
+    },
+    {
+      "slug": "dzikir_pagi",
+      "nama": "Dzikir pagi",
+      "waktu_default": "pagi",
+      "target_default": null,
+      "status_validasi": "MENUNGGU_VALIDASI_PAKAR",
+      "bacaan": []
+    },
+    {
+      "slug": "dzikir_petang",
+      "nama": "Dzikir petang",
+      "waktu_default": "petang",
+      "target_default": null,
+      "status_validasi": "MENUNGGU_VALIDASI_PAKAR",
+      "bacaan": []
+    },
+    {
+      "slug": "dzikir_sebelum_tidur",
+      "nama": "Dzikir sebelum tidur",
+      "waktu_default": "sebelum_tidur",
+      "target_default": null,
+      "status_validasi": "MENUNGGU_VALIDASI_PAKAR",
+      "bacaan": []
+    },
+    {
+      "slug": "istighfar",
+      "nama": "Istighfar",
+      "waktu_default": "bebas",
+      "target_default": null,
+      "status_validasi": "MENUNGGU_VALIDASI_PAKAR",
+      "bacaan": []
+    },
+    {
+      "slug": "sholawat",
+      "nama": "Sholawat",
+      "waktu_default": "bebas",
+      "target_default": null,
+      "status_validasi": "MENUNGGU_VALIDASI_PAKAR",
+      "bacaan": []
+    },
+    {
+      "slug": "tahlil",
+      "nama": "Tahlil",
+      "waktu_default": "bebas",
+      "target_default": null,
+      "status_validasi": "MENUNGGU_VALIDASI_PAKAR",
+      "bacaan": []
+    },
+    {
+      "slug": "asmaul_husna",
+      "nama": "Asmaul Husna",
+      "waktu_default": "bebas",
+      "target_default": null,
+      "status_validasi": "MENUNGGU_VALIDASI_PAKAR",
+      "bacaan": []
+    },
+    {
+      "slug": "dzikir_lainnya",
+      "nama": "Dzikir lainnya (custom)",
+      "waktu_default": "bebas",
+      "target_default": null,
+      "status_validasi": "MENUNGGU_VALIDASI_PAKAR",
+      "bacaan": []
+    }
+  ]
+}

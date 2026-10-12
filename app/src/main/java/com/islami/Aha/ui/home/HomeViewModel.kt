@@ -691,8 +691,8 @@ class HomeViewModel @Inject constructor(
                 val details = rows.mapNotNull { it.namaDetail }.toSet()
                 _uiState.update {
                     it.copy(
-                        dzikirPagiDone = com.islami.Aha.data.research.ResearchSchema.Detail.PAGI in details,
-                        dzikirPetangDone = com.islami.Aha.data.research.ResearchSchema.Detail.PETANG in details
+                        dzikirPagiDone = com.islami.Aha.data.research.ResearchSchema.Detail.DZIKIR_PAGI in details,
+                        dzikirPetangDone = com.islami.Aha.data.research.ResearchSchema.Detail.DZIKIR_PETANG in details
                     )
                 }
             }

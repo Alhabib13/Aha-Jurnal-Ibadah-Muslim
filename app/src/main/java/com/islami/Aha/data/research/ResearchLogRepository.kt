@@ -62,11 +62,16 @@ class ResearchLogRepository @Inject constructor(
         const val KEY_RESEARCH_NOTICE_ACK = "research_notice_ack_v1"
         private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
 
+        /**
+         * Kartu dzikir lama (kunci UI pagi/petang) -> slug katalog. nama_detail_asli null:
+         * kolom itu hanya untuk dzikir_lainnya.
+         */
         fun dzikirSlot(detail: String): SlotRef = SlotRef(
             IbadahSlot(
                 ResearchSchema.Jenis.DZIKIR,
-                detail,
-                if (detail == ResearchSchema.Detail.PAGI) "Dzikir Pagi" else "Dzikir Petang"
+                if (detail == ResearchSchema.Detail.PAGI) ResearchSchema.Detail.DZIKIR_PAGI
+                else ResearchSchema.Detail.DZIKIR_PETANG,
+                null
             ),
             null
         )
@@ -106,7 +111,11 @@ class ResearchLogRepository @Inject constructor(
         jumlah: Int? = null,
         jilid: Int? = null,
         jumlahAyat: Int? = null,
-        juz: Int? = null
+        juz: Int? = null,
+        modePencatatan: String? = null,
+        waktuDzikir: String? = null,
+        targetHitungan: Int? = null,
+        durasiDetik: Int? = null
     ) {
         ref ?: return
         // Data penelitian hanya dikumpulkan setelah pengguna diberi tahu.
@@ -125,7 +134,8 @@ class ResearchLogRepository @Inject constructor(
                 namaDetail = ref.slot.namaDetail,
                 namaDetailAsli = ref.slot.namaDetailAsli?.take(100),
                 status = ResearchSchema.Status.DIKERJAKAN,
-                jumlah = jumlah,
+                // Aturan kejujuran data: dzikir mode centang tidak pernah punya jumlah.
+                jumlah = if (modePencatatan == ResearchSchema.ModePencatatan.CENTANG) null else jumlah,
                 jilid = jilid,
                 jamPencatatan = jamPencatatanMs,
                 sumberPencatatan = sumber,
@@ -135,7 +145,12 @@ class ResearchLogRepository @Inject constructor(
                 jumlahAyat = jumlahAyat,
                 juz = juz,
                 offsetWaktu = ResearchTime.offsetString(jamPencatatanMs),
-                selisihMenitDariAdzan = selisih
+                selisihMenitDariAdzan = selisih,
+                modePencatatan = modePencatatan,
+                waktuDzikir = waktuDzikir,
+                targetHitungan = targetHitungan,
+                // Mode centang: jumlah & durasi WAJIB null (tidak tahu != nol, jangan diisi target).
+                durasiDetik = if (modePencatatan == ResearchSchema.ModePencatatan.LAYAR) durasiDetik else null
             )
         )
         // Dicentang ulang sebelum hapusan sempat terkirim: cukup timpa dokumennya.
@@ -176,7 +191,18 @@ class ResearchLogRepository @Inject constructor(
         require(detail == ResearchSchema.Detail.PAGI || detail == ResearchSchema.Detail.PETANG)
         val ref = dzikirSlot(detail)
         val key = slotKeyOrNull(ref, tanggal) ?: return
-        if (researchLogDao.getBySlotKey(key) != null) remove(ref, tanggal) else recordDikerjakan(ref, tanggal)
+        if (researchLogDao.getBySlotKey(key) != null) {
+            remove(ref, tanggal)
+        } else {
+            // Kartu dua centang = dzikir di luar aplikasi: mode centang, jumlah & durasi null.
+            recordDikerjakan(
+                ref, tanggal,
+                modePencatatan = ResearchSchema.ModePencatatan.CENTANG,
+                waktuDzikir = if (detail == ResearchSchema.Detail.PAGI) ResearchSchema.WaktuDzikir.PAGI
+                else ResearchSchema.WaktuDzikir.PETANG,
+                targetHitungan = null
+            )
+        }
     }
 
     /**
@@ -256,7 +282,11 @@ class ResearchLogRepository @Inject constructor(
                     jumlahAyat = doc.getLong(ResearchSchema.Log.JUMLAH_AYAT)?.toInt(),
                     juz = doc.getLong(ResearchSchema.Log.JUZ)?.toInt(),
                     offsetWaktu = doc.getString(ResearchSchema.Log.OFFSET_WAKTU) ?: return@mapNotNull null,
-                    selisihMenitDariAdzan = doc.getLong(ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN)?.toInt()
+                    selisihMenitDariAdzan = doc.getLong(ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN)?.toInt(),
+                    modePencatatan = doc.getString(ResearchSchema.Log.MODE_PENCATATAN),
+                    waktuDzikir = doc.getString(ResearchSchema.Log.WAKTU_DZIKIR),
+                    targetHitungan = doc.getLong(ResearchSchema.Log.TARGET_HITUNGAN)?.toInt(),
+                    durasiDetik = doc.getLong(ResearchSchema.Log.DURASI_DETIK)?.toInt()
                 )
             }
             researchLogDao.insertIgnore(rows)
@@ -371,7 +401,11 @@ class ResearchLogRepository @Inject constructor(
         ResearchSchema.Log.JUMLAH_AYAT to jumlahAyat?.toLong(),
         ResearchSchema.Log.JUZ to juz?.toLong(),
         ResearchSchema.Log.OFFSET_WAKTU to offsetWaktu,
-        ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN to selisihMenitDariAdzan?.toLong()
+        ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN to selisihMenitDariAdzan?.toLong(),
+        ResearchSchema.Log.MODE_PENCATATAN to modePencatatan,
+        ResearchSchema.Log.WAKTU_DZIKIR to waktuDzikir,
+        ResearchSchema.Log.TARGET_HITUNGAN to targetHitungan?.toLong(),
+        ResearchSchema.Log.DURASI_DETIK to durasiDetik?.toLong()
     )
 
     private fun failure(changed: Int, retry: Boolean, error: Throwable): CloudSyncStatus {

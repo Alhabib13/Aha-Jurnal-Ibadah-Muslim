@@ -101,7 +101,8 @@ service cloud.firestore {
     return [
       "user_id", "tanggal", "jenis_ibadah", "nama_detail", "nama_detail_asli",
       "status", "jumlah", "jilid", "jam_pencatatan", "sumber_pencatatan",
-      "jumlah_ayat", "juz", "offset_waktu", "selisih_menit_dari_adzan"
+      "jumlah_ayat", "juz", "offset_waktu", "selisih_menit_dari_adzan",
+      "mode_pencatatan", "waktu_dzikir", "target_hitungan", "durasi_detik"
     ];
   }
 
@@ -123,7 +124,9 @@ service cloud.firestore {
                         "taubat", "istikharah", "sunnah_lainnya"],
       "puasa": ["senin_kamis", "ayyamul_bidh", "daud", "syawal", "ramadan",
                 "qadha", "nazar", "sunnah_lainnya"],
-      "dzikir": ["pagi", "petang"],
+      // Slug katalog dzikir (assets/dzikir_katalog.json), sama dengan ResearchSchema.
+      "dzikir": ["dzikir_bada_sholat", "dzikir_pagi", "dzikir_petang", "dzikir_sebelum_tidur",
+                 "istighfar", "sholawat", "tahlil", "asmaul_husna", "dzikir_lainnya"],
       "tilawah": ["bacaan_harian", "hafalan", "murajaah"]
     };
   }
@@ -139,6 +142,7 @@ service cloud.firestore {
   //   slot tetap        {uid}_{tanggal}_{jenis}_{detail}
   //   iqro              {uid}_{tanggal}_iqro
   //   sunnah_lainnya    {uid}_{tanggal}_{jenis}_sunnah_lainnya_{idLokal}
+  //   dzikir_lainnya    {uid}_{tanggal}_dzikir_dzikir_lainnya_{idLokal}
   //   tilawah           {uid}_{tanggal}_tilawah_{detail}_{idSesi}  (banyak sesi per hari)
   //   qadha_sholat      {uid}_{tanggal}_qadha_sholat_{idLokal}
   function validLogId(data, logId) {
@@ -151,8 +155,8 @@ service cloud.firestore {
         ? logId.matches(prefix + idLokal)
         : data.jenis_ibadah == "iqro"
           ? logId == prefix
-          : data.nama_detail == "sunnah_lainnya"
-            ? logId.matches(prefix + "_sunnah_lainnya" + idLokal)
+          : data.nama_detail in ["sunnah_lainnya", "dzikir_lainnya"]
+            ? logId.matches(prefix + "_" + data.nama_detail + idLokal)
             : logId == prefix + "_" + data.nama_detail
     );
   }
@@ -192,8 +196,42 @@ service cloud.firestore {
           ? (data.jumlah is int && data.jumlah >= 1 && data.jumlah <= 100
              && data.jilid is int && data.jilid >= 1 && data.jilid <= 10
              && data.jumlah_ayat == null && data.juz == null)
-          : (data.jumlah == null && data.jilid == null
-             && data.jumlah_ayat == null && data.juz == null);
+          : data.jenis_ibadah == "dzikir"
+            ? (data.jilid == null && data.jumlah_ayat == null && data.juz == null && validDzikir(data))
+            : (data.jumlah == null && data.jilid == null
+               && data.jumlah_ayat == null && data.juz == null);
+  }
+
+  function validTargetHitungan(data) {
+    return data.target_hitungan == null
+        || (data.target_hitungan is int && data.target_hitungan >= 1 && data.target_hitungan <= 100000);
+  }
+
+  // Dzikir. ATURAN KEJUJURAN DATA: mode "centang" = dzikir di luar aplikasi, jumlah &
+  // durasi_detik WAJIB null (tidak tahu != nol; jangan diisi target). Mode "layar" = hitungan
+  // penghitung di aplikasi + durasi. Baris hasil penyimpulan ("tidak"): tanpa jumlah/durasi.
+  function validDzikir(data) {
+    return validTargetHitungan(data)
+        && (data.nama_detail == "dzikir_lainnya"
+            ? (data.nama_detail_asli is string && data.nama_detail_asli.size() > 0)
+            : data.nama_detail_asli == null)
+        && (data.status == "dikerjakan"
+            ? (data.mode_pencatatan in ["layar", "centang"]
+               && data.waktu_dzikir in ["bada_sholat", "pagi", "petang", "sebelum_tidur", "bebas"]
+               && (data.mode_pencatatan == "centang"
+                   ? (data.jumlah == null && data.durasi_detik == null)
+                   : (data.jumlah is int && data.jumlah >= 1 && data.jumlah <= 100000
+                      && data.durasi_detik is int && data.durasi_detik >= 1 && data.durasi_detik <= 86400)))
+            : (data.jumlah == null && data.durasi_detik == null
+               && (data.mode_pencatatan == null || data.mode_pencatatan in ["layar", "centang"])
+               && (data.waktu_dzikir == null
+                   || data.waktu_dzikir in ["bada_sholat", "pagi", "petang", "sebelum_tidur", "bebas"])));
+  }
+
+  // Kolom khusus dzikir wajib null untuk jenis lain.
+  function dzikirFieldsKosong(data) {
+    return data.mode_pencatatan == null && data.waktu_dzikir == null
+        && data.target_hitungan == null && data.durasi_detik == null;
   }
 
   // Zona waktu HP saat mencatat, per log (pengguna bisa bepergian): "+07:00", "-03:30".
@@ -231,7 +269,8 @@ service cloud.firestore {
         && validJamDanSumber(data)
         && validJumlah(data)
         && validOffset(data)
-        && validSelisih(data);
+        && validSelisih(data)
+        && (data.jenis_ibadah == "dzikir" || dzikirFieldsKosong(data));
   }
 
   // Penanda tilawah = KEADAAN (posisi terakhir), bukan kejadian; tidak masuk logs.

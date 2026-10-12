@@ -66,13 +66,13 @@ class ActivityStatsTest {
     fun dzikirTilawahIqro_countedOncePerUnit_andStatusFiltered() = runBlocking {
         completion("default_1", day(0))
         log("${day(0)}_sholat_wajib_subuh", day(0), "sholat_wajib", "subuh") // ganda, diabaikan
-        log("${day(0)}_dzikir_pagi", day(0), "dzikir", "pagi")
-        log("${day(0)}_dzikir_petang", day(0), "dzikir", "petang")
+        log("${day(0)}_dzikir_dzikir_pagi", day(0), "dzikir", "dzikir_pagi")
+        log("${day(0)}_dzikir_dzikir_petang", day(0), "dzikir", "dzikir_petang")
         log("${day(0)}_tilawah_bacaan_harian_a", day(0), "tilawah", "bacaan_harian", jumlah = 3)
         log("${day(0)}_tilawah_hafalan_b", day(0), "tilawah", "hafalan", jumlah = 2)
         log("${day(0)}_tilawah_murajaah_c", day(0), "tilawah", "murajaah", jumlah = 5)
         log("${day(0)}_iqro", day(0), "iqro", null, jumlah = 12, jilid = 3)
-        log("${day(1)}_dzikir_pagi", day(1), "dzikir", "pagi", status = "tidak")   // bukan dikerjakan
+        log("${day(1)}_dzikir_dzikir_pagi", day(1), "dzikir", "dzikir_pagi", status = "tidak")   // bukan dikerjakan
         log("${day(1)}_puasa_ramadan", day(1), "puasa", "ramadan", status = "udzur")
 
         // hari ini: 1 sholat + 2 dzikir + 1 tilawah (3 sesi) + 1 iqro = 5
@@ -86,7 +86,7 @@ class ActivityStatsTest {
     @Test
     fun dzikirOnlyDay_keepsStreak() = runBlocking {
         completion("default_1", day(0))
-        log("${day(1)}_dzikir_pagi", day(1), "dzikir", "pagi")   // hanya dzikir
+        log("${day(1)}_dzikir_dzikir_pagi", day(1), "dzikir", "dzikir_pagi")   // hanya dzikir
         log("${day(2)}_tilawah_hafalan_x", day(2), "tilawah", "hafalan", jumlah = 1)  // hanya tilawah
         completion("default_2", day(3))
         assertEquals(listOf(day(0), day(1), day(2), day(3)), stats.getDistinctCompletionDatesDesc())

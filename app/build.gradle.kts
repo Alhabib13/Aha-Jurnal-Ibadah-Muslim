@@ -185,6 +185,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("app.cash.turbine:turbine:1.0.0")
     testImplementation("io.mockk:mockk:1.13.13")
+    // org.json asli untuk tes unit (android.jar hanya berisi stub). Tidak masuk APK.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation("androidx.room:room-testing:2.7.1")
     androidTestImplementation(libs.androidx.espresso.core)

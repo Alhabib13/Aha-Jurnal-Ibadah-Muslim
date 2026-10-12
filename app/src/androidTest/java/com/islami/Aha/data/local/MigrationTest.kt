@@ -37,7 +37,8 @@ class MigrationTest {
         AppDatabase.MIGRATION_10_11,
         AppDatabase.MIGRATION_11_12,
         AppDatabase.MIGRATION_12_13,
-        AppDatabase.MIGRATION_13_14
+        AppDatabase.MIGRATION_13_14,
+        AppDatabase.MIGRATION_14_15
     )
 
     @get:Rule
@@ -168,6 +169,75 @@ class MigrationTest {
         assertEquals(before.first, after.first)
         assertEquals(before.second, after.second)
         withRoom(name) { room -> assertEquals(before.second, heatmapInputsViaDao(room)) }
+    }
+
+    // ---------- 14 -> 15: kolom dzikir di research_logs ----------
+
+    @Test
+    fun migrate14To15_keepsEveryRowAndAddsNullDzikirColumns() {
+        val name = "migration-14-15"
+        val tables = tablesV13 + ("research_logs" to "slotKey")
+        helper.createDatabase(name, 14).apply {
+            seedHabits(this)
+            seedUserHabits(this, withSyncColumns = true)
+            seedCompletions(this, withIsSynced = true)
+            seedContent(this)
+            insert(this, "deleted_sync_records", "recordId" to "x_research", "recordType" to "RESEARCH_LOG",
+                "deletedAt" to 1_700_000_000_000L)
+            // Baris research_logs v14 (sholat, dzikir lama, tilawah rentang, iqro).
+            insert(this, "research_logs", "slotKey" to "${day(0)}_sholat_wajib_subuh", "tanggal" to day(0),
+                "jenisIbadah" to "sholat_wajib", "namaDetail" to "subuh", "namaDetailAsli" to "Sholat Subuh",
+                "status" to "dikerjakan", "jumlah" to null, "jilid" to null, "jamPencatatan" to 1_791_600_000_000L,
+                "sumberPencatatan" to "tidak_diketahui", "ownerUid" to "uidA", "isSynced" to 1L, "updatedAt" to 5L,
+                "jumlahAyat" to null, "juz" to null, "offsetWaktu" to "+07:00", "selisihMenitDariAdzan" to 12L)
+            insert(this, "research_logs", "slotKey" to "${day(0)}_tilawah_bacaan_harian_s1", "tanggal" to day(0),
+                "jenisIbadah" to "tilawah", "namaDetail" to "bacaan_harian", "namaDetailAsli" to null,
+                "status" to "dikerjakan", "jumlah" to 2L, "jilid" to null, "jamPencatatan" to 1_791_600_100_000L,
+                "sumberPencatatan" to "tidak_diketahui", "ownerUid" to null, "isSynced" to 0L, "updatedAt" to 6L,
+                "jumlahAyat" to 12L, "juz" to 1L, "offsetWaktu" to "+08:00", "selisihMenitDariAdzan" to null)
+            insert(this, "research_logs", "slotKey" to "${day(1)}_iqro", "tanggal" to day(1),
+                "jenisIbadah" to "iqro", "namaDetail" to null, "namaDetailAsli" to null,
+                "status" to "dikerjakan", "jumlah" to 7L, "jilid" to 2L, "jamPencatatan" to 1_791_500_000_000L,
+                "sumberPencatatan" to "tidak_diketahui", "ownerUid" to "uidA", "isSynced" to 1L, "updatedAt" to 7L,
+                "jumlahAyat" to null, "juz" to null, "offsetWaktu" to "+09:00", "selisihMenitDariAdzan" to null)
+            close()
+        }
+        val before = helper.runMigrationsAndValidate(name, 14, false).use { db ->
+            tables.associate { (t, pk) -> t to dumpTable(db, t, pk) } to heatmapInputs(db)
+        }
+        val v14Cols = "slotKey,tanggal,jenisIbadah,namaDetail,namaDetailAsli,status,jumlah,jilid,jamPencatatan," +
+            "sumberPencatatan,ownerUid,isSynced,updatedAt,jumlahAyat,juz,offsetWaktu,selisihMenitDariAdzan"
+        val after = helper.runMigrationsAndValidate(name, 15, true, AppDatabase.MIGRATION_14_15).use { db ->
+            assertEquals(0L, scalar(db,
+                "SELECT COUNT(*) FROM research_logs WHERE modePencatatan IS NOT NULL OR waktuDzikir IS NOT NULL " +
+                    "OR targetHitungan IS NOT NULL OR durasiDetik IS NOT NULL"))
+            val old = tablesV13.associate { (t, pk) -> t to dumpTable(db, t, pk) } +
+                ("research_logs" to dumpQuery(db, "SELECT $v14Cols FROM research_logs ORDER BY slotKey"))
+            old to heatmapInputs(db)
+        }
+        assertEquals(3, before.first.getValue("research_logs").size)
+        tables.forEach { (t, _) -> assertEquals("isi tabel $t berubah", before.first.getValue(t), after.first.getValue(t)) }
+        assertEquals(before.second, after.second)
+        withRoom(name) { room ->
+            assertEquals(before.second, heatmapInputsViaDao(room))
+            assertEquals(3, runBlocking { room.researchLogDao().getAll() }.size)
+        }
+    }
+
+    @Test
+    fun migrate13To15_chain() {
+        val name = "migration-13-15"
+        helper.createDatabase(name, 13).apply {
+            seedHabits(this); seedUserHabits(this, withSyncColumns = true); seedCompletions(this, withIsSynced = true)
+            close()
+        }
+        val before = helper.runMigrationsAndValidate(name, 13, false).use { db ->
+            tablesV13.take(3).associate { (t, pk) -> t to dumpTable(db, t, pk) }
+        }
+        val after = helper.runMigrationsAndValidate(
+            name, 15, true, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15
+        ).use { db -> tablesV13.take(3).associate { (t, pk) -> t to dumpTable(db, t, pk) } }
+        assertEquals(before, after)
     }
 
     // ---------- data uji ----------
