@@ -52,6 +52,17 @@ interface ResearchLogDao {
     @Query("SELECT COUNT(*) FROM research_logs")
     suspend fun count(): Int
 
+    /** Baris dengan awalan slotKey tertentu (tanpa wildcard LIKE, karena '_' di slotKey). */
+    @Query("SELECT * FROM research_logs WHERE substr(slotKey, 1, length(:prefix)) = :prefix")
+    suspend fun getBySlotKeyPrefix(prefix: String): List<ResearchLogEntity>
+
+    /** Sesi terbaru dengan awalan ini yang dicatat sejak [sinceMs] (jendela anti-dobel-ketuk). */
+    @Query(
+        "SELECT * FROM research_logs WHERE substr(slotKey, 1, length(:prefix)) = :prefix " +
+            "AND jamPencatatan >= :sinceMs ORDER BY jamPencatatan DESC LIMIT 1"
+    )
+    suspend fun findRecentByPrefix(prefix: String, sinceMs: Long): ResearchLogEntity?
+
     /** Berubah setiap kali isi tabel berubah; pemicu hitung ulang statistik. */
     @Query("SELECT COUNT(*) || '-' || COALESCE(MAX(updatedAt), 0) FROM research_logs")
     fun observeChangeTick(): Flow<String>

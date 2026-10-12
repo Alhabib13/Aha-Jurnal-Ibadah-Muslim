@@ -142,21 +142,24 @@ service cloud.firestore {
   //   slot tetap        {uid}_{tanggal}_{jenis}_{detail}
   //   iqro              {uid}_{tanggal}_iqro
   //   sunnah_lainnya    {uid}_{tanggal}_{jenis}_sunnah_lainnya_{idLokal}
-  //   dzikir_lainnya    {uid}_{tanggal}_dzikir_dzikir_lainnya_{idLokal}
+  //   dzikir            {uid}_{tanggal}_dzikir_{slug}_{idHabit}_{sesiMs}  (satu baris per SESI;
+  //                     sesiMs = epoch ms 13 digit saat sesi dibuat -> percobaan ulang menimpa)
   //   tilawah           {uid}_{tanggal}_tilawah_{detail}_{idSesi}  (banyak sesi per hari)
   //   qadha_sholat      {uid}_{tanggal}_qadha_sholat_{idLokal}
   function validLogId(data, logId) {
     let prefix = request.auth.uid + "_" + data.tanggal + "_" + data.jenis_ibadah;
     let idLokal = "_[A-Za-z0-9-]{1,64}";
     return logId.size() <= 200 && (
-      data.jenis_ibadah == "tilawah"
+      data.jenis_ibadah == "dzikir"
+        ? logId.matches(prefix + "_" + data.nama_detail + "_[A-Za-z0-9-]{1,64}_[0-9]{13}")
+        : data.jenis_ibadah == "tilawah"
         ? logId.matches(prefix + "_" + data.nama_detail + idLokal)
         : data.jenis_ibadah == "qadha_sholat"
         ? logId.matches(prefix + idLokal)
         : data.jenis_ibadah == "iqro"
           ? logId == prefix
-          : data.nama_detail in ["sunnah_lainnya", "dzikir_lainnya"]
-            ? logId.matches(prefix + "_" + data.nama_detail + idLokal)
+          : data.nama_detail == "sunnah_lainnya"
+            ? logId.matches(prefix + "_sunnah_lainnya" + idLokal)
             : logId == prefix + "_" + data.nama_detail
     );
   }
@@ -224,8 +227,14 @@ service cloud.firestore {
                       && data.durasi_detik is int && data.durasi_detik >= 1 && data.durasi_detik <= 86400)))
             : (data.jumlah == null && data.durasi_detik == null
                && (data.mode_pencatatan == null || data.mode_pencatatan in ["layar", "centang"])
-               && (data.waktu_dzikir == null
-                   || data.waktu_dzikir in ["bada_sholat", "pagi", "petang", "sebelum_tidur", "bebas"])));
+               && (data.status == "tidak"
+                   // Keputusan 4.4: "tidak" HANYA untuk dzikir berjendela waktu. Waktu "bebas"
+                   // tidak punya jendela yang tertutup, jadi "belum" dan "tidak" tak bisa dibedakan.
+                   ? (data.nama_detail in ["dzikir_bada_sholat", "dzikir_pagi", "dzikir_petang",
+                                           "dzikir_sebelum_tidur"]
+                      && data.waktu_dzikir in ["bada_sholat", "pagi", "petang", "sebelum_tidur"])
+                   : (data.waktu_dzikir == null
+                      || data.waktu_dzikir in ["bada_sholat", "pagi", "petang", "sebelum_tidur", "bebas"]))));
   }
 
   // Kolom khusus dzikir wajib null untuk jenis lain.

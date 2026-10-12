@@ -211,13 +211,29 @@ object ResearchSchema {
     val IQRO_HALAMAN = 1..100
 
     private val ID_LOKAL_REGEX = Regex("[A-Za-z0-9-]{1,64}")
+    private val ID_HABIT_REGEX = Regex("[A-Za-z0-9-]{1,64}")
+    /** Dzikir: `{idHabit}_{sesiMs}`; sesiMs = epoch milidetik (13 digit) saat sesi dibuat. */
+    private val ID_SESI_DZIKIR_REGEX = Regex("[A-Za-z0-9-]{1,64}_[0-9]{13}")
+
+    /**
+     * Jendela anti-dobel-ketuk: pencatatan dzikir slug + habit yang sama dalam rentang ini
+     * dianggap SATU sesi (ID sama), supaya ketukan ganda tidak menjadi dua baris palsu.
+     */
+    const val DZIKIR_JENDELA_SESI_MS = 60_000L
+
+    /** id lokal sesi dzikir: deterministik per sesi, bukan per hari. */
+    fun dzikirLocalId(idHabit: String, sesiMs: Long): String {
+        require(ID_HABIT_REGEX.matches(idHabit)) { "idHabit tidak sah: $idHabit" }
+        require(sesiMs in 1_000_000_000_000L..9_999_999_999_999L) { "sesiMs harus 13 digit: $sesiMs" }
+        return "${idHabit}_$sesiMs"
+    }
 
     /**
      * ID dokumen log deterministik; bentuknya diwajibkan rules per jenis:
      * - slot tetap:      `{uid}_{tanggal}_{jenis}_{detail}`
      * - iqro:            `{uid}_{tanggal}_iqro`
      * - sunnah_lainnya:  `{uid}_{tanggal}_{jenis}_sunnah_lainnya_{localId}`
-     * - dzikir_lainnya:  `{uid}_{tanggal}_dzikir_dzikir_lainnya_{localId}` (localId = id habit)
+     * - dzikir (semua):  `{uid}_{tanggal}_dzikir_{slug}_{idHabit}_{sesiMs}` (satu baris per sesi)
      * - tilawah:         `{uid}_{tanggal}_tilawah_{jenisSesi}_{localId}` (localId = id sesi baca)
      * - qadha_sholat:    `{uid}_{tanggal}_qadha_sholat_{localId}` (localId = id habit)
      * Sync ulang dari antrean offline menimpa dokumen yang sama, bukan menggandakan.
@@ -230,14 +246,18 @@ object ResearchSchema {
 
     /** Apakah slot ini butuh id lokal (multi-baris per hari atau sunnah buatan pengguna). */
     fun butuhIdLokal(jenis: String, detail: String?): Boolean =
-        jenis in JENIS_MULTI_BARIS || detail == Detail.SUNNAH_LAINNYA || detail == Detail.DZIKIR_LAINNYA
+        jenis in JENIS_MULTI_BARIS || jenis == Jenis.DZIKIR || detail == Detail.SUNNAH_LAINNYA
 
     /**
      * Bagian ID log tanpa uid: `{tanggal}_{jenis}[_{detail}][_{localId}]`.
      * Dipakai sebagai primary key tabel lokal `research_logs`.
      */
     fun slotKey(tanggal: String, jenis: String, detail: String?, localId: String? = null): String {
-        if (butuhIdLokal(jenis, detail)) {
+        if (jenis == Jenis.DZIKIR) {
+            require(localId != null && ID_SESI_DZIKIR_REGEX.matches(localId)) {
+                "Dzikir butuh localId {idHabit}_{sesiMs 13 digit}: $localId"
+            }
+        } else if (butuhIdLokal(jenis, detail)) {
             require(localId != null && ID_LOKAL_REGEX.matches(localId)) {
                 "localId wajib (huruf, angka, '-', maks 64) untuk $jenis/$detail"
             }

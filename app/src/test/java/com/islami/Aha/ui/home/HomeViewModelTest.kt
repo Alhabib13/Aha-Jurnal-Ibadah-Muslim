@@ -46,9 +46,10 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `puasa category has wajib and sunnah sub tabs`() {
+    fun `puasa category shows sunnah tab before wajib tab`() {
+        // Urutan Sunnah lalu Wajib adalah keputusan produk sejak v1.1.1.
         val state = HomeUiState(selectedMainCategory = "Puasa")
-        assertEquals(listOf("Puasa Wajib", "Puasa Sunnah"), state.subTabCategories)
+        assertEquals(listOf("Puasa Sunnah", "Puasa Wajib"), state.subTabCategories)
     }
 
     @Test
@@ -124,15 +125,16 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `filtered habits returns puasa wajib for puasa tab 0`() {
-        val state = HomeUiState(
+    fun `filtered habits returns puasa sunnah for tab 0 and puasa wajib for tab 1`() {
+        val sunnah = HomeUiState(
             selectedMainCategory = "Puasa",
             selectedSubTabIndex = 0,
             allHabits = sampleHabits,
             isRamadanMonth = true
         )
-        assertEquals(1, state.filteredHabits.size)
-        assertEquals("Ramadan", state.filteredHabits.first().name)
+        assertEquals(listOf("Senin"), sunnah.filteredHabits.map { it.name })
+        val wajib = sunnah.copy(selectedSubTabIndex = 1)
+        assertEquals(listOf("Ramadan"), wajib.filteredHabits.map { it.name })
     }
 
     @Test
@@ -244,7 +246,6 @@ class HomeViewModelTest {
     @Test
     fun `puasa sub tab display names include ramadan label`() {
         val state = HomeUiState(selectedMainCategory = "Puasa")
-        assertEquals("Puasa Wajib (Ramadan)", state.subTabDisplayNames[0])
-        assertEquals("Puasa Sunnah", state.subTabDisplayNames[1])
+        assertEquals(listOf("Sunnah", "Wajib (Ramadan)"), state.subTabDisplayNames)
     }
 }

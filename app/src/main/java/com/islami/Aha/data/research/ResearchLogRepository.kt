@@ -63,18 +63,14 @@ class ResearchLogRepository @Inject constructor(
         private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
 
         /**
-         * Kartu dzikir lama (kunci UI pagi/petang) -> slug katalog. nama_detail_asli null:
-         * kolom itu hanya untuk dzikir_lainnya.
+         * Kartu dzikir lama (dua centang) belum punya habit dzikir sungguhan; id habit tetap
+         * berikut dipakai sampai UI katalog (Tahap 2) membuat habit per pengguna.
          */
-        fun dzikirSlot(detail: String): SlotRef = SlotRef(
-            IbadahSlot(
-                ResearchSchema.Jenis.DZIKIR,
-                if (detail == ResearchSchema.Detail.PAGI) ResearchSchema.Detail.DZIKIR_PAGI
-                else ResearchSchema.Detail.DZIKIR_PETANG,
-                null
-            ),
-            null
-        )
+        const val ID_HABIT_KARTU_PAGI = "kartu-pagi"
+        const val ID_HABIT_KARTU_PETANG = "kartu-petang"
+
+        private fun prefixSesiDzikir(tanggal: String, slug: String, idHabit: String) =
+            "${tanggal}_${ResearchSchema.Jenis.DZIKIR}_${slug}_${idHabit}_"
 
         // Kunci jadwal sholat yang ditulis HomeViewModel.
         private const val KEY_PRAYER_TIME_SOURCE = "prayer_time_source"
@@ -186,21 +182,68 @@ class ResearchLogRepository @Inject constructor(
 
     fun observeLatestIqro(): Flow<ResearchLogEntity?> = researchLogDao.observeLatestIqro()
 
-    /** Dzikir pagi/petang: slot tetap, centang = catat, centang lagi = hapus. */
-    suspend fun toggleDzikir(detail: String, tanggal: String) {
+    /**
+     * Catat satu SESI dzikir (satu baris per sesi; keputusan 4.2). ID deterministik per sesi:
+     * {tanggal}_dzikir_{slug}_{idHabit}_{sesiMs}. Pencatatan slug + habit yang sama dalam
+     * DZIKIR_JENDELA_SESI_MS dianggap sesi yang sama: ID dan jam pencatatan awal dipakai ulang,
+     * sehingga ketukan ganda / percobaan ulang tidak membuat baris palsu.
+     * @return slotKey sesi, atau null bila tidak tercatat (data tidak sah / belum ada persetujuan).
+     */
+    suspend fun recordDzikirSession(
+        slug: String,
+        idHabit: String,
+        tanggal: String,
+        modePencatatan: String,
+        waktuDzikir: String,
+        targetHitungan: Int? = null,
+        jumlah: Int? = null,
+        durasiDetik: Int? = null,
+        namaDetailAsli: String? = null,
+        nowMs: Long = System.currentTimeMillis(),
+        sumber: String = ResearchSchema.Sumber.TIDAK_DIKETAHUI
+    ): String? {
+        if (slug !in ResearchSchema.DETAIL_PER_JENIS.getValue(ResearchSchema.Jenis.DZIKIR)) return null
+        if (modePencatatan !in ResearchSchema.MODE_PENCATATAN || waktuDzikir !in ResearchSchema.WAKTU_DZIKIR) return null
+        val prefix = prefixSesiDzikir(tanggal, slug, idHabit)
+        val sesiSebelumnya = researchLogDao.findRecentByPrefix(prefix, nowMs - ResearchSchema.DZIKIR_JENDELA_SESI_MS)
+        val sesiMs = sesiSebelumnya?.slotKey?.substringAfterLast('_')?.toLongOrNull() ?: nowMs
+        val localId = runCatching { ResearchSchema.dzikirLocalId(idHabit, sesiMs) }.getOrNull() ?: return null
+        val asli = if (slug == ResearchSchema.Detail.DZIKIR_LAINNYA) namaDetailAsli?.trim()?.takeIf { it.isNotEmpty() } else null
+        if (slug == ResearchSchema.Detail.DZIKIR_LAINNYA && asli == null) return null
+        val ref = SlotRef(IbadahSlot(ResearchSchema.Jenis.DZIKIR, slug, asli), localId)
+        recordDikerjakan(
+            ref, tanggal,
+            jamPencatatanMs = sesiSebelumnya?.jamPencatatan ?: nowMs,
+            sumber = sumber,
+            jumlah = jumlah,
+            modePencatatan = modePencatatan,
+            waktuDzikir = waktuDzikir,
+            targetHitungan = targetHitungan,
+            durasiDetik = durasiDetik
+        )
+        return slotKeyOrNull(ref, tanggal)
+    }
+
+    /**
+     * Kartu dzikir lama (kunci UI pagi/petang): centang = satu sesi mode centang (jumlah &
+     * durasi null); centang lagi = hapus sesi kartu itu untuk hari ini (keputusan C).
+     */
+    suspend fun toggleDzikir(detail: String, tanggal: String, nowMs: Long = System.currentTimeMillis()) {
         require(detail == ResearchSchema.Detail.PAGI || detail == ResearchSchema.Detail.PETANG)
-        val ref = dzikirSlot(detail)
-        val key = slotKeyOrNull(ref, tanggal) ?: return
-        if (researchLogDao.getBySlotKey(key) != null) {
-            remove(ref, tanggal)
+        val pagi = detail == ResearchSchema.Detail.PAGI
+        val slug = if (pagi) ResearchSchema.Detail.DZIKIR_PAGI else ResearchSchema.Detail.DZIKIR_PETANG
+        val idHabit = if (pagi) ID_HABIT_KARTU_PAGI else ID_HABIT_KARTU_PETANG
+        val sesiHariIni = researchLogDao.getBySlotKeyPrefix(prefixSesiDzikir(tanggal, slug, idHabit))
+        if (sesiHariIni.isNotEmpty()) {
+            sesiHariIni.forEach { removeBySlotKey(it.slotKey) }
         } else {
-            // Kartu dua centang = dzikir di luar aplikasi: mode centang, jumlah & durasi null.
-            recordDikerjakan(
-                ref, tanggal,
+            recordDzikirSession(
+                slug = slug,
+                idHabit = idHabit,
+                tanggal = tanggal,
                 modePencatatan = ResearchSchema.ModePencatatan.CENTANG,
-                waktuDzikir = if (detail == ResearchSchema.Detail.PAGI) ResearchSchema.WaktuDzikir.PAGI
-                else ResearchSchema.WaktuDzikir.PETANG,
-                targetHitungan = null
+                waktuDzikir = if (pagi) ResearchSchema.WaktuDzikir.PAGI else ResearchSchema.WaktuDzikir.PETANG,
+                nowMs = nowMs
             )
         }
     }

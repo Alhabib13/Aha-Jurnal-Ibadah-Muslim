@@ -74,12 +74,13 @@ const DZ = {
   mode_pencatatan: "centang", waktu_dzikir: "pagi", target_hitungan: null,
 };
 
-// Cermin ResearchSchema.logId: jenis multi-baris & sunnah_lainnya/dzikir_lainnya butuh id lokal.
+// Cermin ResearchSchema.logId: jenis multi-baris & sunnah_lainnya butuh id lokal;
+// dzikir: {idHabit}_{sesiMs 13 digit} (satu baris per sesi).
+const SESI = 1791600000000;
 const logId = (o = {}, uid = ALICE, idLokal = "sesi-1") => {
   const d = log(o);
-  const butuhIdLokal =
-    ["tilawah", "qadha_sholat"].includes(d.jenis_ibadah) ||
-    ["sunnah_lainnya", "dzikir_lainnya"].includes(d.nama_detail);
+  if (d.jenis_ibadah === "dzikir") return [uid, d.tanggal, "dzikir", d.nama_detail, idLokal, SESI].join("_");
+  const butuhIdLokal = ["tilawah", "qadha_sholat"].includes(d.jenis_ibadah) || d.nama_detail === "sunnah_lainnya";
   return [uid, d.tanggal, d.jenis_ibadah, d.nama_detail, butuhIdLokal ? idLokal : null]
     .filter((x) => x != null)
     .join("_");
@@ -243,7 +244,7 @@ describe("logs: status tiga nilai", () => {
 
   test("tidak hanya untuk sholat wajib dan dzikir", async () => {
     const t = { status: "tidak", jam_pencatatan: null, sumber_pencatatan: null };
-    await assertSucceeds(tulisLog({ ...DZ, ...t, nama_detail: "dzikir_petang", mode_pencatatan: null, waktu_dzikir: null }));
+    await assertSucceeds(tulisLog({ ...DZ, ...t, nama_detail: "dzikir_petang", mode_pencatatan: null, waktu_dzikir: "petang" }));
     await assertFails(tulisLog({ ...t, jenis_ibadah: "puasa", nama_detail: "senin_kamis" }));
     await assertFails(tulisLog({ ...t, jenis_ibadah: "sholat_sunnah", nama_detail: "dhuha" }));
     await assertFails(tulisLog({ ...t, jenis_ibadah: "tilawah", nama_detail: null, jumlah: 1 }));
@@ -422,7 +423,41 @@ describe("logs: dzikir katalog + mode pencatatan", () => {
     const lain = { ...DZ, nama_detail: "dzikir_lainnya", waktu_dzikir: "bebas" };
     await assertFails(tulisLog({ ...lain, nama_detail_asli: null }, { id: logId(lain, ALICE, "habit-2") }));
     await assertFails(tulisLog({ ...lain, nama_detail_asli: "" }, { id: logId(lain, ALICE, "habit-2") }));
-    await assertFails(tulisLog({ ...lain, nama_detail_asli: "Hizib" }, { id: `${ALICE}_${TGL}_dzikir_dzikir_lainnya` }));
+    await assertFails(tulisLog({ ...lain, nama_detail_asli: "Hizib" }, { id: `${ALICE}_${TGL}_dzikir_dzikir_lainnya_habit-2` }));
+  });
+
+  test("ID per sesi: dua sesi sehari = dua baris; tanpa penanda sesi ditolak", async () => {
+    const bada = { ...DZ, nama_detail: "dzikir_bada_sholat", waktu_dzikir: "bada_sholat" };
+    const id1 = `${ALICE}_${TGL}_dzikir_dzikir_bada_sholat_habit-9_1791600000000`;
+    const id2 = `${ALICE}_${TGL}_dzikir_dzikir_bada_sholat_habit-9_1791621600000`;
+    await assertSucceeds(tulisLog(bada, { id: id1 }));
+    await assertSucceeds(tulisLog(bada, { id: id2 }));
+    await assertSucceeds(tulisLog(bada, { id: id1 })); // percobaan ulang menimpa dokumen yang sama
+    const snap = await getDocs(query(collection(db(ALICE), "logs"), where("user_id", "==", ALICE),
+      where("nama_detail", "==", "dzikir_bada_sholat")));
+    if (snap.size !== 2) throw new Error(`harusnya 2 sesi, dapat ${snap.size}`);
+    await assertFails(tulisLog(bada, { id: `${ALICE}_${TGL}_dzikir_dzikir_bada_sholat` }));
+    await assertFails(tulisLog(bada, { id: `${ALICE}_${TGL}_dzikir_dzikir_bada_sholat_habit-9` }));
+    await assertFails(tulisLog(bada, { id: `${ALICE}_${TGL}_dzikir_dzikir_bada_sholat_habit-9_179160000` }));
+    await assertFails(tulisLog(bada, { id: `${ALICE}_${TGL}_dzikir_dzikir_bada_sholat_habit_9_1791600000000` }));
+  });
+
+  test("keputusan 4.4: 'tidak' ditolak untuk waktu bebas, diterima untuk slug berjendela", async () => {
+    const t = { status: "tidak", jam_pencatatan: null, sumber_pencatatan: null, mode_pencatatan: null };
+    for (const [slug, waktu] of [["dzikir_bada_sholat", "bada_sholat"], ["dzikir_pagi", "pagi"],
+                                 ["dzikir_petang", "petang"], ["dzikir_sebelum_tidur", "sebelum_tidur"]]) {
+      await assertSucceeds(tulisLog({ ...DZ, ...t, nama_detail: slug, waktu_dzikir: waktu }));
+    }
+    for (const slug of ["istighfar", "sholawat", "tahlil", "asmaul_husna"]) {
+      await assertFails(tulisLog({ ...DZ, ...t, nama_detail: slug, waktu_dzikir: "bebas" }));
+    }
+    const lain = { ...DZ, ...t, nama_detail: "dzikir_lainnya", nama_detail_asli: "Hizib", waktu_dzikir: "bebas" };
+    await assertFails(tulisLog(lain, { id: logId(lain, ALICE, "habit-3") }));
+    // Slug berjendela dengan waktu bebas / tanpa waktu juga ditolak (tidak bisa disimpulkan).
+    await assertFails(tulisLog({ ...DZ, ...t, nama_detail: "dzikir_pagi", waktu_dzikir: "bebas" }));
+    await assertFails(tulisLog({ ...DZ, ...t, nama_detail: "dzikir_pagi", waktu_dzikir: null }));
+    // Slug ber-waktu bebas tidak bisa diakali dengan waktu berjendela.
+    await assertFails(tulisLog({ ...DZ, ...t, nama_detail: "istighfar", waktu_dzikir: "pagi" }));
   });
 
   test("baris 'tidak' dzikir: tanpa jumlah/durasi", async () => {
