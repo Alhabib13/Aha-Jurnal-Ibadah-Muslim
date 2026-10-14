@@ -383,4 +383,8 @@
     <string name="home_tutorial_step1">Klik tombol (+) untuk menambahkan target ibadah Fardhu atau Sunnah.</string>
     <string name="home_tutorial_step2">Centang saat ibadah selesai. Aktifkan Mode Cuti Haidh saat berhalangan agar rekor tidak terputus.</string>
     <string name="home_tutorial_step3">Pantau grafik perkembangan ibadahmu di menu Statistik.</string>
+    <string name="widget_sedang_nama">Aha · Sholat hari ini</string>
+    <string name="widget_sedang_deskripsi">Sholat berikutnya dan lima waktu yang sudah dicatat hari ini</string>
+    <string name="widget_kecil_nama">Aha · Sholat berikutnya</string>
+    <string name="widget_kecil_deskripsi">Waktu sholat berikutnya</string>
 </resources>

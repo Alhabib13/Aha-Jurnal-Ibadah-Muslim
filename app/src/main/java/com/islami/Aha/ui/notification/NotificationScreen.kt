@@ -53,6 +53,9 @@ import com.islami.Aha.ui.notification.components.SunnahHabitReminderCard
 import com.islami.Aha.ui.notification.components.EmptyNotificationState
 import com.islami.Aha.ui.notification.components.EditSunnahHabitDialog
 import com.islami.Aha.ui.notification.components.DeleteConfirmationDialog
+import com.islami.Aha.ui.notification.components.SuaraSholatSheet
+import com.islami.Aha.util.SuaraSholat
+import androidx.compose.ui.platform.LocalContext
 
 
 @Composable
@@ -168,6 +171,19 @@ fun NotificationScreenContent(
     val puasaSunnah = uiState.habits.filter { it.category == "Puasa Sunnah" }
     val sunnahPuasa = uiState.sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
     val isEmpty = uiState.habits.isEmpty() && uiState.sunnahHabits.isEmpty()
+    val context = LocalContext.current
+    var slugSuaraDibuka by remember { mutableStateOf<String?>(null) }
+    var versiSuara by remember { mutableIntStateOf(0) }
+    val ringkasanSuara = remember(versiSuara) {
+        SuaraSholat.WAKTU.keys.associateWith { SuaraSholat.ringkasan(context, it) }
+    }
+    slugSuaraDibuka?.let { slug ->
+        SuaraSholatSheet(
+            slug = slug,
+            onChanged = { versiSuara++ },
+            onDismiss = { slugSuaraDibuka = null }
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (!uiState.isLoading) {
@@ -250,11 +266,14 @@ fun NotificationScreenContent(
                                 }
                             }
                             items(sholatFardhu, key = { "fardhu_${it.id}" }) { habit ->
+                                val slug = SuaraSholat.slugDariNama(habit.name)
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     HabitReminderCard(
                                         habit = habit,
                                         globalEnabled = uiState.globalNotificationEnabled && !isHaidhMode,
-                                        onToggle = { onToggleReminder(habit) }
+                                        onToggle = { onToggleReminder(habit) },
+                                        suara = slug?.let { ringkasanSuara[it] },
+                                        onSuaraClick = slug?.let { s -> { slugSuaraDibuka = s } }
                                     )
                                 }
                             }

@@ -73,12 +73,12 @@ class HomeViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
     private val tilawahState: com.islami.Aha.data.research.TilawahStateRepository,
-    private val dzikirHabitRepository: com.islami.Aha.data.dzikir.DzikirHabitRepository
+    private val dzikirHabitRepository: com.islami.Aha.data.dzikir.DzikirHabitRepository,
+    private val defaultHabitCompletion: com.islami.Aha.data.repository.DefaultHabitCompletionRepository
 ) : ViewModel() {
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
         private const val KEY_USER_NAME = "user_name"
-        private const val KEY_LAST_DAILY_RESET = "last_daily_reset"
         private const val KEY_PRAYER_TIME_SOURCE = "prayer_time_source"
         private const val KEY_PRAYER_TIME_LAST_SYNC_AT = "prayer_time_last_sync_at"
         private const val PRAYER_TIME_SOURCE_DEFAULT = "DEFAULT"
@@ -635,36 +635,10 @@ class HomeViewModel @Inject constructor(
 
     fun toggleHabitCompletion(habit: Habit) {
         viewModelScope.launch {
-            val originalHabit = habitDao.getHabitById(habit.id) ?: return@launch
             val willComplete = !habit.isCompleted
-            val updatedHabit = originalHabit.copy(isCompleted = willComplete)
-            val todayKey = DateUtils.getTodayKey()
-            val habitKey = "default_${habit.id}"
-            val record = HabitCompletionRecord(
-                habitKey = habitKey,
-                dateKey = todayKey,
-                category = habit.category,
-                source = "DEFAULT"
-            )
-            val researchSlot = com.islami.Aha.data.research.ResearchLogRepository
-                .slotForDefaultHabit(originalHabit.name, originalHabit.category)
-            appDatabase.withTransaction {
-                habitDao.updateHabit(updatedHabit)
-                if (willComplete) {
-                    habitCompletionDao.insert(record)
-                    researchLogRepository.recordDikerjakan(researchSlot, todayKey)
-                } else {
-                    habitCompletionDao.deleteByHabitAndDate(habitKey, todayKey)
-                    researchLogRepository.remove(researchSlot, todayKey)
-                }
-            }
-            researchLogRepository.scheduleUpload()
-            // Sync ke Firestore (fire-and-forget, gagal → tetap tersimpan lokal)
-            val syncStatus = if (willComplete) {
-                completionSyncRepository.syncAdd(record)
-            } else {
-                completionSyncRepository.syncDelete(habitKey, todayKey)
-            }
+            // Jalur yang sama dengan tombol "Sudah" di notifikasi (DefaultHabitCompletionRepository).
+            val hasil = defaultHabitCompletion.setCompleted(habit.id, willComplete) ?: return@launch
+            val syncStatus = hasil.syncStatus
             if (syncStatus.hasIssue) {
                 showSyncNotice(syncStatus.userMessage ?: DEFAULT_OFFLINE_NOTICE)
             }
@@ -675,9 +649,6 @@ class HomeViewModel @Inject constructor(
                     "${habit.name} dibatalkan dari selesai"
                 }
             )
-            // Jadwalkan offline queue: jika sync gagal (offline), worker akan
-            // mengupload ulang saat koneksi tersedia — bahkan setelah app restart.
-            scheduleSyncCompletionsWork()
         }
     }
 
@@ -860,20 +831,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun scheduleSyncCompletionsWork() {
-        val request = OneTimeWorkRequestBuilder<SyncCompletionsWorker>()
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
-            )
-            .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "sync_habit_completions",
-            ExistingWorkPolicy.KEEP,
-            request
-        )
-    }
 
     fun toggleReminderEnabled(habit: Habit) {
         viewModelScope.launch {
@@ -1308,11 +1265,7 @@ class HomeViewModel @Inject constructor(
 
     private fun resetDefaultHabitsIfNewDay() {
         launchSafely("resetDefaultHabitsIfNewDay") {
-            val todayKey = DateUtils.getTodayKey()
-            val lastResetKey = sharedPreferences.getString(KEY_LAST_DAILY_RESET, null)
-            if (lastResetKey == todayKey) return@launchSafely
-            habitDao.resetAllCompletions()
-            sharedPreferences.edit().putString(KEY_LAST_DAILY_RESET, todayKey).apply()
+            defaultHabitCompletion.ensureDailyReset()
         }
     }
 

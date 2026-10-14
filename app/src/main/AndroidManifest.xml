@@ -42,6 +42,34 @@
             android:exported="false" />
 
         <receiver
+            android:name=".util.ReminderActionReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".ui.widget.AhaWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_sedang_nama">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/aha_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".ui.widget.AhaWidgetKecilReceiver"
+            android:exported="true"
+            android:label="@string/widget_kecil_nama">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/aha_widget_kecil_info" />
+        </receiver>
+
+        <receiver
             android:name=".util.BootCompletedReceiver"
             android:enabled="true"
             android:exported="false">

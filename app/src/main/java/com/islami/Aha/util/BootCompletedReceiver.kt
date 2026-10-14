@@ -86,6 +86,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
                     Log.e("BootCompletedReceiver", "Failed to restore alarms", e)
                     com.islami.Aha.util.logCrashlyticsSafe(e)
                 }
+                com.islami.Aha.ui.widget.AhaWidgetUpdater.requestUpdate(context)
             } finally {
                 pendingResult.finish()
             }

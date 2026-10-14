@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.rounded.Mosque
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -241,7 +242,9 @@ fun CategorySectionHeader(title: String, count: Int) {
 fun HabitReminderCard(
     habit: Habit,
     globalEnabled: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    suara: String? = null,
+    onSuaraClick: (() -> Unit)? = null
 ) {
     val isEffectivelyEnabled = globalEnabled && habit.isReminderEnabled
     val cardAlpha by animateFloatAsState(targetValue = if (globalEnabled) 1f else 0.6f, label = "")
@@ -321,6 +324,35 @@ fun HabitReminderCard(
                         fontSize = 12.sp,
                         color = Gray500
                     )
+                }
+                if (suara != null && onSuaraClick != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        onClick = onSuaraClick,
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Suara: $suara",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
 

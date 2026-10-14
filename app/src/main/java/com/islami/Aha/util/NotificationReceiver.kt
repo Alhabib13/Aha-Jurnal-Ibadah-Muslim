@@ -14,14 +14,34 @@ import androidx.core.content.ContextCompat
 import com.islami.Aha.BuildConfig
 import com.islami.Aha.R
 import com.islami.Aha.MainActivity
+import com.islami.Aha.data.local.HabitDao
+import com.islami.Aha.data.model.Habit
+import com.islami.Aha.data.repository.DefaultHabitCompletionRepository
+import com.islami.Aha.ui.widget.AhaWidgetUpdater
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 class NotificationReceiver : BroadcastReceiver() {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface ReceiverEntryPoint {
+        fun habitDao(): HabitDao
+        fun defaultHabitCompletion(): DefaultHabitCompletionRepository
+    }
 
     companion object {
         private const val TAG = "NotificationReceiver"
         private const val GROUP_KEY_HABIT_REMINDER = "group_habit_reminder"
         private const val SUMMARY_NOTIFICATION_ID = 777001
+        const val EXTRA_IS_SNOOZE = "is_snooze"
+        private const val DEFAULT_PREFIX = "default_"
     }
 
     private fun debugLog(message: String) {
@@ -36,8 +56,17 @@ class NotificationReceiver : BroadcastReceiver() {
             ?: context.getString(R.string.notification_default_habit_name)
         val hour = intent.getIntExtra("hour", -1)
         val minute = intent.getIntExtra("minute", -1)
+        val isSnooze = intent.getBooleanExtra(EXTRA_IS_SNOOZE, false)
 
-        debugLog("onReceive: habitId=$habitId, habitName=$habitName, hour=$hour, minute=$minute")
+        debugLog("onReceive: habitId=$habitId, habitName=$habitName, hour=$hour, minute=$minute, snooze=$isSnooze")
+
+        // Widget ikut berganti "waktu sekarang" di setiap pergantian waktu sholat.
+        AhaWidgetUpdater.requestUpdate(context)
+
+        // Pengingat ulang ("Nanti") hanya sekali; jadwal hariannya tetap berjalan sendiri.
+        val reschedule: () -> Unit = {
+            if (!isSnooze && habitId != "haidh_reminder") rescheduleAlarm(context, habitId, habitName, hour, minute)
+        }
 
         if (!NotificationScheduler.isGlobalNotificationEnabled(context)) {
             debugLog("Global notification disabled, skipping receiver execution")
@@ -48,7 +77,7 @@ class NotificationReceiver : BroadcastReceiver() {
         val isHaidhMode = prefs.getBoolean("haidh_mode", false)
         if (isHaidhMode && (habitName.contains("Sholat", ignoreCase = true) || habitName.contains("Puasa", ignoreCase = true))) {
             debugLog("Haidh mode is active, skipping notification for: $habitName")
-            rescheduleAlarm(context, habitId, habitName, hour, minute)
+            reschedule()
             return
         }
 
@@ -60,7 +89,7 @@ class NotificationReceiver : BroadcastReceiver() {
             ) {
                 Log.w(TAG, "POST_NOTIFICATIONS permission not granted, skipping notification")
                 // Still reschedule even if permission not granted
-                rescheduleAlarm(context, habitId, habitName, hour, minute)
+                reschedule()
                 return
             }
         }
@@ -68,23 +97,146 @@ class NotificationReceiver : BroadcastReceiver() {
         val capability = NotificationScheduler.getNotificationCapability(context)
         if (capability != NotificationScheduler.NotificationCapability.AVAILABLE) {
             Log.w(TAG, "Notification unavailable ($capability), skipping notification")
-            rescheduleAlarm(context, habitId, habitName, hour, minute)
+            reschedule()
             return
         }
 
-        // Show notification
+        val defaultHabitDbId = habitId.removePrefix(DEFAULT_PREFIX).toIntOrNull()
+            ?.takeIf { habitId.startsWith(DEFAULT_PREFIX) }
+        if (defaultHabitDbId != null) {
+            // Habit bawaan: tampilkan tombol Sudah / Nanti / Tertinggal (perlu baca database).
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    runCatching {
+                        showActionableReminder(context, defaultHabitDbId, habitId, habitName, hour, minute, isSnooze, prefs)
+                    }.onFailure { e ->
+                        Log.e(TAG, "Actionable reminder failed, falling back to plain notification", e)
+                        showPlainReminder(context, habitId, habitName, prefs)
+                    }
+                    reschedule()
+                } finally {
+                    pendingResult.finish()
+                }
+            }
+            return
+        }
+
+        showPlainReminder(context, habitId, habitName, prefs)
+        reschedule()
+    }
+
+    private suspend fun showActionableReminder(
+        context: Context,
+        habitDbId: Int,
+        habitId: String,
+        habitName: String,
+        hour: Int,
+        minute: Int,
+        isSnooze: Boolean,
+        prefs: android.content.SharedPreferences
+    ) {
+        val entryPoint = EntryPointAccessors.fromApplication(context.applicationContext, ReceiverEntryPoint::class.java)
+        val habit: Habit = entryPoint.habitDao().getHabitById(habitDbId) ?: run {
+            showPlainReminder(context, habitId, habitName, prefs)
+            return
+        }
+        if (entryPoint.defaultHabitCompletion().isCompletedToday(habitDbId)) {
+            debugLog("'${habit.name}' already recorded today, no reminder needed")
+            return
+        }
+
+        val isFardhu = habit.category == "Sholat Fardhu"
+        val slug = if (isFardhu) SuaraSholat.slugDariNama(habit.name) else null
+        val namaTampil = namaTampil(habit.name, prefs)
+        val notificationId = NotificationScheduler.notificationId(habitId)
+        val payload = ReminderActionReceiver.Payload(
+            habitDbId = habitDbId,
+            habitId = habitId,
+            habitName = habit.name,
+            namaTampil = namaTampil,
+            hour = hour,
+            minute = minute,
+            notificationId = notificationId,
+            isFardhu = isFardhu
+        )
+
+        val channelId = if (slug != null) {
+            SuaraSholat.pastikanFileMasihAda(context, slug)
+            SuaraSholat.channelId(context, slug)
+        } else {
+            NotificationScheduler.channelId(context)
+        }
+
+        val jam = if (hour >= 0 && minute >= 0) String.format(Locale.ROOT, "%02d.%02d", hour, minute) else null
+        val title = when {
+            isSnooze -> "Pengingat $namaTampil"
+            isFardhu && jam != null -> "Waktunya $namaTampil · $jam"
+            else -> context.getString(R.string.notification_trigger_text_format, namaTampil)
+        }
+        val text = if (isFardhu) "Sudah sholat $namaTampil? Ketuk tombol di bawah untuk mencatat."
+        else "Sudah mengerjakan $namaTampil? Ketuk Sudah untuk mencatat."
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_nav_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setContentIntent(openAppIntent(context, notificationId))
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .addAction(0, "Sudah", ReminderActionReceiver.pendingIntent(context, ReminderActionReceiver.ACTION_SUDAH, payload))
+            .addAction(0, "Nanti ${ReminderActionReceiver.SNOOZE_MINUTES} mnt", ReminderActionReceiver.pendingIntent(context, ReminderActionReceiver.ACTION_NANTI, payload))
+        if (isFardhu) {
+            builder.addAction(0, "Tertinggal", ReminderActionReceiver.pendingIntent(context, ReminderActionReceiver.ACTION_TERTINGGAL, payload))
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            // Tanpa channel: suara & getar diatur di notifikasinya.
+            val uri = if (slug != null) SuaraSholat.soundUri(context, slug)
+            else NotificationScheduler.getSoundUri(NotificationScheduler.getChannelSettings(context).soundOption)
+            if (uri != null) builder.setSound(uri) else builder.setSilent(true)
+            builder.setVibrate(
+                if (NotificationScheduler.getChannelSettings(context).vibrationEnabled) longArrayOf(0, 180, 80, 180)
+                else longArrayOf(0)
+            )
+        }
+
+        context.getSystemService(NotificationManager::class.java).notify(notificationId, builder.build())
+        debugLog("Actionable notification shown for '${habit.name}'")
+    }
+
+    private fun namaTampil(habitName: String, prefs: android.content.SharedPreferences): String {
+        // Cek apakah hari ini Jumat dan mode Jumat aktif (untuk Laki-laki)
+        val isJumatEnabled = prefs.getBoolean("jumat_enabled", false)
+        val isFriday = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.FRIDAY
+        val nama = if (isJumatEnabled && isFriday && habitName == "Sholat Dzuhur") "Sholat Jumat" else habitName
+        return nama.removePrefix("Sholat ").ifBlank { nama }
+    }
+
+    private fun openAppIntent(context: Context, requestCode: Int): PendingIntent {
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        val contentPendingIntent = PendingIntent.getActivity(
+        return PendingIntent.getActivity(
             context,
-            NotificationScheduler.notificationId(habitId),
+            requestCode,
             openAppIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    private fun showPlainReminder(
+        context: Context,
+        habitId: String,
+        habitName: String,
+        prefs: android.content.SharedPreferences
+    ) {
+        val contentPendingIntent = openAppIntent(context, NotificationScheduler.notificationId(habitId))
         val channelSettings = NotificationScheduler.getChannelSettings(context)
-        
-        // Cek apakah hari ini Jumat dan mode Jumat aktif (untuk Laki-laki)
+        val channelId = NotificationScheduler.channelId(context)
+
         val isJumatEnabled = prefs.getBoolean("jumat_enabled", false)
         val isFriday = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.FRIDAY
         var finalHabitName = habitName
@@ -95,7 +247,7 @@ class NotificationReceiver : BroadcastReceiver() {
         val notificationTitle = if (habitId == "haidh_reminder") "Peringatan Cuti Ibadah" else context.getString(R.string.notification_reminder_title)
         val notificationText = if (habitId == "haidh_reminder") "Apakah masa cuti ibadah Anda sudah selesai? Jangan lupa matikan mode cuti di aplikasi Aha." else context.getString(R.string.notification_trigger_text_format, finalHabitName)
 
-        val notificationBuilder = NotificationCompat.Builder(context, NotificationScheduler.CHANNEL_ID)
+        val notificationBuilder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_nav_notification)
             .setContentTitle(notificationTitle)
             .setContentText(notificationText)
@@ -131,7 +283,7 @@ class NotificationReceiver : BroadcastReceiver() {
 
         val notificationManager = context.getSystemService(NotificationManager::class.java)
         notificationManager.notify(NotificationScheduler.notificationId(habitId), notification)
-        val summaryNotification = NotificationCompat.Builder(context, NotificationScheduler.CHANNEL_ID)
+        val summaryNotification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_nav_notification)
             .setContentTitle(notificationTitle)
             .setContentText(context.getString(R.string.notification_summary_text))
@@ -142,11 +294,6 @@ class NotificationReceiver : BroadcastReceiver() {
             .build()
         notificationManager.notify(SUMMARY_NOTIFICATION_ID, summaryNotification)
         debugLog("Notification shown for '$habitName'")
-
-        // Reschedule only if it is a recurring daily alarm
-        if (habitId != "haidh_reminder") {
-            rescheduleAlarm(context, habitId, habitName, hour, minute)
-        }
     }
 
     private fun rescheduleAlarm(
