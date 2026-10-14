@@ -167,6 +167,7 @@ private fun TargetHarianRow(target: Int?, hariIni: Int, onSetTarget: (Int?) -> U
     Text(
         when {
             target == null -> "Target harian belum diatur"
+            hariIni == 0 -> "Target $target hlm/hari · hari ini belum dicatat"
             hariIni >= target -> "Target $target hlm/hari · hari ini $hariIni hlm ✓"
             else -> "Target $target hlm/hari · hari ini $hariIni hlm"
         },

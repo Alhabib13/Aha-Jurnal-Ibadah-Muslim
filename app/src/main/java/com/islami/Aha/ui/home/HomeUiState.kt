@@ -37,6 +37,7 @@ data class IqroProgressUi(val jilid: Int, val halaman: Int, val tanggal: String)
 
 internal const val BELUM_ADA = "Belum ada"
 internal const val MODE_CUTI_AKTIF = "Mode Cuti aktif"
+internal const val BELUM_DICATAT = "Belum dicatat"
 
 data class HomeUiState(
     val isLoading: Boolean = true,
@@ -260,7 +261,8 @@ data class HomeUiState(
      */
     val habitHeaderLabel: String?
         get() = when {
-            isTilawahCategory -> "$tilawahHalamanToday halaman"
+            // Belum ada sesi hari ini = belum dicatat, bukan "membaca 0 halaman".
+            isTilawahCategory -> if (tilawahSessions.isEmpty()) BELUM_DICATAT else "$tilawahHalamanToday halaman"
             isDzikirCategory -> when {
                 !com.islami.Aha.data.research.ModeCutiPolicy.aktif(
                     com.islami.Aha.data.research.ResearchSchema.Jenis.DZIKIR, isHaidhMode
@@ -299,7 +301,7 @@ data class HomeUiState(
             }
             // Cakupan Mode Cuti untuk dzikir & tilawah: ModeCutiPolicy (MENUNGGU VALIDASI PAKAR).
             "Dzikir" -> if (dzikirTotalCount == 0) BELUM_ADA else "$dzikirDoneCount/$dzikirTotalCount"
-            "Tilawah" -> "$tilawahHalamanToday hlm"
+            "Tilawah" -> if (tilawahSessions.isEmpty()) BELUM_DICATAT else "$tilawahHalamanToday hlm"
             else -> "Segera"
         }
     }

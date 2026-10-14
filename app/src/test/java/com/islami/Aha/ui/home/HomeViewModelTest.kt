@@ -100,7 +100,7 @@ class HomeViewModelTest {
     fun `dzikir and tilawah stay visible in haidh mode`() {
         val state = HomeUiState(isHaidhMode = true, dzikirHabits = listOf(dz("a", 1), dz("b", 0)))
         assertEquals("1/2", state.getCategoryBadge("Dzikir"))
-        assertEquals("0 hlm", state.getCategoryBadge("Tilawah"))
+        assertEquals("Belum dicatat", state.getCategoryBadge("Tilawah"))
     }
 
     @Test
@@ -288,5 +288,15 @@ class HomeViewModelTest {
         assertEquals("Belum ada", kosong.habitHeaderLabel)
         val isi = HomeUiState(selectedMainCategory = "Sholat", selectedSubTabIndex = 0, allHabits = sampleHabits)
         assertNull(isi.habitHeaderLabel)
+    }
+
+    @Test
+    fun `tilawah without a session today says belum dicatat, never zero pages`() {
+        val kosong = HomeUiState(selectedMainCategory = "Tilawah")
+        assertEquals("Belum dicatat", kosong.getCategoryBadge("Tilawah"))
+        assertEquals("Belum dicatat", kosong.habitHeaderLabel)
+        val isi = kosong.copy(tilawahSessions = listOf(TilawahSessionUi("a", "hafalan", 2, 9, 30, "20.00")))
+        assertEquals("2 hlm", isi.getCategoryBadge("Tilawah"))
+        assertEquals("2 halaman", isi.habitHeaderLabel)
     }
 }
