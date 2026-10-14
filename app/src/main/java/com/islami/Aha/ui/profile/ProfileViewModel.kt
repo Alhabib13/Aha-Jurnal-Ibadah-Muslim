@@ -165,12 +165,12 @@ class ProfileViewModel @Inject constructor(
                     true
                 }
                 
-                // Dzikir: 2 slot tetap ikut rasio harian/mingguan (tilawah & iqro tidak punya slot).
-                val dzikirSlots = com.islami.Aha.data.research.ActivityStatsRepository.DZIKIR_SLOTS_PER_DAY
-                val totalHabits = visibleHabits.size + visibleSunnahHabits.size + dzikirSlots
+                // Dzikir: mengikuti habit dzikir pilihan pengguna (tilawah & iqro di luar rasio).
+                val dzikir = activityStats.getDzikirProgress(DateUtils.getTodayKey(), isTodayHaidh)
+                val totalHabits = visibleHabits.size + visibleSunnahHabits.size + dzikir.total
                 val totalCompletedToday = visibleHabits.count { it.isCompleted } +
                     visibleSunnahHabits.count { it.isCompletedToday } +
-                    activityStats.getDzikirDoneCount(DateUtils.getTodayKey())
+                    dzikir.done
                 val allCompleteToday = totalHabits > 0 && totalCompletedToday == totalHabits
 
                 val sholatCount = sunnahHabits.count { it.category == SunnahCategoryType.SHOLAT }

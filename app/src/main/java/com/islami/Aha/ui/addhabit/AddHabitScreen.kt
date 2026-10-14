@@ -50,9 +50,14 @@ import com.islami.Aha.ui.theme.HabitIslamiTheme
 fun AddHabitScreen(
     viewModel: AddHabitViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
-    onHabitSaved: () -> Unit = {}
+    onHabitSaved: () -> Unit = {},
+    bukaKategoriDzikir: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(bukaKategoriDzikir) {
+        if (bukaKategoriDzikir) viewModel.selectDzikirCategory()
+    }
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
@@ -76,7 +81,16 @@ fun AddHabitScreen(
         onReminderTimeChange = viewModel::onReminderTimeChange,
         onSaveClick = viewModel::saveHabit,
         getFormattedReminderTime = { viewModel.getFormattedReminderTime(uiState) },
-        onNavigateBack = onNavigateBack
+        onNavigateBack = onNavigateBack,
+        dzikirActions = DzikirActions(
+            onSelectCategory = viewModel::selectDzikirCategory,
+            onToggleEntry = viewModel::toggleDzikirEntry,
+            onAddLainnya = viewModel::addDzikirLainnya,
+            onRemove = viewModel::removeDzikirPilihan,
+            onTargetChange = viewModel::updateDzikirTarget,
+            onNamaChange = viewModel::updateDzikirNama,
+            onModeChange = viewModel::selectDzikirMode
+        )
     )
 }
 
@@ -98,7 +112,8 @@ fun AddHabitScreenContent(
     onReminderTimeChange: (Int, Int) -> Unit,
     onSaveClick: () -> Unit,
     getFormattedReminderTime: () -> String,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    dzikirActions: DzikirActions = DzikirActions()
 ) {
     val scrollState = rememberScrollState()
     val secondaryIconTint = rememberAddHabitSecondaryIconTint()
@@ -120,7 +135,7 @@ fun AddHabitScreenContent(
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
             bottomBar = {
-                if (!uiState.isHaidhMode) {
+                if (!uiState.isHaidhMode || (uiState.isDzikir && uiState.dzikirBolehSaatCuti)) {
                     Surface(
                         modifier = Modifier
                         .fillMaxWidth()
@@ -153,6 +168,8 @@ fun AddHabitScreenContent(
                             Text(
                                 text = if (uiState.isSaving) {
                                     stringResource(R.string.settings_saving)
+                                } else if (uiState.isDzikir) {
+                                    "Simpan Dzikir"
                                 } else {
                                     stringResource(R.string.save_sunnah_worship)
                                 },
@@ -178,7 +195,7 @@ fun AddHabitScreenContent(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 64.dp),
+                            .padding(horizontal = 24.dp, vertical = 32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
@@ -202,6 +219,20 @@ fun AddHabitScreenContent(
                             textAlign = TextAlign.Center
                         )
                     }
+                    if (uiState.dzikirBolehSaatCuti) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Dzikir tetap bisa ditambahkan selama Mode Cuti.",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            DzikirSection(uiState = uiState, actions = dzikirActions)
+                            Spacer(modifier = Modifier.height(80.dp))
+                        }
+                    }
                 } else {
                 Column(
                     modifier = Modifier
@@ -211,18 +242,29 @@ fun AddHabitScreenContent(
                 // ── Kategori ──
                 SectionHeading(stringResource(R.string.category_heading))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     SunnahCategoryType.entries.forEach { category ->
-                        val isSelected = uiState.selectedCategory == category
+                        val isSelected = !uiState.isDzikir && uiState.selectedCategory == category
                         SelectableChip(
                             text = category.displayName,
                             isSelected = isSelected,
                             onClick = { onSelectCategory(category) }
                         )
                     }
+                    SelectableChip(
+                        text = "Dzikir",
+                        isSelected = uiState.isDzikir,
+                        onClick = dzikirActions.onSelectCategory
+                    )
                 }
+
+                if (uiState.isDzikir) {
+                    DzikirSection(uiState = uiState, actions = dzikirActions)
+                } else {
 
                 // ── Pilih Ibadah ──
                 SectionHeading(stringResource(R.string.select_worship_heading))
@@ -354,6 +396,7 @@ fun AddHabitScreenContent(
                     onToggle = onToggleReminder,
                     onShowTimePicker = onShowTimePicker
                 )
+                } // End of non-dzikir sections
 
                 // Bottom spacer so content isn't hidden behind save button
                 Spacer(modifier = Modifier.height(80.dp))

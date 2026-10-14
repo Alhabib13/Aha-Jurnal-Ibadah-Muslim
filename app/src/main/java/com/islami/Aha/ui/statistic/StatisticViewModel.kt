@@ -54,7 +54,9 @@ data class CategoryStatistic(
     val totalCount: Int,
     val percentage: Int,
     val streak: Int,
-    val gradientIndex: Int = 0
+    val gradientIndex: Int = 0,
+    /** Keterangan keadaan pengganti hitungan (mis. "Mode Cuti aktif", "Belum ada"); null = tampilkan angka. */
+    val keterangan: String? = null
 )
 
 data class StatisticUiState(
@@ -141,11 +143,11 @@ class StatisticViewModel @Inject constructor(
 
                 val fardhuCompleted = visibleHabits.count { it.isCompleted }
                 val sunnahCompleted = visibleSunnahHabits.count { it.isCompletedToday }
-                // Dzikir: 2 slot tetap, ikut rasio (juga saat Mode Cuti). Tilawah/iqro di luar rasio.
-                val dzikirDone = activityStats.getDzikirDoneCount(DateUtils.getTodayKey())
-                val todayCompleted = fardhuCompleted + sunnahCompleted + dzikirDone
-                val todayTotal = visibleHabits.size + visibleSunnahHabits.size +
-                    com.islami.Aha.data.research.ActivityStatsRepository.DZIKIR_SLOTS_PER_DAY
+                // Dzikir: mengikuti habit dzikir pilihan pengguna (Mode Cuti: ModeCutiPolicy).
+                // Tilawah/iqro di luar rasio.
+                val dzikir = activityStats.getDzikirProgress(DateUtils.getTodayKey(), isTodayHaidh)
+                val todayCompleted = fardhuCompleted + sunnahCompleted + dzikir.done
+                val todayTotal = visibleHabits.size + visibleSunnahHabits.size + dzikir.total
                 val todayPercentage = if (todayTotal > 0) (todayCompleted * 100) / todayTotal else 0
 
                 val categoryOrder = buildList {
@@ -193,7 +195,13 @@ class StatisticViewModel @Inject constructor(
                         totalCount = total,
                         percentage = if (total > 0) (completed * 100) / total else 0,
                         streak = 0,
-                        gradientIndex = index
+                        gradientIndex = index,
+                        // Semua kategori di sini sholat/puasa: tidak dihitung saat Mode Cuti.
+                        keterangan = when {
+                            isTodayHaidh -> "Mode Cuti aktif"
+                            total == 0 -> "Belum ada"
+                            else -> null
+                        }
                     )
                 }
 

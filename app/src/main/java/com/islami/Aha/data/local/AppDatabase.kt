@@ -12,6 +12,7 @@ import com.islami.Aha.data.model.SurahVerseEntity
 import com.islami.Aha.data.model.UserHabitEntity
 import com.islami.Aha.data.model.DeletedSyncRecord
 import com.islami.Aha.data.model.ResearchLogEntity
+import com.islami.Aha.data.model.DzikirHabitEntity
 
 @Database(
     entities = [
@@ -21,9 +22,10 @@ import com.islami.Aha.data.model.ResearchLogEntity
         HadithContentEntity::class,
         SurahVerseEntity::class,
         DeletedSyncRecord::class,
-        ResearchLogEntity::class
+        ResearchLogEntity::class,
+        DzikirHabitEntity::class
     ],
-    version = 14,
+    version = 16,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -34,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dailyIslamicContentDao(): DailyIslamicContentDao
     abstract fun deletedSyncDao(): DeletedSyncDao
     abstract fun researchLogDao(): ResearchLogDao
+    abstract fun dzikirHabitDao(): DzikirHabitDao
 
     companion object {
         val MIGRATION_5_6 = object : Migration(5, 6) {
@@ -199,6 +202,39 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_research_logs_tanggal ON research_logs(tanggal)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_research_logs_isSynced ON research_logs(isSynced)")
+            }
+        }
+
+        /**
+         * v15: kolom dzikir di research_logs. HANYA ALTER TABLE ADD COLUMN (semua nullable);
+         * baris lama tetap utuh dengan nilai NULL. habit_completion_records tidak disentuh.
+         */
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE research_logs ADD COLUMN modePencatatan TEXT")
+                db.execSQL("ALTER TABLE research_logs ADD COLUMN waktuDzikir TEXT")
+                db.execSQL("ALTER TABLE research_logs ADD COLUMN targetHitungan INTEGER")
+                db.execSQL("ALTER TABLE research_logs ADD COLUMN durasiDetik INTEGER")
+            }
+        }
+
+        // Habit dzikir (konfigurasi pilihan pengguna). Tabel baru, tidak menyentuh tabel lain.
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS dzikir_habits (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        slug TEXT NOT NULL,
+                        namaDetailAsli TEXT,
+                        modePencatatan TEXT NOT NULL,
+                        waktuDzikir TEXT NOT NULL,
+                        targetHitungan INTEGER,
+                        createdAt INTEGER NOT NULL,
+                        ownerUid TEXT
+                    )
+                    """.trimIndent()
+                )
             }
         }
 

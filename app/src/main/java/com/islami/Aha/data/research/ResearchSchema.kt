@@ -42,6 +42,14 @@ object ResearchSchema {
         const val OFFSET_WAKTU = "offset_waktu"
         /** Menit jam_pencatatan dari adzan, dihitung di HP (sholat_wajib & dzikir). */
         const val SELISIH_MENIT_DARI_ADZAN = "selisih_menit_dari_adzan"
+        /** Dzikir: "layar" (membaca di aplikasi, ada penghitung) | "centang" (di luar aplikasi). */
+        const val MODE_PENCATATAN = "mode_pencatatan"
+        /** Dzikir: bada_sholat | pagi | petang | sebelum_tidur | bebas. */
+        const val WAKTU_DZIKIR = "waktu_dzikir"
+        /** Dzikir: target hitungan yang dipilih pengguna; null bila tidak ada. */
+        const val TARGET_HITUNGAN = "target_hitungan"
+        /** Dzikir mode layar: lama membaca di layar (detik); null pada mode centang. */
+        const val DURASI_DETIK = "durasi_detik"
     }
 
     object Jenis {
@@ -81,14 +89,46 @@ object ResearchSchema {
         const val QADHA = "qadha"
         const val SUNNAH_LAINNYA = "sunnah_lainnya"
 
-        const val PAGI = "pagi"
-        const val PETANG = "petang"
+        /** Katalog dzikir (assets/dzikir_katalog.json). Slug = nama_detail di logs. */
+        const val DZIKIR_BADA_SHOLAT = "dzikir_bada_sholat"
+        const val DZIKIR_PAGI = "dzikir_pagi"
+        const val DZIKIR_PETANG = "dzikir_petang"
+        const val DZIKIR_SEBELUM_TIDUR = "dzikir_sebelum_tidur"
+        const val ISTIGHFAR = "istighfar"
+        const val SHOLAWAT = "sholawat"
+        const val TAHLIL = "tahlil"
+        const val ASMAUL_HUSNA = "asmaul_husna"
+        /** Satu-satunya slug dzikir yang memakai nama_detail_asli (nama buatan pengguna). */
+        const val DZIKIR_LAINNYA = "dzikir_lainnya"
 
         /** Jenis sesi tilawah. Penanda maju otomatis HANYA untuk bacaan_harian. */
         const val BACAAN_HARIAN = "bacaan_harian"
         const val HAFALAN = "hafalan"
         const val MURAJAAH = "murajaah"
     }
+
+    object ModePencatatan {
+        const val LAYAR = "layar"
+        /**
+         * Dzikir di luar aplikasi. Kolom `jumlah` & `durasi_detik` WAJIB null: kita tidak tahu
+         * berapa kali dibaca, dan mengisinya dengan target = data palsu (tidak tahu != nol).
+         */
+        const val CENTANG = "centang"
+    }
+
+    object WaktuDzikir {
+        const val BADA_SHOLAT = "bada_sholat"
+        const val PAGI = "pagi"
+        const val PETANG = "petang"
+        const val SEBELUM_TIDUR = "sebelum_tidur"
+        const val BEBAS = "bebas"
+    }
+
+    val MODE_PENCATATAN = setOf(ModePencatatan.LAYAR, ModePencatatan.CENTANG)
+    val WAKTU_DZIKIR = setOf(
+        WaktuDzikir.BADA_SHOLAT, WaktuDzikir.PAGI, WaktuDzikir.PETANG,
+        WaktuDzikir.SEBELUM_TIDUR, WaktuDzikir.BEBAS
+    )
 
     object Status {
         const val DIKERJAKAN = "dikerjakan"
@@ -118,7 +158,11 @@ object ResearchSchema {
             Detail.SENIN_KAMIS, Detail.AYYAMUL_BIDH, Detail.DAUD, Detail.SYAWAL, Detail.RAMADAN,
             Detail.QADHA, Detail.NAZAR, Detail.SUNNAH_LAINNYA
         ),
-        Jenis.DZIKIR to setOf(Detail.PAGI, Detail.PETANG),
+        Jenis.DZIKIR to setOf(
+            Detail.DZIKIR_BADA_SHOLAT, Detail.DZIKIR_PAGI, Detail.DZIKIR_PETANG,
+            Detail.DZIKIR_SEBELUM_TIDUR, Detail.ISTIGHFAR, Detail.SHOLAWAT, Detail.TAHLIL,
+            Detail.ASMAUL_HUSNA, Detail.DZIKIR_LAINNYA
+        ),
         Jenis.TILAWAH to setOf(Detail.BACAAN_HARIAN, Detail.HAFALAN, Detail.MURAJAAH)
     )
 
@@ -149,6 +193,10 @@ object ResearchSchema {
     val TILAWAH_AYAT = 1..6236
     val JUZ = 1..30
     val SELISIH_MENIT = -1440..1440
+    /** Dzikir: batas target hitungan, jumlah hitungan (mode layar), dan durasi layar (detik). */
+    val TARGET_HITUNGAN = 1..100_000
+    val DZIKIR_HITUNGAN = 1..100_000
+    val DURASI_DETIK = 1..86_400
     /** Target harian bacaan_harian (halaman). Rules menerima 1..604; UI menawarkan pilihan kecil. */
     val TARGET_HALAMAN = 1..604
     /** Mencakup Iqro, Qiroati, Tilawati, UMMI, An-Nahdliyah. */
@@ -156,12 +204,29 @@ object ResearchSchema {
     val IQRO_HALAMAN = 1..100
 
     private val ID_LOKAL_REGEX = Regex("[A-Za-z0-9-]{1,64}")
+    private val ID_HABIT_REGEX = Regex("[A-Za-z0-9-]{1,64}")
+    /** Dzikir: `{idHabit}_{sesiMs}`; sesiMs = epoch milidetik (13 digit) saat sesi dibuat. */
+    private val ID_SESI_DZIKIR_REGEX = Regex("[A-Za-z0-9-]{1,64}_[0-9]{13}")
+
+    /**
+     * Jendela anti-dobel-ketuk: pencatatan dzikir slug + habit yang sama dalam rentang ini
+     * dianggap SATU sesi (ID sama), supaya ketukan ganda tidak menjadi dua baris palsu.
+     */
+    const val DZIKIR_JENDELA_SESI_MS = 60_000L
+
+    /** id lokal sesi dzikir: deterministik per sesi, bukan per hari. */
+    fun dzikirLocalId(idHabit: String, sesiMs: Long): String {
+        require(ID_HABIT_REGEX.matches(idHabit)) { "idHabit tidak sah: $idHabit" }
+        require(sesiMs in 1_000_000_000_000L..9_999_999_999_999L) { "sesiMs harus 13 digit: $sesiMs" }
+        return "${idHabit}_$sesiMs"
+    }
 
     /**
      * ID dokumen log deterministik; bentuknya diwajibkan rules per jenis:
      * - slot tetap:      `{uid}_{tanggal}_{jenis}_{detail}`
      * - iqro:            `{uid}_{tanggal}_iqro`
      * - sunnah_lainnya:  `{uid}_{tanggal}_{jenis}_sunnah_lainnya_{localId}`
+     * - dzikir (semua):  `{uid}_{tanggal}_dzikir_{slug}_{idHabit}_{sesiMs}` (satu baris per sesi)
      * - tilawah:         `{uid}_{tanggal}_tilawah_{jenisSesi}_{localId}` (localId = id sesi baca)
      * - qadha_sholat:    `{uid}_{tanggal}_qadha_sholat_{localId}` (localId = id habit)
      * Sync ulang dari antrean offline menimpa dokumen yang sama, bukan menggandakan.
@@ -174,14 +239,18 @@ object ResearchSchema {
 
     /** Apakah slot ini butuh id lokal (multi-baris per hari atau sunnah buatan pengguna). */
     fun butuhIdLokal(jenis: String, detail: String?): Boolean =
-        jenis in JENIS_MULTI_BARIS || detail == Detail.SUNNAH_LAINNYA
+        jenis in JENIS_MULTI_BARIS || jenis == Jenis.DZIKIR || detail == Detail.SUNNAH_LAINNYA
 
     /**
      * Bagian ID log tanpa uid: `{tanggal}_{jenis}[_{detail}][_{localId}]`.
      * Dipakai sebagai primary key tabel lokal `research_logs`.
      */
     fun slotKey(tanggal: String, jenis: String, detail: String?, localId: String? = null): String {
-        if (butuhIdLokal(jenis, detail)) {
+        if (jenis == Jenis.DZIKIR) {
+            require(localId != null && ID_SESI_DZIKIR_REGEX.matches(localId)) {
+                "Dzikir butuh localId {idHabit}_{sesiMs 13 digit}: $localId"
+            }
+        } else if (butuhIdLokal(jenis, detail)) {
             require(localId != null && ID_LOKAL_REGEX.matches(localId)) {
                 "localId wajib (huruf, angka, '-', maks 64) untuk $jenis/$detail"
             }

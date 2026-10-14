@@ -43,5 +43,13 @@ data class ResearchLogEntity(
     /** Zona waktu HP saat baris dibuat, mis. "+07:00". Wajib untuk semua jenis. */
     val offsetWaktu: String,
     /** Menit dari adzan (sholat_wajib & dzikir), dihitung di HP; null bila tak bisa dihitung. */
-    val selisihMenitDariAdzan: Int? = null
+    val selisihMenitDariAdzan: Int? = null,
+    /** Dzikir: "layar" | "centang". Kolom v15. */
+    val modePencatatan: String? = null,
+    /** Dzikir: bada_sholat | pagi | petang | sebelum_tidur | bebas. Kolom v15. */
+    val waktuDzikir: String? = null,
+    /** Dzikir: target hitungan pilihan pengguna; null = tanpa target. Kolom v15. */
+    val targetHitungan: Int? = null,
+    /** Dzikir mode layar: durasi membaca (detik); null pada mode centang. Kolom v15. */
+    val durasiDetik: Int? = null
 )

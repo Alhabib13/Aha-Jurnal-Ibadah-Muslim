@@ -72,7 +72,8 @@ class HomeViewModel @Inject constructor(
     private val completionSyncRepository: CompletionSyncRepository,
     private val authRepository: AuthRepository,
     private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
-    private val tilawahState: com.islami.Aha.data.research.TilawahStateRepository
+    private val tilawahState: com.islami.Aha.data.research.TilawahStateRepository,
+    private val dzikirHabitRepository: com.islami.Aha.data.dzikir.DzikirHabitRepository
 ) : ViewModel() {
     companion object {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
@@ -123,6 +124,7 @@ class HomeViewModel @Inject constructor(
                 researchLogRepository.restoreFromCloudIfNeeded()
             )
             tilawahState.syncOnLogin()
+            dzikirHabitRepository.syncOnLogin()
             researchLogRepository.scheduleUpload()
             syncTodayCompletionsToUiState()
             val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
@@ -685,16 +687,30 @@ class HomeViewModel @Inject constructor(
     private fun observeResearchIbadah() {
         val jamFormat = java.text.SimpleDateFormat("HH.mm", java.util.Locale.forLanguageTag("id-ID"))
         viewModelScope.launch {
-            todayKeyFlow.flatMapLatest { today ->
-                researchLogRepository.observeDikerjakan(today, com.islami.Aha.data.research.ResearchSchema.Jenis.DZIKIR)
-            }.collect { rows ->
-                val details = rows.mapNotNull { it.namaDetail }.toSet()
-                _uiState.update {
-                    it.copy(
-                        dzikirPagiDone = com.islami.Aha.data.research.ResearchSchema.Detail.PAGI in details,
-                        dzikirPetangDone = com.islami.Aha.data.research.ResearchSchema.Detail.PETANG in details
+            val katalog = dzikirHabitRepository.katalog.associateBy { it.slug }
+            kotlinx.coroutines.flow.combine(
+                dzikirHabitRepository.observeAll(),
+                todayKeyFlow.flatMapLatest { today ->
+                    researchLogRepository.observeDikerjakan(today, com.islami.Aha.data.research.ResearchSchema.Jenis.DZIKIR)
+                },
+                todayKeyFlow
+            ) { habits, rows, today ->
+                habits.map { h ->
+                    val prefix = "${today}_${com.islami.Aha.data.research.ResearchSchema.Jenis.DZIKIR}_${h.slug}_${h.id}_"
+                    val sesi = rows.filter { it.slotKey.startsWith(prefix) }
+                    DzikirHabitUi(
+                        id = h.id,
+                        slug = h.slug,
+                        nama = h.namaDetailAsli?.takeIf { it.isNotBlank() } ?: katalog[h.slug]?.nama ?: h.slug,
+                        waktuLabel = dzikirWaktuLabel(h.waktuDzikir),
+                        targetHitungan = h.targetHitungan,
+                        sesiHariIni = sesi.size,
+                        jamTerakhir = sesi.mapNotNull { it.jamPencatatan }.maxOrNull()
+                            ?.let { jamFormat.format(java.util.Date(it)) }
                     )
                 }
+            }.collect { list ->
+                _uiState.update { it.copy(dzikirHabits = list) }
             }
         }
         viewModelScope.launch {
@@ -742,11 +758,47 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(showResearchNotice = false) }
     }
 
-    fun toggleDzikir(detail: String) {
-        launchSafely("toggleDzikir") {
-            researchLogRepository.toggleDzikir(detail, todayKeyFlow.value)
+    private fun dzikirWaktuLabel(waktu: String): String = when (waktu) {
+        com.islami.Aha.data.research.ResearchSchema.WaktuDzikir.BADA_SHOLAT -> "Setelah sholat fardhu"
+        com.islami.Aha.data.research.ResearchSchema.WaktuDzikir.PAGI -> "Pagi"
+        com.islami.Aha.data.research.ResearchSchema.WaktuDzikir.PETANG -> "Petang"
+        com.islami.Aha.data.research.ResearchSchema.WaktuDzikir.SEBELUM_TIDUR -> "Sebelum tidur"
+        else -> "Kapan saja"
+    }
+
+    /**
+     * Catat satu sesi dzikir (mode centang). sumber_pencatatan = tidak_diketahui sampai
+     * Tahap 4; jumlah & durasi null. Ketukan ganda dalam 60 detik = sesi yang sama.
+     */
+    fun recordDzikir(habitId: String) {
+        launchSafely("recordDzikir") {
+            val h = dzikirHabitRepository.getAll().firstOrNull { it.id == habitId } ?: return@launchSafely
+            researchLogRepository.recordDzikirSession(
+                slug = h.slug,
+                idHabit = h.id,
+                tanggal = todayKeyFlow.value,
+                modePencatatan = h.modePencatatan,
+                waktuDzikir = h.waktuDzikir,
+                targetHitungan = h.targetHitungan,
+                namaDetailAsli = h.namaDetailAsli
+            )
             researchLogRepository.scheduleUpload()
         }
+    }
+
+    /** Batalkan catatan terakhir habit ini hari ini (baris dihapus). */
+    fun undoLastDzikir(habitId: String) {
+        launchSafely("undoLastDzikir") {
+            val h = dzikirHabitRepository.getAll().firstOrNull { it.id == habitId } ?: return@launchSafely
+            if (researchLogRepository.removeLatestDzikirSession(h.slug, h.id, todayKeyFlow.value)) {
+                researchLogRepository.scheduleUpload()
+            }
+        }
+    }
+
+    /** Hapus habit dzikir dari daftar; catatan yang sudah ada tetap tersimpan. */
+    fun removeDzikirHabit(habitId: String) {
+        launchSafely("removeDzikirHabit") { dzikirHabitRepository.remove(habitId) }
     }
 
     fun selectTilawahJenis(jenis: String) {
@@ -1196,6 +1248,7 @@ class HomeViewModel @Inject constructor(
                     researchLogRepository.restoreFromCloudIfNeeded()
                 )
                 tilawahState.syncOnLogin()
+                dzikirHabitRepository.syncOnLogin()
                 researchLogRepository.scheduleUpload()
                 
                 val prefsResult = authRepository.fetchUserPreferences()

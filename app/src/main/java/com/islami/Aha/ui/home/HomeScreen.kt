@@ -112,6 +112,7 @@ fun HomeScreen(
     transientSnackbarMessage: String? = null,
     onTransientSnackbarShown: () -> Unit = {},
     onNavigateToAddHabit: () -> Unit,
+    onNavigateToAddDzikir: () -> Unit = onNavigateToAddHabit,
     onNavigateToSettings: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -241,6 +242,7 @@ fun HomeScreen(
             onToggleHabitCompletion = viewModel::toggleHabitCompletion,
             onToggleHabitReminder = viewModel::toggleReminderEnabled,
             onNavigateToAddHabit = onNavigateToAddHabit,
+            onNavigateToAddDzikir = onNavigateToAddDzikir,
             onNavigateToSettings = onNavigateToSettings,
             onToggleHaidhMode = viewModel::toggleHaidhMode,
             onSelectMainCategory = viewModel::selectMainCategory,
@@ -248,7 +250,9 @@ fun HomeScreen(
             onToggleSunnahCompletion = viewModel::toggleSunnahHabitCompletion,
             onToggleSunnahReminder = viewModel::toggleSunnahReminder,
             onDeleteSunnah = viewModel::removeSunnahHabit,
-            onToggleDzikir = viewModel::toggleDzikir,
+            onRecordDzikir = viewModel::recordDzikir,
+            onUndoDzikir = viewModel::undoLastDzikir,
+            onDeleteDzikirHabit = viewModel::removeDzikirHabit,
             onDeleteTilawahSession = viewModel::removeTilawahSession,
             onSaveIqro = viewModel::saveIqro,
             onSelectTilawahJenis = viewModel::selectTilawahJenis,
@@ -434,6 +438,7 @@ fun HomeScreenContent(
     onToggleHabitCompletion: (Habit) -> Unit,
     onToggleHabitReminder: (Habit) -> Unit,
     onNavigateToAddHabit: () -> Unit,
+    onNavigateToAddDzikir: () -> Unit = onNavigateToAddHabit,
     onNavigateToSettings: () -> Unit,
     onToggleHaidhMode: (Boolean) -> Unit,
     onSelectMainCategory: (String) -> Unit,
@@ -441,7 +446,9 @@ fun HomeScreenContent(
     onToggleSunnahCompletion: (String) -> Unit = {},
     onToggleSunnahReminder: (String) -> Unit = {},
     onDeleteSunnah: (String) -> Unit = {},
-    onToggleDzikir: (String) -> Unit = {},
+    onRecordDzikir: (String) -> Unit = {},
+    onUndoDzikir: (String) -> Unit = {},
+    onDeleteDzikirHabit: (String) -> Unit = {},
     onDeleteTilawahSession: (String) -> Unit = {},
     onSaveIqro: (Int, Int) -> Unit = { _, _ -> },
     onSelectTilawahJenis: (String) -> Unit = {},
@@ -539,11 +546,7 @@ fun HomeScreenContent(
                 HabitSectionHeader(
                     completedCount = uiState.completedHabitsCount,
                     totalCount = uiState.totalHabitsCount,
-                    progressTextOverride = if (uiState.isTilawahCategory) {
-                        "${uiState.tilawahHalamanToday} halaman"
-                    } else {
-                        null
-                    }
+                    progressTextOverride = uiState.habitHeaderLabel
                 )
             }
 
@@ -563,11 +566,17 @@ fun HomeScreenContent(
             val selectedSubCategory = uiState.subTabCategories.getOrNull(uiState.selectedSubTabIndex)
             if (uiState.isDzikirCategory) {
                 item {
-                    DzikirCard(
-                        pagiDone = uiState.dzikirPagiDone,
-                        petangDone = uiState.dzikirPetangDone,
-                        onToggle = onToggleDzikir
-                    )
+                    if (uiState.dzikirHabits.isNotEmpty()) {
+                        DzikirCard(
+                            habits = uiState.dzikirHabits,
+                            onRecord = onRecordDzikir,
+                            onUndo = onUndoDzikir,
+                            onDelete = onDeleteDzikirHabit
+                        )
+                    } else {
+                        // Pintu masuk netral, bukan kartu progres 0/0.
+                        DzikirEntryCard(onAdd = onNavigateToAddDzikir)
+                    }
                 }
             } else if (uiState.isTilawahCategory) {
                 if (uiState.isTilawahIqroTab) {

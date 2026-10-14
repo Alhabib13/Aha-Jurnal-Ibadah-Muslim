@@ -63,8 +63,10 @@ class ResearchTimeTest {
     fun `acuan adzan per slot`() {
         assertEquals("Sholat Subuh", ResearchTime.habitAcuanAdzan("sholat_wajib", "subuh"))
         assertEquals("Sholat Isya", ResearchTime.habitAcuanAdzan("sholat_wajib", "isya"))
-        assertEquals("Sholat Subuh", ResearchTime.habitAcuanAdzan("dzikir", "pagi"))
-        assertEquals("Sholat Ashar", ResearchTime.habitAcuanAdzan("dzikir", "petang"))
+        assertEquals("Sholat Subuh", ResearchTime.habitAcuanAdzan("dzikir", "dzikir_pagi"))
+        assertEquals("Sholat Ashar", ResearchTime.habitAcuanAdzan("dzikir", "dzikir_petang"))
+        assertNull(ResearchTime.habitAcuanAdzan("dzikir", "dzikir_bada_sholat"))
+        assertNull(ResearchTime.habitAcuanAdzan("dzikir", "istighfar"))
         assertNull(ResearchTime.habitAcuanAdzan("tilawah", "bacaan_harian"))
         assertNull(ResearchTime.habitAcuanAdzan("puasa", "senin_kamis"))
     }

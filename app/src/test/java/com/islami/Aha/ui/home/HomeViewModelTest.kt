@@ -5,6 +5,7 @@ import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,9 +47,10 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `puasa category has wajib and sunnah sub tabs`() {
+    fun `puasa category shows sunnah tab before wajib tab`() {
+        // Urutan Sunnah lalu Wajib adalah keputusan produk sejak v1.1.1.
         val state = HomeUiState(selectedMainCategory = "Puasa")
-        assertEquals(listOf("Puasa Wajib", "Puasa Sunnah"), state.subTabCategories)
+        assertEquals(listOf("Puasa Sunnah", "Puasa Wajib"), state.subTabCategories)
     }
 
     @Test
@@ -59,12 +61,28 @@ class HomeViewModelTest {
 
     // ===================== Dzikir & Tilawah (v1.2.0, bukan lagi "segera hadir") =====================
 
+    private fun dz(id: String, sesi: Int, waktu: String = "Pagi") =
+        DzikirHabitUi(id, "dzikir_pagi", "Dzikir pagi", waktu, null, sesi, if (sesi > 0) "05.10" else null)
+
     @Test
-    fun `dzikir is available and counts two fixed slots`() {
-        val state = HomeUiState(selectedMainCategory = "Dzikir", dzikirPagiDone = true)
+    fun `dzikir ratio follows user's dzikir habits, sessions count once per habit`() {
+        val state = HomeUiState(
+            selectedMainCategory = "Dzikir",
+            dzikirHabits = listOf(dz("a", 3), dz("b", 0), dz("c", 1, waktu = "Kapan saja"))
+        )
         assertFalse(state.isComingSoon)
-        assertEquals(1, state.completedHabitsCount)
-        assertEquals(2, state.totalHabitsCount)
+        assertEquals(2, state.completedHabitsCount)
+        // Habit ber-waktu "bebas" tetap masuk penyebut.
+        assertEquals(3, state.totalHabitsCount)
+        assertEquals("2/3", state.getCategoryBadge("Dzikir"))
+    }
+
+    @Test
+    fun `no dzikir habit shows neutral entry, never a 0 of 0 badge`() {
+        val state = HomeUiState(selectedMainCategory = "Dzikir")
+        assertEquals("Belum ada", state.getCategoryBadge("Dzikir"))
+        assertEquals(0, state.dzikirTotalCount)
+        assertFalse(state.isComingSoon)
     }
 
     @Test
@@ -80,9 +98,9 @@ class HomeViewModelTest {
 
     @Test
     fun `dzikir and tilawah stay visible in haidh mode`() {
-        val state = HomeUiState(isHaidhMode = true, dzikirPetangDone = true)
+        val state = HomeUiState(isHaidhMode = true, dzikirHabits = listOf(dz("a", 1), dz("b", 0)))
         assertEquals("1/2", state.getCategoryBadge("Dzikir"))
-        assertEquals("0 hlm", state.getCategoryBadge("Tilawah"))
+        assertEquals("Belum dicatat", state.getCategoryBadge("Tilawah"))
     }
 
     @Test
@@ -124,15 +142,16 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `filtered habits returns puasa wajib for puasa tab 0`() {
-        val state = HomeUiState(
+    fun `filtered habits returns puasa sunnah for tab 0 and puasa wajib for tab 1`() {
+        val sunnah = HomeUiState(
             selectedMainCategory = "Puasa",
             selectedSubTabIndex = 0,
             allHabits = sampleHabits,
             isRamadanMonth = true
         )
-        assertEquals(1, state.filteredHabits.size)
-        assertEquals("Ramadan", state.filteredHabits.first().name)
+        assertEquals(listOf("Senin"), sunnah.filteredHabits.map { it.name })
+        val wajib = sunnah.copy(selectedSubTabIndex = 1)
+        assertEquals(listOf("Ramadan"), wajib.filteredHabits.map { it.name })
     }
 
     @Test
@@ -234,9 +253,9 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `getCategoryBadge for dzikir returns slot progress`() {
-        val state = HomeUiState()
-        assertEquals("0/2", state.getCategoryBadge("Dzikir"))
+    fun `getCategoryBadge for dzikir returns habit progress`() {
+        val state = HomeUiState(dzikirHabits = listOf(dz("a", 0)))
+        assertEquals("0/1", state.getCategoryBadge("Dzikir"))
     }
 
     // ===================== Display Names =====================
@@ -244,7 +263,40 @@ class HomeViewModelTest {
     @Test
     fun `puasa sub tab display names include ramadan label`() {
         val state = HomeUiState(selectedMainCategory = "Puasa")
-        assertEquals("Puasa Wajib (Ramadan)", state.subTabDisplayNames[0])
-        assertEquals("Puasa Sunnah", state.subTabDisplayNames[1])
+        assertEquals(listOf("Sunnah", "Wajib (Ramadan)"), state.subTabDisplayNames)
+    }
+
+    // ===================== Tidak ada angka saat penyebut nol / Mode Cuti =====================
+
+    @Test
+    fun `puasa badge without any puasa habit says belum ada, not 0 of 0`() {
+        val state = HomeUiState(isRamadanMonth = false, allHabits = sampleHabits.filter { it.category.startsWith("Sholat") })
+        assertEquals("Belum ada", state.getCategoryBadge("Puasa"))
+    }
+
+    @Test
+    fun `sholat header during mode cuti shows state, never a count`() {
+        val state = HomeUiState(selectedMainCategory = "Sholat", isHaidhMode = true, allHabits = sampleHabits)
+        assertEquals(0, state.totalHabitsCount)
+        assertEquals("Mode Cuti aktif", state.habitHeaderLabel)
+        assertEquals("Mode Cuti aktif", state.copy(selectedMainCategory = "Puasa").habitHeaderLabel)
+    }
+
+    @Test
+    fun `header with zero denominator says belum ada, otherwise uses the count`() {
+        val kosong = HomeUiState(selectedMainCategory = "Sholat", selectedSubTabIndex = 1)
+        assertEquals("Belum ada", kosong.habitHeaderLabel)
+        val isi = HomeUiState(selectedMainCategory = "Sholat", selectedSubTabIndex = 0, allHabits = sampleHabits)
+        assertNull(isi.habitHeaderLabel)
+    }
+
+    @Test
+    fun `tilawah without a session today says belum dicatat, never zero pages`() {
+        val kosong = HomeUiState(selectedMainCategory = "Tilawah")
+        assertEquals("Belum dicatat", kosong.getCategoryBadge("Tilawah"))
+        assertEquals("Belum dicatat", kosong.habitHeaderLabel)
+        val isi = kosong.copy(tilawahSessions = listOf(TilawahSessionUi("a", "hafalan", 2, 9, 30, "20.00")))
+        assertEquals("2 hlm", isi.getCategoryBadge("Tilawah"))
+        assertEquals("2 halaman", isi.habitHeaderLabel)
     }
 }

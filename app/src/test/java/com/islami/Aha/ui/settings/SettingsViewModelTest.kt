@@ -58,6 +58,8 @@ class SettingsViewModelTest {
         mockSharedPreferences = mockk(relaxed = true)
         mockEditor = mockk(relaxed = true)
         mockAuthRepository = mockk(relaxed = true)
+        // Teks snackbar diambil dari strings.xml; Context tiruan harus mengembalikan teks aslinya.
+        com.islami.Aha.testutil.RealStrings.installOn(mockAppContext)
         every { mockAppContext.getSharedPreferences("aha_prefs", Context.MODE_PRIVATE) } returns mockSharedPreferences
         every { mockSharedPreferences.edit() } returns mockEditor
         every { mockSharedPreferences.getString(any(), any()) } answers { secondArg<String?>() }

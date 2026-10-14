@@ -51,7 +51,7 @@ class AddHabitViewModelTest {
             researchLogRepository = mockk(relaxed = true)
         )
         sharedViewModel = SunnahHabitSharedViewModel(repository)
-        viewModel = AddHabitViewModel(mockContext, sharedViewModel)
+        viewModel = AddHabitViewModel(mockContext, sharedViewModel, mockk(relaxed = true))
     }
 
     @After

@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.islami.Aha.data.local.DeletedSyncDao
+import com.islami.Aha.data.local.DzikirHabitDao
 import com.islami.Aha.data.local.HabitDao
 import com.islami.Aha.data.quran.TilawahRange
 import com.islami.Aha.data.local.ResearchLogDao
@@ -48,7 +49,8 @@ class ResearchLogRepository @Inject constructor(
     private val deletedSyncDao: DeletedSyncDao,
     private val sharedPreferences: SharedPreferences,
     private val habitDao: HabitDao,
-    private val tilawahState: TilawahStateRepository
+    private val tilawahState: TilawahStateRepository,
+    private val dzikirHabitDao: DzikirHabitDao
 ) {
     companion object {
         const val RECORD_TYPE = "RESEARCH_LOG"
@@ -62,14 +64,9 @@ class ResearchLogRepository @Inject constructor(
         const val KEY_RESEARCH_NOTICE_ACK = "research_notice_ack_v1"
         private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
 
-        fun dzikirSlot(detail: String): SlotRef = SlotRef(
-            IbadahSlot(
-                ResearchSchema.Jenis.DZIKIR,
-                detail,
-                if (detail == ResearchSchema.Detail.PAGI) "Dzikir Pagi" else "Dzikir Petang"
-            ),
-            null
-        )
+
+        private fun prefixSesiDzikir(tanggal: String, slug: String, idHabit: String) =
+            "${tanggal}_${ResearchSchema.Jenis.DZIKIR}_${slug}_${idHabit}_"
 
         // Kunci jadwal sholat yang ditulis HomeViewModel.
         private const val KEY_PRAYER_TIME_SOURCE = "prayer_time_source"
@@ -106,7 +103,11 @@ class ResearchLogRepository @Inject constructor(
         jumlah: Int? = null,
         jilid: Int? = null,
         jumlahAyat: Int? = null,
-        juz: Int? = null
+        juz: Int? = null,
+        modePencatatan: String? = null,
+        waktuDzikir: String? = null,
+        targetHitungan: Int? = null,
+        durasiDetik: Int? = null
     ) {
         ref ?: return
         // Data penelitian hanya dikumpulkan setelah pengguna diberi tahu.
@@ -125,7 +126,8 @@ class ResearchLogRepository @Inject constructor(
                 namaDetail = ref.slot.namaDetail,
                 namaDetailAsli = ref.slot.namaDetailAsli?.take(100),
                 status = ResearchSchema.Status.DIKERJAKAN,
-                jumlah = jumlah,
+                // Aturan kejujuran data: dzikir mode centang tidak pernah punya jumlah.
+                jumlah = if (modePencatatan == ResearchSchema.ModePencatatan.CENTANG) null else jumlah,
                 jilid = jilid,
                 jamPencatatan = jamPencatatanMs,
                 sumberPencatatan = sumber,
@@ -135,7 +137,12 @@ class ResearchLogRepository @Inject constructor(
                 jumlahAyat = jumlahAyat,
                 juz = juz,
                 offsetWaktu = ResearchTime.offsetString(jamPencatatanMs),
-                selisihMenitDariAdzan = selisih
+                selisihMenitDariAdzan = selisih,
+                modePencatatan = modePencatatan,
+                waktuDzikir = waktuDzikir,
+                targetHitungan = targetHitungan,
+                // Mode centang: jumlah & durasi WAJIB null (tidak tahu != nol, jangan diisi target).
+                durasiDetik = if (modePencatatan == ResearchSchema.ModePencatatan.LAYAR) durasiDetik else null
             )
         )
         // Dicentang ulang sebelum hapusan sempat terkirim: cukup timpa dokumennya.
@@ -171,12 +178,57 @@ class ResearchLogRepository @Inject constructor(
 
     fun observeLatestIqro(): Flow<ResearchLogEntity?> = researchLogDao.observeLatestIqro()
 
-    /** Dzikir pagi/petang: slot tetap, centang = catat, centang lagi = hapus. */
-    suspend fun toggleDzikir(detail: String, tanggal: String) {
-        require(detail == ResearchSchema.Detail.PAGI || detail == ResearchSchema.Detail.PETANG)
-        val ref = dzikirSlot(detail)
-        val key = slotKeyOrNull(ref, tanggal) ?: return
-        if (researchLogDao.getBySlotKey(key) != null) remove(ref, tanggal) else recordDikerjakan(ref, tanggal)
+    /**
+     * Catat satu SESI dzikir (satu baris per sesi; keputusan 4.2). ID deterministik per sesi:
+     * {tanggal}_dzikir_{slug}_{idHabit}_{sesiMs}. Pencatatan slug + habit yang sama dalam
+     * DZIKIR_JENDELA_SESI_MS dianggap sesi yang sama: ID dan jam pencatatan awal dipakai ulang,
+     * sehingga ketukan ganda / percobaan ulang tidak membuat baris palsu.
+     * @return slotKey sesi, atau null bila tidak tercatat (data tidak sah / belum ada persetujuan).
+     */
+    suspend fun recordDzikirSession(
+        slug: String,
+        idHabit: String,
+        tanggal: String,
+        modePencatatan: String,
+        waktuDzikir: String,
+        targetHitungan: Int? = null,
+        jumlah: Int? = null,
+        durasiDetik: Int? = null,
+        namaDetailAsli: String? = null,
+        nowMs: Long = System.currentTimeMillis(),
+        sumber: String = ResearchSchema.Sumber.TIDAK_DIKETAHUI
+    ): String? {
+        if (slug !in ResearchSchema.DETAIL_PER_JENIS.getValue(ResearchSchema.Jenis.DZIKIR)) return null
+        if (modePencatatan !in ResearchSchema.MODE_PENCATATAN || waktuDzikir !in ResearchSchema.WAKTU_DZIKIR) return null
+        val prefix = prefixSesiDzikir(tanggal, slug, idHabit)
+        val sesiSebelumnya = researchLogDao.findRecentByPrefix(prefix, nowMs - ResearchSchema.DZIKIR_JENDELA_SESI_MS)
+        val sesiMs = sesiSebelumnya?.slotKey?.substringAfterLast('_')?.toLongOrNull() ?: nowMs
+        val localId = runCatching { ResearchSchema.dzikirLocalId(idHabit, sesiMs) }.getOrNull() ?: return null
+        val asli = if (slug == ResearchSchema.Detail.DZIKIR_LAINNYA) namaDetailAsli?.trim()?.takeIf { it.isNotEmpty() } else null
+        if (slug == ResearchSchema.Detail.DZIKIR_LAINNYA && asli == null) return null
+        val ref = SlotRef(IbadahSlot(ResearchSchema.Jenis.DZIKIR, slug, asli), localId)
+        recordDikerjakan(
+            ref, tanggal,
+            jamPencatatanMs = sesiSebelumnya?.jamPencatatan ?: nowMs,
+            sumber = sumber,
+            jumlah = jumlah,
+            modePencatatan = modePencatatan,
+            waktuDzikir = waktuDzikir,
+            targetHitungan = targetHitungan,
+            durasiDetik = durasiDetik
+        )
+        return slotKeyOrNull(ref, tanggal)
+    }
+
+    /** Sesi dzikir [idHabit] pada [tanggal], urut jam pencatatan. */
+    suspend fun getDzikirSessions(slug: String, idHabit: String, tanggal: String): List<ResearchLogEntity> =
+        researchLogDao.getBySlotKeyPrefix(prefixSesiDzikir(tanggal, slug, idHabit)).sortedBy { it.jamPencatatan ?: 0L }
+
+    /** Batalkan sesi TERAKHIR habit ini hari itu (keputusan C: baris dihapus, bukan "tidak"). */
+    suspend fun removeLatestDzikirSession(slug: String, idHabit: String, tanggal: String): Boolean {
+        val terakhir = getDzikirSessions(slug, idHabit, tanggal).lastOrNull() ?: return false
+        removeBySlotKey(terakhir.slotKey)
+        return true
     }
 
     /**
@@ -256,7 +308,11 @@ class ResearchLogRepository @Inject constructor(
                     jumlahAyat = doc.getLong(ResearchSchema.Log.JUMLAH_AYAT)?.toInt(),
                     juz = doc.getLong(ResearchSchema.Log.JUZ)?.toInt(),
                     offsetWaktu = doc.getString(ResearchSchema.Log.OFFSET_WAKTU) ?: return@mapNotNull null,
-                    selisihMenitDariAdzan = doc.getLong(ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN)?.toInt()
+                    selisihMenitDariAdzan = doc.getLong(ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN)?.toInt(),
+                    modePencatatan = doc.getString(ResearchSchema.Log.MODE_PENCATATAN),
+                    waktuDzikir = doc.getString(ResearchSchema.Log.WAKTU_DZIKIR),
+                    targetHitungan = doc.getLong(ResearchSchema.Log.TARGET_HITUNGAN)?.toInt(),
+                    durasiDetik = doc.getLong(ResearchSchema.Log.DURASI_DETIK)?.toInt()
                 )
             }
             researchLogDao.insertIgnore(rows)
@@ -336,6 +392,7 @@ class ResearchLogRepository @Inject constructor(
         deletedSyncDao.deleteByType(RECORD_TYPE)
         clearRestoreFlags()
         tilawahState.clearLocal()
+        dzikirHabitDao.deleteAll()
     }
 
     private fun clearRestoreFlags() {
@@ -350,6 +407,7 @@ class ResearchLogRepository @Inject constructor(
         deletedSyncDao.deleteByType(RECORD_TYPE)
         clearRestoreFlags()
         tilawahState.clearLocal()
+        dzikirHabitDao.deleteNotOwnedBy(uid)
     }
 
     private fun slotKeyOrNull(ref: SlotRef, tanggal: String): String? =
@@ -371,7 +429,11 @@ class ResearchLogRepository @Inject constructor(
         ResearchSchema.Log.JUMLAH_AYAT to jumlahAyat?.toLong(),
         ResearchSchema.Log.JUZ to juz?.toLong(),
         ResearchSchema.Log.OFFSET_WAKTU to offsetWaktu,
-        ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN to selisihMenitDariAdzan?.toLong()
+        ResearchSchema.Log.SELISIH_MENIT_DARI_ADZAN to selisihMenitDariAdzan?.toLong(),
+        ResearchSchema.Log.MODE_PENCATATAN to modePencatatan,
+        ResearchSchema.Log.WAKTU_DZIKIR to waktuDzikir,
+        ResearchSchema.Log.TARGET_HITUNGAN to targetHitungan?.toLong(),
+        ResearchSchema.Log.DURASI_DETIK to durasiDetik?.toLong()
     )
 
     private fun failure(changed: Int, retry: Boolean, error: Throwable): CloudSyncStatus {

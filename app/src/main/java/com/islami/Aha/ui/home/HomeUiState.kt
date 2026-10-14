@@ -17,8 +17,27 @@ data class TilawahSessionUi(
     val jam: String
 )
 
+/** Satu habit dzikir pilihan pengguna beserta catatannya hari ini. */
+data class DzikirHabitUi(
+    val id: String,
+    val slug: String,
+    val nama: String,
+    /** Keterangan waktu netral, mis. "Pagi" / "Kapan saja". */
+    val waktuLabel: String,
+    val targetHitungan: Int?,
+    /** Jumlah sesi yang dicatat hari ini (0 = belum dicatat, BUKAN "tidak dikerjakan"). */
+    val sesiHariIni: Int,
+    val jamTerakhir: String?
+) {
+    val dicatatHariIni: Boolean get() = sesiHariIni > 0
+}
+
 /** Posisi terakhir Iqro/metode sejenis. */
 data class IqroProgressUi(val jilid: Int, val halaman: Int, val tanggal: String)
+
+internal const val BELUM_ADA = "Belum ada"
+internal const val MODE_CUTI_AKTIF = "Mode Cuti aktif"
+internal const val BELUM_DICATAT = "Belum dicatat"
 
 data class HomeUiState(
     val isLoading: Boolean = true,
@@ -63,8 +82,8 @@ data class HomeUiState(
     val isRamadanMonth: Boolean = DateUtils.isRamadanMonth(),
     val showGenderPrompt: Boolean = false,
     val showResearchNotice: Boolean = false,
-    val dzikirPagiDone: Boolean = false,
-    val dzikirPetangDone: Boolean = false,
+    /** Habit dzikir pilihan pengguna; kosong = Beranda menampilkan pintu masuk netral, bukan 0/0. */
+    val dzikirHabits: List<DzikirHabitUi> = emptyList(),
     val tilawahSessions: List<TilawahSessionUi> = emptyList(),
     val iqroProgress: IqroProgressUi? = null,
     val tilawahJenisDipilih: String = com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN,
@@ -82,8 +101,19 @@ data class HomeUiState(
     val isTilawahIqroTab: Boolean
         get() = isTilawahCategory && selectedSubTabIndex == 1
 
+    /** Habit dzikir yang punya minimal satu catatan hari ini (berapa pun sesinya). */
     val dzikirDoneCount: Int
-        get() = (if (dzikirPagiDone) 1 else 0) + (if (dzikirPetangDone) 1 else 0)
+        get() = dzikirHabits.count { it.dicatatHariIni }
+
+    /**
+     * Penyebut rasio dzikir = semua habit dzikir, termasuk yang ber-waktu "bebas".
+     * Dzikir tetap aktif saat Mode Cuti: lihat ModeCutiPolicy.
+     */
+    val dzikirTotalCount: Int
+        get() = if (com.islami.Aha.data.research.ModeCutiPolicy.aktif(
+                com.islami.Aha.data.research.ResearchSchema.Jenis.DZIKIR, isHaidhMode
+            )
+        ) dzikirHabits.size else 0
 
     val tilawahHalamanToday: Int
         get() = tilawahSessions.sumOf { it.halaman }
@@ -215,13 +245,35 @@ data class HomeUiState(
 
     val totalHabitsCount: Int
         get() {
-            if (isDzikirCategory) return 2
+            if (isDzikirCategory) return dzikirTotalCount
             val habitCount = if (showRamadanUnifiedCard) {
                 ramadanUnifiedHabits.size
             } else {
                 filteredHabits.size
             }
             return habitCount + filteredSunnahHabits.size
+        }
+
+    /**
+     * Teks chip di samping "Habit Hari Ini". null = pakai hitungan "x/y selesai".
+     * Hitungan hanya tampil bila penyebutnya > 0 dan jenis ibadahnya tidak dinonaktifkan
+     * Mode Cuti; selain itu ditampilkan keterangan keadaan (tidak ada / tidak dihitung).
+     */
+    val habitHeaderLabel: String?
+        get() = when {
+            // Belum ada sesi hari ini = belum dicatat, bukan "membaca 0 halaman".
+            isTilawahCategory -> if (tilawahSessions.isEmpty()) BELUM_DICATAT else "$tilawahHalamanToday halaman"
+            isDzikirCategory -> when {
+                !com.islami.Aha.data.research.ModeCutiPolicy.aktif(
+                    com.islami.Aha.data.research.ResearchSchema.Jenis.DZIKIR, isHaidhMode
+                ) -> MODE_CUTI_AKTIF
+                dzikirTotalCount == 0 -> BELUM_ADA
+                else -> "$dzikirDoneCount dari $dzikirTotalCount dicatat"
+            }
+            // Sholat & puasa tidak dihitung selama Mode Cuti: angka apa pun di sini salah.
+            isHaidhMode && (selectedMainCategory == "Sholat" || selectedMainCategory == "Puasa") -> MODE_CUTI_AKTIF
+            totalHabitsCount == 0 -> BELUM_ADA
+            else -> null
         }
 
     fun getCategoryBadge(mainCategory: String): String {
@@ -233,7 +285,7 @@ data class HomeUiState(
                 val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
                 val completed = habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }
                 val total = habits.size + sunnah.size
-                "$completed/$total"
+                if (total == 0) BELUM_ADA else "$completed/$total"
             }
             "Puasa" -> {
                 if (isHaidhMode) return "Cuti"
@@ -244,12 +296,12 @@ data class HomeUiState(
                 val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
                 val completed = habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }
                 val total = habits.size + sunnah.size
-                "$completed/$total"
+                // Di luar Ramadan tanpa puasa sunnah: "tidak ada", bukan hitungan 0/0.
+                if (total == 0) BELUM_ADA else "$completed/$total"
             }
-            // Dzikir & tilawah tetap tampil saat Mode Cuti (tanpa udzur).
-            // MENUNGGU VALIDASI PAKAR: tilawah saat haid khilafiyah; tidak disembunyikan = netral.
-            "Dzikir" -> "$dzikirDoneCount/2"
-            "Tilawah" -> "$tilawahHalamanToday hlm"
+            // Cakupan Mode Cuti untuk dzikir & tilawah: ModeCutiPolicy (MENUNGGU VALIDASI PAKAR).
+            "Dzikir" -> if (dzikirTotalCount == 0) BELUM_ADA else "$dzikirDoneCount/$dzikirTotalCount"
+            "Tilawah" -> if (tilawahSessions.isEmpty()) BELUM_DICATAT else "$tilawahHalamanToday hlm"
             else -> "Segera"
         }
     }

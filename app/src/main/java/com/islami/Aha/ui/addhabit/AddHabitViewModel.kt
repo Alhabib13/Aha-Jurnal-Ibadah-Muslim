@@ -4,6 +4,10 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.islami.Aha.BuildConfig
+import com.islami.Aha.data.dzikir.DzikirHabitDraft
+import com.islami.Aha.data.dzikir.DzikirHabitRepository
+import com.islami.Aha.data.dzikir.DzikirKatalogEntry
+import com.islami.Aha.data.research.ResearchSchema
 import com.islami.Aha.ui.shared.SunnahHabitSharedViewModel
 import com.islami.Aha.util.NotificationScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,6 +36,23 @@ data class SunnahHabitPreset(
     val name: String,
     val description: String
 )
+
+/**
+ * Satu dzikir yang sedang dipilih di Add Habit. [key] = slug, kecuali dzikir_lainnya
+ * yang boleh lebih dari satu ("dzikir_lainnya#1", "#2", ...).
+ */
+data class DzikirPilihan(
+    val key: String,
+    val slug: String,
+    val mode: String = ResearchSchema.ModePencatatan.CENTANG,
+    /** Kosong secara bawaan; tidak ada nilai anjuran. */
+    val targetText: String = "",
+    /** Wajib untuk dzikir_lainnya. */
+    val namaAsli: String = ""
+) {
+    val target: Int? get() = targetText.toIntOrNull()?.takeIf { it in ResearchSchema.TARGET_HITUNGAN }
+    val targetTidakSah: Boolean get() = targetText.isNotEmpty() && target == null
+}
 
 data class WeekDay(val id: Int, val shortName: String, val fullName: String)
 
@@ -109,8 +130,22 @@ data class AddHabitUiState(
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
     val showTimePicker: Boolean = false,
-    val savedHabitName: String = ""
+    val savedHabitName: String = "",
+    /** Kategori Dzikir dipilih (terpisah dari SunnahCategoryType: disimpan ke dzikir_habits). */
+    val isDzikir: Boolean = false,
+    val dzikirKatalog: List<DzikirKatalogEntry> = emptyList(),
+    val dzikirPilihan: List<DzikirPilihan> = emptyList(),
+    /** Slug non-lainnya yang sudah ada di daftar pengguna (satu habit per slug). */
+    val dzikirSlugSudahAda: Set<String> = emptySet(),
+    val dzikirError: String? = null
 ) {
+    /**
+     * Selama Mode Cuti hanya kategori yang tetap aktif menurut ModeCutiPolicy yang bisa
+     * ditambahkan (bawaan: Dzikir). Sholat & Puasa Sunnah tetap terkunci.
+     */
+    val dzikirBolehSaatCuti: Boolean
+        get() = com.islami.Aha.data.research.ModeCutiPolicy.aktif(ResearchSchema.Jenis.DZIKIR, modeCutiAktif = true)
+
     val availableHabits: List<SunnahHabitPreset>
         get() = getPresetsFor(selectedCategory)
 
@@ -135,7 +170,8 @@ data class AddHabitUiState(
 @HiltViewModel
 class AddHabitViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel
+    private val sunnahHabitSharedViewModel: SunnahHabitSharedViewModel,
+    private val dzikirHabitRepository: DzikirHabitRepository
 ) : ViewModel() {
 
     private fun debugLog(message: String) {
@@ -155,14 +191,22 @@ class AddHabitViewModel @Inject constructor(
         viewModelScope.launch {
             com.islami.Aha.util.UserPreferencesManager.isHaidhMode.collect { isHaidhMode ->
                 _uiState.update { it.copy(isHaidhMode = isHaidhMode) }
+                // Mode Cuti: satu-satunya kategori yang terbuka adalah Dzikir.
+                if (isHaidhMode && _uiState.value.dzikirBolehSaatCuti && !_uiState.value.isDzikir) {
+                    selectDzikirCategory()
+                }
             }
         }
     }
 
     fun selectCategory(category: SunnahCategoryType) {
+        if (_uiState.value.isHaidhMode) return // Sholat & Puasa Sunnah terkunci saat Mode Cuti
         _uiState.update { current ->
             val defaultHabit = getPresetsFor(category).first().id
             current.copy(
+                isDzikir = false,
+                dzikirPilihan = emptyList(),
+                dzikirError = null,
                 selectedCategory = category,
                 selectedHabitId = defaultHabit,
                 isCustomHabit = false,
@@ -172,6 +216,107 @@ class AddHabitViewModel @Inject constructor(
                 frequencyType = FrequencyType.EVERY_DAY,
                 selectedDays = emptySet()
             )
+        }
+    }
+
+    // ---------- Dzikir ----------
+
+    fun selectDzikirCategory() {
+        _uiState.update { it.copy(isDzikir = true, dzikirError = null) }
+        viewModelScope.launch {
+            val katalog = dzikirHabitRepository.katalog
+            val sudahAda = dzikirHabitRepository.getAll()
+                .filter { it.slug != ResearchSchema.Detail.DZIKIR_LAINNYA }
+                .map { it.slug }.toSet()
+            _uiState.update { it.copy(dzikirKatalog = katalog, dzikirSlugSudahAda = sudahAda) }
+        }
+    }
+
+    /** Pilih / batal pilih satu entri katalog. dzikir_lainnya: menambah satu isian baru. */
+    fun toggleDzikirEntry(slug: String) {
+        _uiState.update { s ->
+            if (slug == ResearchSchema.Detail.DZIKIR_LAINNYA) {
+                val lainnya = s.dzikirPilihan.filter { it.slug == slug }
+                if (lainnya.isNotEmpty()) {
+                    s.copy(dzikirPilihan = s.dzikirPilihan.filterNot { it.slug == slug }, dzikirError = null)
+                } else {
+                    s.copy(dzikirPilihan = s.dzikirPilihan + DzikirPilihan("$slug#1", slug), dzikirError = null)
+                }
+            } else if (slug in s.dzikirSlugSudahAda) {
+                s
+            } else if (s.dzikirPilihan.any { it.key == slug }) {
+                s.copy(dzikirPilihan = s.dzikirPilihan.filterNot { it.key == slug }, dzikirError = null)
+            } else {
+                s.copy(dzikirPilihan = s.dzikirPilihan + DzikirPilihan(slug, slug), dzikirError = null)
+            }
+        }
+    }
+
+    fun addDzikirLainnya() {
+        _uiState.update { s ->
+            val slug = ResearchSchema.Detail.DZIKIR_LAINNYA
+            val next = (s.dzikirPilihan.filter { it.slug == slug }
+                .mapNotNull { it.key.substringAfter('#').toIntOrNull() }.maxOrNull() ?: 0) + 1
+            s.copy(dzikirPilihan = s.dzikirPilihan + DzikirPilihan("$slug#$next", slug), dzikirError = null)
+        }
+    }
+
+    fun removeDzikirPilihan(key: String) {
+        _uiState.update { s -> s.copy(dzikirPilihan = s.dzikirPilihan.filterNot { it.key == key }, dzikirError = null) }
+    }
+
+    fun updateDzikirTarget(key: String, text: String) {
+        val digits = text.filter(Char::isDigit).take(6)
+        updatePilihan(key) { it.copy(targetText = digits) }
+    }
+
+    fun updateDzikirNama(key: String, nama: String) {
+        updatePilihan(key) { it.copy(namaAsli = nama.take(100)) }
+    }
+
+    /** Mode "layar" hanya bisa dipilih bila entri katalog punya bacaan (versi ini: belum ada). */
+    fun selectDzikirMode(key: String, mode: String) {
+        val s = _uiState.value
+        val pilihan = s.dzikirPilihan.firstOrNull { it.key == key } ?: return
+        val entry = s.dzikirKatalog.firstOrNull { it.slug == pilihan.slug } ?: return
+        if (mode !in entry.modeTersedia) return
+        updatePilihan(key) { it.copy(mode = mode) }
+    }
+
+    private fun updatePilihan(key: String, f: (DzikirPilihan) -> DzikirPilihan) {
+        _uiState.update { s ->
+            s.copy(dzikirPilihan = s.dzikirPilihan.map { if (it.key == key) f(it) else it }, dzikirError = null)
+        }
+    }
+
+    private fun saveDzikir(state: AddHabitUiState) {
+        if (state.dzikirPilihan.isEmpty()) {
+            _uiState.update { it.copy(dzikirError = "Pilih minimal satu dzikir.") }
+            return
+        }
+        if (state.dzikirPilihan.any { it.targetTidakSah }) {
+            _uiState.update { it.copy(dzikirError = "Target hitungan harus angka 1–100.000, atau dikosongkan.") }
+            return
+        }
+        val drafts = state.dzikirPilihan.map {
+            DzikirHabitDraft(
+                slug = it.slug,
+                modePencatatan = it.mode,
+                targetHitungan = it.target,
+                namaDetailAsli = it.namaAsli.takeIf { _ -> it.slug == ResearchSchema.Detail.DZIKIR_LAINNYA }
+            )
+        }
+        _uiState.update { it.copy(isSaving = true, dzikirError = null) }
+        viewModelScope.launch {
+            val error = runCatching { dzikirHabitRepository.addAll(drafts) }
+                .getOrElse { "Gagal menyimpan. Coba lagi." }
+            _uiState.update {
+                if (error == null) {
+                    it.copy(isSaving = false, saveSuccess = true, savedHabitName = "${drafts.size} dzikir berhasil disimpan")
+                } else {
+                    it.copy(isSaving = false, dzikirError = error)
+                }
+            }
         }
     }
 
@@ -252,6 +397,12 @@ class AddHabitViewModel @Inject constructor(
 
     fun saveHabit() {
         val state = _uiState.value
+        if (state.isDzikir) {
+            if (state.isHaidhMode && !state.dzikirBolehSaatCuti) return
+            saveDzikir(state)
+            return
+        }
+        if (state.isHaidhMode) return
         val habitName = state.selectedHabitName
         if (habitName.isBlank()) return
         _uiState.update { it.copy(isSaving = true) }
