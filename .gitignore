@@ -38,3 +38,6 @@ keystore.properties
 # Log emulator Firebase
 firestore-debug.log
 firebase-debug.log
+# Konfigurasi & cache Firebase CLI lokal (berisi token login, JANGAN di-commit)
+.firebase-config/
+.firebase/
