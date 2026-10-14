@@ -266,8 +266,9 @@ fun HomeScreen(
         }
 
         if (uiState.showResearchNotice) {
-            ResearchNoticeDialog(
-                onAcknowledge = viewModel::acknowledgeResearchNotice,
+            com.islami.Aha.ui.consent.ResearchConsentDialog(
+                onAccept = { viewModel.decideResearchConsent(true) },
+                onDecline = { viewModel.decideResearchConsent(false) },
                 onOpenPrivacyPolicy = {
                     context.startActivity(
                         android.content.Intent(context, com.islami.Aha.ui.settings.LegalDocumentActivity::class.java).apply {

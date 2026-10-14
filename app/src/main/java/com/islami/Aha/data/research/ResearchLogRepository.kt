@@ -60,8 +60,12 @@ class ResearchLogRepository @Inject constructor(
         private const val UPLOAD_FAILED_NOTICE = "Sinkronisasi log ibadah ke cloud belum berhasil."
         private const val RESTORE_TIMEOUT_MS = 30_000L
 
-        /** Pengguna sudah membaca pemberitahuan penelitian (dialog sekali muncul). */
+        /** v1.2.0 awal: dialog "Mengerti" tanpa pilihan menolak. Dibaca sekali sebagai "setuju". */
         const val KEY_RESEARCH_NOTICE_ACK = "research_notice_ack_v1"
+        /** Keputusan pengguna atas penelitian: [CONSENT_SETUJU] / [CONSENT_TOLAK]; tidak ada = belum memutuskan. */
+        const val KEY_RESEARCH_CONSENT = "research_consent_v2"
+        const val CONSENT_SETUJU = "setuju"
+        const val CONSENT_TOLAK = "tolak"
         private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
 
 
@@ -110,8 +114,8 @@ class ResearchLogRepository @Inject constructor(
         durasiDetik: Int? = null
     ) {
         ref ?: return
-        // Data penelitian hanya dikumpulkan setelah pengguna diberi tahu.
-        if (!isNoticeAcknowledged()) return
+        // Catatan SELALU disimpan di HP (dzikir/tilawah/iqro hanya ada di tabel ini).
+        // Persetujuan penelitian hanya mengatur pengunggahan: lihat syncPending().
         val key = slotKeyOrNull(ref, tanggal) ?: return
         val selisih = if (ref.slot.jenisIbadah in ResearchSchema.JENIS_DENGAN_SELISIH) {
             hitungSelisihAdzan(ref.slot, tanggal, jamPencatatanMs)
@@ -163,12 +167,56 @@ class ResearchLogRepository @Inject constructor(
         }
     }
 
-    // ---------- pemberitahuan penelitian ----------
+    // ---------- persetujuan penelitian ----------
 
-    fun isNoticeAcknowledged(): Boolean = sharedPreferences.getBoolean(KEY_RESEARCH_NOTICE_ACK, false)
+    /** true = setuju, false = menolak, null = belum memutuskan (tampilkan layar persetujuan). */
+    fun researchConsent(): Boolean? = when (sharedPreferences.getString(KEY_RESEARCH_CONSENT, null)) {
+        CONSENT_SETUJU -> true
+        CONSENT_TOLAK -> false
+        else -> if (sharedPreferences.getBoolean(KEY_RESEARCH_NOTICE_ACK, false)) true else null
+    }
 
-    fun acknowledgeNotice() {
-        sharedPreferences.edit().putBoolean(KEY_RESEARCH_NOTICE_ACK, true).apply()
+    fun hasDecidedConsent(): Boolean = researchConsent() != null
+
+    /**
+     * Simpan keputusan pengguna. Setuju = catatan di HP (termasuk yang dibuat sebelumnya)
+     * mulai diunggah; menolak = tidak ada yang diunggah, aplikasi tetap berfungsi penuh.
+     */
+    fun setResearchConsent(setuju: Boolean) {
+        sharedPreferences.edit()
+            .putString(KEY_RESEARCH_CONSENT, if (setuju) CONSENT_SETUJU else CONSENT_TOLAK)
+            .remove(KEY_RESEARCH_NOTICE_ACK)
+            .apply()
+        if (setuju) scheduleUpload()
+    }
+
+    /**
+     * "Hapus data penelitianku": hapus semua dokumen `logs` milik akun ini di server,
+     * berhenti ikut penelitian, dan tandai catatan lokal belum terkirim (catatan ibadah di HP
+     * tetap ada; bila kelak setuju lagi, catatan itu ikut terkirim sesuai keputusan pemilik proyek).
+     */
+    suspend fun deleteMyResearchData(): CloudSyncStatus {
+        setResearchConsent(false)
+        val uid = currentUid() ?: run {
+            researchLogDao.markAllUnsynced()
+            return CloudSyncStatus.success()
+        }
+        val db = firestore ?: return CloudSyncStatus.success()
+        return runCatching {
+            val docs = withTimeout(RESTORE_TIMEOUT_MS) {
+                db.collection(ResearchSchema.COLLECTION_LOGS)
+                    .whereEqualTo(ResearchSchema.Log.USER_ID, uid)
+                    .get(com.google.firebase.firestore.Source.SERVER).await()
+            }.documents
+            docs.chunked(400).forEach { chunk ->
+                val batch = db.batch()
+                chunk.forEach { batch.delete(it.reference) }
+                withTimeout(WRITE_TIMEOUT_MS) { batch.commit().await() }
+            }
+            researchLogDao.markAllUnsynced()
+            deletedSyncDao.deleteByType(RECORD_TYPE)
+            CloudSyncStatus.success(docs.size)
+        }.getOrElse { error -> failure(0, retry = error.isRetryable(), error) }
     }
 
     // ---------- dzikir / tilawah / iqro ----------
@@ -339,6 +387,8 @@ class ResearchLogRepository @Inject constructor(
     /** Unggah hapusan & baris tertunda milik akun yang sedang login. */
     suspend fun syncPending(): CloudSyncStatus {
         val uid = currentUid() ?: return CloudSyncStatus.success()
+        // Tanpa persetujuan penelitian tidak ada yang diunggah (hapusan tetap boleh dikirim).
+        val bolehUnggah = researchConsent() == true
         val col = firestore?.collection(ResearchSchema.COLLECTION_LOGS) ?: return CloudSyncStatus.success()
         var changed = 0
         var firstIssue: CloudSyncStatus? = null
@@ -360,7 +410,8 @@ class ResearchLogRepository @Inject constructor(
             }
         }
 
-        for (row in researchLogDao.getPendingUploads(uid)) {
+        val pendingUploads = if (bolehUnggah) researchLogDao.getPendingUploads(uid) else emptyList()
+        for (row in pendingUploads) {
             val result = runCatching {
                 withTimeout(WRITE_TIMEOUT_MS) {
                     col.document(ResearchSchema.logId(uid, row.slotKey)).set(row.toFirestore(uid)).await()
@@ -388,6 +439,8 @@ class ResearchLogRepository @Inject constructor(
     }
 
     suspend fun clearLocal() {
+        // Keputusan penelitian milik orang yang login; akun berikutnya ditanya ulang.
+        sharedPreferences.edit().remove(KEY_RESEARCH_CONSENT).remove(KEY_RESEARCH_NOTICE_ACK).apply()
         researchLogDao.deleteAll()
         deletedSyncDao.deleteByType(RECORD_TYPE)
         clearRestoreFlags()

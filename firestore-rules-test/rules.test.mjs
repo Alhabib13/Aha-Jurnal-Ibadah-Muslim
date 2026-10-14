@@ -656,6 +656,32 @@ describe("logs: baca, ubah, hapus", () => {
   });
 });
 
+describe("meta/profile: profil ibadah permanen & rentang usia", () => {
+  const prof = (uid = ALICE) => doc(db(uid), `users/${uid}/meta/profile`);
+
+  test("jenis kelamin sekali terisi tidak bisa diganti atau dikosongkan", async () => {
+    await assertSucceeds(setDoc(prof(), { genderProfile: "UNSPECIFIED", isHaidhMode: false }));
+    await assertSucceeds(setDoc(prof(), { genderProfile: "FEMALE" }, { merge: true }));
+    await assertFails(setDoc(prof(), { genderProfile: "MALE" }, { merge: true }));
+    await assertFails(setDoc(prof(), { genderProfile: "UNSPECIFIED" }, { merge: true }));
+    // Field lain tetap bisa diubah selama jenis kelamin tidak disentuh atau sama.
+    await assertSucceeds(setDoc(prof(), { isHaidhMode: true, haidhDates: ["2026-10-14"] }, { merge: true }));
+    await assertSucceeds(setDoc(prof(), { genderProfile: "FEMALE", isHaidhMode: false }, { merge: true }));
+  });
+
+  test("rentang usia & izin wali divalidasi, usia boleh berubah", async () => {
+    await assertSucceeds(setDoc(prof(), { rentangUsia: "13-17", izinWali: true }));
+    await assertSucceeds(setDoc(prof(), { rentangUsia: "18+", izinWali: false }, { merge: true }));
+    await assertFails(setDoc(prof(), { rentangUsia: "20" }, { merge: true }));
+    await assertFails(setDoc(prof(), { izinWali: "ya" }, { merge: true }));
+    await assertFails(setDoc(prof(), { genderProfile: "lainnya" }, { merge: true }));
+  });
+
+  test("profil orang lain tetap tidak bisa ditulis", async () => {
+    await assertFails(setDoc(doc(db(BOB), `users/${ALICE}/meta/profile`), { genderProfile: "MALE" }));
+  });
+});
+
 describe("regresi: path lama v1.1.1 tetap berfungsi", () => {
   test("habit_completions", () =>
     assertSucceeds(

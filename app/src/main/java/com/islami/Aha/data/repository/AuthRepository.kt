@@ -238,12 +238,18 @@ class AuthRepository @Inject constructor(
             firestore?.collection("users")?.document(user.uid)
                 ?.collection("meta")?.document("profile")
                 ?.set(
-                    mapOf(
-                        "genderProfile" to gender,
-                        "isHaidhMode" to isHaidhMode,
-                        "haidhDates" to haidhDates,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    ),
+                    buildMap {
+                        // Profil ibadah permanen: "belum diatur" tidak pernah dikirim, supaya tidak
+                        // menimpa nilai di server (rules juga menolak perubahan setelah terisi).
+                        if (gender != com.islami.Aha.util.GenderProfile.UNSPECIFIED.name) put("genderProfile", gender)
+                        put("isHaidhMode", isHaidhMode)
+                        put("haidhDates", haidhDates)
+                        com.islami.Aha.util.UserPreferencesManager.ageRange.value?.let { age ->
+                            put("rentangUsia", age.code)
+                            put("izinWali", com.islami.Aha.util.UserPreferencesManager.guardianOk.value)
+                        }
+                        put("updatedAt", FieldValue.serverTimestamp())
+                    },
                     SetOptions.merge()
                 )?.await()
             Unit

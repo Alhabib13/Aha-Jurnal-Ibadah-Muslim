@@ -36,6 +36,10 @@ interface ResearchLogDao {
     )
     suspend fun markSynced(slotKey: String, updatedAt: Long, uid: String)
 
+    /** Setelah data penelitian di server dihapus: semua baris dianggap belum terkirim. */
+    @Query("UPDATE research_logs SET isSynced = 0")
+    suspend fun markAllUnsynced()
+
     @Query("DELETE FROM research_logs WHERE ownerUid IS NOT NULL AND ownerUid != :uid")
     suspend fun deleteNotOwnedBy(uid: String)
 

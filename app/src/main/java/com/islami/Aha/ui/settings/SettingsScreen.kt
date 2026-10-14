@@ -57,7 +57,8 @@ import com.islami.Aha.ui.settings.components.*
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
-    onNavigateToLogin: (String?) -> Unit = {}
+    onNavigateToLogin: (String?) -> Unit = {},
+    onNavigateToPrivacyData: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -107,6 +108,7 @@ fun SettingsScreen(
             viewModel.clearSnackbar()
         },
         onNavigateBack = onNavigateBack,
+        onNavigateToPrivacyData = onNavigateToPrivacyData,
         onShowLocationDialog = viewModel::showLocationDialog,
         onHideLocationDialog = viewModel::hideLocationDialog,
         onSetLocation = viewModel::setLocation,
@@ -198,6 +200,7 @@ fun SettingsScreenContent(
     toastMessage: String?,
     onToastDismissed: () -> Unit,
     onNavigateBack: () -> Unit,
+    onNavigateToPrivacyData: () -> Unit = {},
     onShowLocationDialog: () -> Unit,
     onHideLocationDialog: () -> Unit,
     onSetLocation: (String) -> Unit,
@@ -301,14 +304,22 @@ fun SettingsScreenContent(
                     com.islami.Aha.util.GenderProfile.FEMALE -> stringResource(R.string.settings_gender_female_active)
                     else -> stringResource(R.string.settings_gender_not_set)
                 }
+                val profilTerkunci = uiState.genderProfile != com.islami.Aha.util.GenderProfile.UNSPECIFIED
                 SettingsClickableItem(
                     icon = Icons.Outlined.Person,
                     iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                     iconTint = MaterialTheme.colorScheme.primary,
                     title = stringResource(R.string.settings_gender_title),
-                    subtitle = genderText,
+                    subtitle = if (profilTerkunci) "$genderText · permanen" else genderText,
                     onClick = {
-                        if (uiState.isHaidhMode) {
+                        if (profilTerkunci) {
+                            // Profil ibadah permanen (keputusan pemilik proyek): tidak bisa diganti.
+                            android.widget.Toast.makeText(
+                                context,
+                                "Profil ibadah sudah disimpan dan tidak bisa diubah.",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        } else if (uiState.isHaidhMode) {
                             android.widget.Toast.makeText(
                                 context,
                                 context.getString(R.string.settings_gender_haidh_warning),
@@ -437,6 +448,18 @@ fun SettingsScreenContent(
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 SettingsSectionHeader(title = stringResource(R.string.settings_section_data))
+            }
+
+            item {
+                SettingsClickableItem(
+                    icon = Icons.Outlined.Lock,
+                    iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    title = "Privasi & Data",
+                    subtitle = "Penelitian, data penelitianmu, kebijakan privasi",
+                    onClick = onNavigateToPrivacyData
+                )
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             item {

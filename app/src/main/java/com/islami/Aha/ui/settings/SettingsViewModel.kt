@@ -185,7 +185,11 @@ class SettingsViewModel @Inject constructor(
 
     fun setGenderProfile(profile: com.islami.Aha.util.GenderProfile) {
         viewModelScope.launch {
-            com.islami.Aha.util.UserPreferencesManager.setGender(profile)
+            if (!com.islami.Aha.util.UserPreferencesManager.setGender(profile)) {
+                // Profil ibadah permanen: sudah diisi, tidak bisa diganti.
+                hideGenderDialog()
+                return@launch
+            }
             val res = authRepository.syncUserPreferences(
                 gender = profile.name,
                 isHaidhMode = com.islami.Aha.util.UserPreferencesManager.isHaidhMode.value,

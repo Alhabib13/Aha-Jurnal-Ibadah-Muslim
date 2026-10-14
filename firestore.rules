@@ -19,7 +19,9 @@ service cloud.firestore {
   function validProfileWrite(data) {
     return (!("name" in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 100))
         && (!("email" in data) || (data.email is string && data.email.size() <= 254))
-        && (!("genderProfile" in data) || data.genderProfile is string)
+        && (!("genderProfile" in data) || data.genderProfile in ["UNSPECIFIED", "MALE", "FEMALE"])
+        && (!("rentangUsia" in data) || data.rentangUsia in ["<13", "13-17", "18+"])
+        && (!("izinWali" in data) || data.izinWali is bool)
         && (!("isHaidhMode" in data) || data.isHaidhMode is bool)
         && (!("haidhDates" in data) || data.haidhDates is list)
         && (
@@ -35,6 +37,13 @@ service cloud.firestore {
              !("lastUsernameChangedAt" in data) ||
              data.lastUsernameChangedAt is int
            );
+  }
+
+  // Profil ibadah permanen: sekali MALE/FEMALE tersimpan, tidak bisa diganti (termasuk
+  // dikosongkan). Koreksi hanya lewat hapus akun atau admin di Firebase Console.
+  function genderTidakBerubah() {
+    return !(resource.data.get("genderProfile", "UNSPECIFIED") in ["MALE", "FEMALE"])
+        || request.resource.data.get("genderProfile", "UNSPECIFIED") == resource.data.genderProfile;
   }
 
   // Validasi field sunnah_habits: hanya field yang dikenal oleh app yang boleh ditulis.
@@ -406,7 +415,8 @@ service cloud.firestore {
                     && validProfileWrite(request.resource.data);
       allow update: if isOwner(userId)
                     && docId == "profile"
-                    && validProfileWrite(request.resource.data);
+                    && validProfileWrite(request.resource.data)
+                    && genderTidakBerubah();
       allow delete: if isOwner(userId);
     }
 

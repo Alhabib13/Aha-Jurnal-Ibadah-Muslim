@@ -136,7 +136,7 @@ class HomeViewModel @Inject constructor(
         }
         loadHabits()
         observeResearchIbadah()
-        _uiState.update { it.copy(showResearchNotice = !researchLogRepository.isNoticeAcknowledged()) }
+        _uiState.update { it.copy(showResearchNotice = !researchLogRepository.hasDecidedConsent()) }
         startPeriodicHomeUpdates()
         loadDailyIslamicContent()
         
@@ -753,8 +753,9 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun acknowledgeResearchNotice() {
-        researchLogRepository.acknowledgeNotice()
+    /** Keputusan atas persetujuan penelitian (Setuju / Tidak). Fitur tetap berjalan apa pun pilihannya. */
+    fun decideResearchConsent(setuju: Boolean) {
+        researchLogRepository.setResearchConsent(setuju)
         _uiState.update { it.copy(showResearchNotice = false) }
     }
 
@@ -908,7 +909,7 @@ class HomeViewModel @Inject constructor(
     
     fun setGenderProfile(profile: GenderProfile) {
         viewModelScope.launch {
-            UserPreferencesManager.setGender(profile)
+            if (!UserPreferencesManager.setGender(profile)) return@launch // profil sudah terkunci
             kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                 authRepository.syncUserPreferences(
                     gender = profile.name,
@@ -1241,6 +1242,8 @@ class HomeViewModel @Inject constructor(
             hasFetchedInitialCloudData = true
             launchSafely("syncCloudDataOnLogin") {
                 handleAccountBoundaryBeforeSync()
+                // Keputusan penelitian milik akun sebelumnya sudah dihapus saat logout: tanya lagi.
+                _uiState.update { it.copy(showResearchNotice = !researchLogRepository.hasDecidedConsent()) }
                 val syncStatuses = listOf(
                     sunnahHabitSharedViewModel.syncFromCloudIfLoggedInAwait(),
                     completionSyncRepository.restoreFromCloud(),
@@ -1257,8 +1260,13 @@ class HomeViewModel @Inject constructor(
                     val genderStr = prefs["genderProfile"] as? String
                     if (genderStr != null) {
                         runCatching { com.islami.Aha.util.GenderProfile.valueOf(genderStr) }.getOrNull()?.let { profile ->
-                            UserPreferencesManager.setGender(profile)
+                            // Profil di server permanen dan menang atas pilihan lokal.
+                            UserPreferencesManager.setGenderFromCloud(profile)
                         }
+                    }
+                    val cloudAge = com.islami.Aha.util.AgeRange.fromCode(prefs["rentangUsia"] as? String)
+                    if (cloudAge != null && UserPreferencesManager.ageRange.value == null) {
+                        UserPreferencesManager.setAgeRange(cloudAge, prefs["izinWali"] as? Boolean ?: false)
                     }
                     val haidhDates = (prefs["haidhDates"] as? List<*>)?.mapNotNull { it as? String }
                     if (haidhDates != null) {
@@ -1270,7 +1278,9 @@ class HomeViewModel @Inject constructor(
                     }
                     UserPreferencesManager.syncHaidhDates()
                     UserPreferencesManager.setHasSeenPrompt()
-                } else if (UserPreferencesManager.gender.value != com.islami.Aha.util.GenderProfile.UNSPECIFIED) {
+                }
+                // Profil/usia yang baru ada di HP (mis. dipilih saat tamu) didorong ke server.
+                if (UserPreferencesManager.isGenderLocked || UserPreferencesManager.ageRange.value != null) {
                     // Local has data but cloud doesn't (or fetch failed), sync up to cloud
                     authRepository.syncUserPreferences(
                         gender = UserPreferencesManager.gender.value.name,

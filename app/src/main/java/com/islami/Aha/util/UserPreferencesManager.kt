@@ -7,12 +7,27 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class GenderProfile { UNSPECIFIED, MALE, FEMALE }
 
+/** Rentang usia dari onboarding. [code] = nilai yang disimpan di Firestore (meta/profile.rentangUsia). */
+enum class AgeRange(val code: String, val label: String) {
+    UNDER_13("<13", "Di bawah 13 tahun"),
+    TEEN("13-17", "13–17 tahun"),
+    ADULT("18+", "18 tahun ke atas");
+
+    val isMinor: Boolean get() = this != ADULT
+
+    companion object {
+        fun fromCode(code: String?): AgeRange? = entries.firstOrNull { it.code == code }
+    }
+}
+
 object UserPreferencesManager {
     private const val KEY_GENDER = "gender_profile"
     private const val KEY_JUMAT_ENABLED = "jumat_enabled"
     private const val KEY_HAIDH_MODE = "haidh_mode"
     private const val KEY_HAIDH_DATES = "haidh_dates"
     private const val KEY_SEEN_PROMPT = "seen_gender_prompt"
+    private const val KEY_AGE_RANGE = "age_range"
+    private const val KEY_GUARDIAN_OK = "guardian_ok"
     
     private val _gender = MutableStateFlow(GenderProfile.UNSPECIFIED)
     val gender: StateFlow<GenderProfile> = _gender.asStateFlow()
@@ -32,7 +47,17 @@ object UserPreferencesManager {
     private val _haidhDates = MutableStateFlow<Set<String>>(emptySet())
     val haidhDates: StateFlow<Set<String>> = _haidhDates.asStateFlow()
     
+    private val _ageRange = MutableStateFlow<AgeRange?>(null)
+    val ageRange: StateFlow<AgeRange?> = _ageRange.asStateFlow()
+
+    /** Pengguna di bawah 18 tahun menyatakan orang tua/wali sudah mengizinkan. */
+    private val _guardianOk = MutableStateFlow(false)
+    val guardianOk: StateFlow<Boolean> = _guardianOk.asStateFlow()
+
     private var prefs: SharedPreferences? = null
+
+    /** Profil ibadah permanen: sekali diisi (laki-laki/perempuan) tidak bisa diganti dari aplikasi. */
+    val isGenderLocked: Boolean get() = _gender.value != GenderProfile.UNSPECIFIED
 
     fun init(sharedPreferences: SharedPreferences) {
         prefs = sharedPreferences
@@ -42,6 +67,8 @@ object UserPreferencesManager {
         _hasSeenPrompt.value = sharedPreferences.getBoolean(KEY_SEEN_PROMPT, false)
         _hasSeenOnboarding.value = sharedPreferences.getBoolean("seen_onboarding", false)
         _haidhDates.value = sharedPreferences.getStringSet(KEY_HAIDH_DATES, emptySet()) ?: emptySet()
+        _ageRange.value = AgeRange.fromCode(sharedPreferences.getString(KEY_AGE_RANGE, null))
+        _guardianOk.value = sharedPreferences.getBoolean(KEY_GUARDIAN_OK, false)
         syncHaidhDates()
     }
 
@@ -55,7 +82,30 @@ object UserPreferencesManager {
         prefs?.edit()?.putBoolean(KEY_SEEN_PROMPT, true)?.apply()
     }
 
-    fun setGender(profile: GenderProfile) {
+    /**
+     * Set profil dari pilihan pengguna. Ditolak bila profil sudah terkunci dengan nilai lain
+     * (profil permanen; server juga menolak perubahan lewat Firestore rules).
+     * @return true bila tersimpan.
+     */
+    fun setGender(profile: GenderProfile): Boolean {
+        if (isGenderLocked && profile != _gender.value) return false
+        applyGender(profile)
+        return true
+    }
+
+    /** Nilai dari server (akun yang login) selalu menang atas pilihan lokal. */
+    fun setGenderFromCloud(profile: GenderProfile) {
+        if (profile == GenderProfile.UNSPECIFIED) return
+        applyGender(profile)
+    }
+
+    fun setAgeRange(range: AgeRange, guardianOk: Boolean) {
+        _ageRange.value = range
+        _guardianOk.value = range.isMinor && guardianOk
+        prefs?.edit()?.putString(KEY_AGE_RANGE, range.code)?.putBoolean(KEY_GUARDIAN_OK, _guardianOk.value)?.apply()
+    }
+
+    private fun applyGender(profile: GenderProfile) {
         _gender.value = profile
         prefs?.edit()?.putString(KEY_GENDER, profile.name)?.apply()
         
@@ -135,7 +185,11 @@ object UserPreferencesManager {
         _isHaidhMode.value = false
         _haidhDates.value = emptySet()
         _hasSeenPrompt.value = false
+        _ageRange.value = null
+        _guardianOk.value = false
         prefs?.edit()?.apply {
+            remove(KEY_AGE_RANGE)
+            remove(KEY_GUARDIAN_OK)
             remove(KEY_GENDER)
             remove(KEY_JUMAT_ENABLED)
             remove(KEY_HAIDH_MODE)

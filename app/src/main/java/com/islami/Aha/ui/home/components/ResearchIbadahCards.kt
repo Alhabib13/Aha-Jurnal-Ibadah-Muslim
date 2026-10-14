@@ -186,24 +186,3 @@ fun IqroCard(
         }
     }
 }
-
-/** Pemberitahuan penelitian, sekali muncul, hanya bisa ditutup lewat "Mengerti". */
-@Composable
-fun ResearchNoticeDialog(
-    onAcknowledge: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = { },
-        title = { Text("Data untuk penelitian") },
-        text = {
-            Text(
-                "Mulai versi ini, catatan ibadahmu (jenis ibadah, tanggal, dan jam pencatatan) " +
-                    "dipakai untuk penelitian pengembangan aplikasi Aha, termasuk pengingat yang lebih tepat waktu. " +
-                    "Data tidak dijual dan tidak dipakai untuk iklan. Rinciannya ada di kebijakan privasi."
-            )
-        },
-        confirmButton = { Button(onClick = onAcknowledge) { Text("Mengerti") } },
-        dismissButton = { TextButton(onClick = onOpenPrivacyPolicy) { Text("Kebijakan privasi") } }
-    )
-}

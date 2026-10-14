@@ -43,7 +43,7 @@ fun AhaApp() {
                 WindowInsets(0, 0, 0, 0)
             } else if (currentRoute == Screen.AddHabit.route) {
                 WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal)
-            } else if (currentRoute == Screen.Settings.route) {
+            } else if (currentRoute == Screen.Settings.route || currentRoute == Screen.PrivacyData.route) {
                 WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal)
             } else if (currentRoute == Screen.Home.route || currentRoute == Screen.Profile.route) {
                 ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
