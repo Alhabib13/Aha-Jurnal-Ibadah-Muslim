@@ -1,55 +1,75 @@
 # KONTEKS PROYEK SKRIPSI — AI Habit Tracker Ibadah (Hybrid AI)
 
 > **Cara pakai:** Copy-paste seluruh isi file ini sebagai pesan PERTAMA ke AI baru, lalu lanjutkan dengan pertanyaan/permintaan kamu. Ini supaya AI baru langsung paham konteks tanpa perlu dijelaskan ulang dari nol.
+>
+> Terakhir diperbarui: 14 Oktober 2026 (judul, arsitektur, dan status fitur ditulis ulang; versi lama "Predictive Delivery Notifikasi" sudah TIDAK dipakai).
 
 ---
 
 ## 1. IDENTITAS PROYEK
 
-**Judul Skripsi (final, sudah didaftarkan):**
-"Penerapan Hybrid Artificial Intelligence (Forward Chaining dan Random Forest) untuk Predictive Delivery Notifikasi pada Aplikasi Habit Tracker Ibadah Berbasis Android"
+**Judul Skripsi (yang dipakai sekarang):**
+"Penerapan Hybrid AI untuk Profiling Pengguna dan Notifikasi Pintar pada Aplikasi Habit Tracker Ibadah"
 
-**Jenis Penelitian:** Kuantitatif (Research and Development / R&D, metode SDLC Agile)
+> Judul lama "… untuk Predictive Delivery Notifikasi …" sudah tidak dipakai. Jangan dijadikan acuan.
 
-**Status Aplikasi:** Sudah masuk **closed testing di Google Play Store, hari ke-10** (bukan cuma konsep, sudah dikembangkan nyata).
+**Jenis Penelitian:** Research and Development (R&D) dengan metode pengembangan **SDLC Agile**.
+Metode **Prototype TIDAK dipakai**, karena panduan KTI prodi menandainya khusus untuk penelitian multimedia atau game.
 
-**Aplikasi Referensi/Inspirasi:** "Muslim Tracker: Pray & Fasting" (Play Store, com.deenindietech.sunnahtracker) — fitur andalan mereka: Prayer Tracking, Fasting options, Personalized Reminders, Progress Statistics, dan fitur baru "Quran Tracker" (Daily Reading, Memorization, Review, Statistics, Kalender Hijriah).
+**Status Aplikasi:**
+- Google Play: `com.Islamic.Aha`, versi **1.1.1** yang sedang tayang (belum mengumpulkan data penelitian).
+- Versi **1.2.0** (pengumpulan data penelitian + dzikir + tilawah + iqro) ada di branch `feature/pengumpulan-data`, **belum dirilis**.
+- Repo: https://github.com/Alhabib13/Aha-Jurnal-Ibadah-Muslim
 
----
-
-## 2. RUMUSAN MASALAH (4 poin — jumlah ini WAJIB sama dengan jumlah Tujuan Penelitian nanti)
-
-1. Bagaimana merancang dan menerapkan sistem Hybrid AI (Forward Chaining dan Random Forest) untuk melakukan predictive delivery notifikasi pada aplikasi Habit Tracker ibadah berbasis Android?
-2. Bagaimana perbandingan performa algoritma Random Forest dan Naive Bayes (Accuracy, Precision, Recall, F1-Score) dalam memprediksi waktu dan gaya bahasa notifikasi optimal?
-3. Bagaimana pendekatan frictionless (Actionable Notification + Widget) mengurangi App Fatigue?
-4. Bagaimana tingkat usability aplikasi diukur menggunakan System Usability Scale (SUS)?
+**Aplikasi Referensi/Inspirasi:** "Muslim Tracker: Pray & Fasting" (Play Store, com.deenindietech.sunnahtracker).
 
 ---
 
-## 3. ARSITEKTUR HYBRID AI (3 Layer)
+## 2. RUMUSAN MASALAH
 
-- **Layer 1 — Forward Chaining:** Gate/filter validasi — cek apakah aktivitas ibadah user memenuhi syarat sah (valid/tidak valid).
-- **Layer 2 — Random Forest:** Prediksi waktu optimal & gaya bahasa (tone) notifikasi, menggunakan data historis + hasil validasi Layer 1 sebagai fitur.
-- **Layer 3 — Exponential Decay Scoring:** Skor konsistensi ibadah, formula: `Score_t = Score_0 × e^(-λt)`. Nilai λ awal disarankan diambil dari studi forgetting curve (λ=0.30, lihat jurnal ATCSJ di bagian 5), lalu dikalibrasi ulang pakai data user asli.
+Rumusan masalah yang sah ada di **BAB I milik penulis**, bukan di file ini. Jangan menyusun ulang atau mengutip rumusan masalah dari file ini.
 
-**Task Machine Learning ini bersifat KLASIFIKASI, bukan clustering** — karena data berlabel, dibandingkan dengan Naive Bayes (algoritma klasifikasi murni), dan pakai metrik Accuracy/Precision/Recall/F1 (bukan Silhouette Score dsb).
+> Daftar 4 poin versi lama (predictive delivery, tone notifikasi, Actionable Notification + Widget untuk App Fatigue) sudah **usang dan dihapus**.
 
 ---
 
-## 4. FITUR APLIKASI (KONDISI NYATA SAAT INI)
+## 3. ARSITEKTUR HYBRID AI (2 lapis)
 
-1. **Sholat** = Sholat Wajib + Sholat Sunnah
-2. **Puasa** = Puasa Sunnah + Puasa Wajib Ramadan (event-based, muncul otomatis saat masuk bulan Ramadan)
-3. **Fitur berbasis gender:**
-   - Wanita → tombol **"Mode Cuti"** (untuk masa haid/berhalangan) — PENTING: saat mode ini aktif, sholat/puasa yang tidak dikerjakan harus dicap **"udzur syar'i"**, BUKAN dihitung gagal/bolong.
-   - Laki-laki → setiap hari Jumat, notifikasi Dzuhur otomatis diganti jadi reminder Sholat Jumat.
-4. **Tilawah** — BELUM DIBANGUN, masih bingung strukturnya. Inspirasi dari Muslim Tracker: Daily Reading (log halaman/ayat), Memorization, Review/Muroja'ah, Statistics, Kalender Hijriah.
-5. **Dzikir** — BELUM DIBANGUN. Inspirasi: checklist dzikir pagi (Subuh–terbit matahari) & petang (Ashar–Maghrib), opsional tasbih counter digital.
-6. **Sholat & Puasa Pengganti (Qadha)** — ide dari aplikasi lain. Perlu rule soal kapan qadha boleh/tidak boleh dikerjakan (misal: tidak boleh puasa qadha di hari Tasyrik/Idul Fitri).
+1. **Forward Chaining — menyiapkan fakta.** Aturan berbasis pengetahuan (divalidasi pakar) mengolah catatan ibadah mentah menjadi fakta yang sah, misalnya membedakan "tidak dikerjakan" dari "udzur" saat Mode Cuti.
+2. **Random Forest — mengklasifikasi profil kebiasaan.** Fakta dari lapis 1 dipakai sebagai fitur untuk mengklasifikasi profil kebiasaan ibadah pengguna.
+
+**Label Random Forest diturunkan dari riwayat ibadah**, bukan dari respons notifikasi. Task-nya **klasifikasi** (data berlabel), bukan clustering.
+
+**Yang BUKAN lagi kebutuhan skripsi (jangan disarankan):**
+- prediksi gaya bahasa (tone) notifikasi, atau varian pesan notifikasi untuk dicatat
+- Widget dan Actionable Notification untuk mengurangi App Fatigue
+- Exponential Decay Scoring (dulu "Layer 3")
+- pencatatan respons notifikasi sebagai label model
+
+**Tahap sekarang:** hanya **pengumpulan data** (koleksi Firestore `logs`). Belum ada model AI dan belum ada Cloud Functions (Firebase paket Spark).
+
+---
+
+## 4. FITUR APLIKASI (KONDISI NYATA — per commit `c32843d`, 14 Okt 2026)
+
+1. **Sholat** — sholat fardhu dengan jadwal berdasarkan lokasi (Aladhan API), sholat sunnah pilihan pengguna, tarawih saat Ramadan. **SUDAH ADA.**
+2. **Puasa** — puasa wajib Ramadan (otomatis saat Ramadan) + puasa sunnah pilihan pengguna. **SUDAH ADA.**
+3. **Fitur berbasis gender** — **SUDAH ADA:**
+   - Wanita → **Mode Cuti**: sholat & puasa disembunyikan dan tidak dihitung (tidak dinilai gagal). Cakupannya diatur di `ModeCutiPolicy` (dzikir, tilawah, iqro tetap aktif — MENUNGGU VALIDASI PAKAR). Penulisan status `udzur` ke log (Tahap 5) **belum** dibangun.
+   - Laki-laki → setiap Jumat, Dzuhur diganti pengingat Sholat Jumat.
+4. **Tilawah** — **SUDAH DIBANGUN.** Sesi bacaan harian / hafalan / murajaah berbasis rentang ayat (data posisi dari Tanzil, CC BY 3.0), penanda posisi terakhir, target halaman harian (bacaan harian).
+5. **Iqro** (dan Qiroati/Tilawati/UMMI) — **SUDAH DIBANGUN.** Catat jilid (1–10) dan halaman terakhir.
+6. **Dzikir** — **SUDAH DIBANGUN (mode centang).** Katalog 9 dzikir (pagi, petang, setelah sholat, sebelum tidur, istighfar, sholawat, tahlil, asmaul husna, lainnya), ditambahkan pengguna dari Add Habit, dicatat per sesi. Mode "layar" (penghitung + teks bacaan) = Tahap 3, menunggu buku rujukan; teks bacaan TIDAK boleh dikarang.
+7. **Qadha** — `qadha_sholat` sudah ada sebagai jenis di skema data; puasa pengganti Ramadan dicatat sebagai puasa/qadha. Aturan kapan qadha boleh/tidak (mis. hari Tasyrik/Idul Fitri) **belum** dibangun.
+8. **Pengumpulan data penelitian** — koleksi `logs` (18 kolom tetap), pemberitahuan penelitian sebelum data pertama ditulis, sinkron lewat WorkManager. Ikut v1.2.0, belum dirilis.
+
+Detail teknis skema & keputusan: `FITUR_DZIKIR_README.md`, `PLAY_DATA_SAFETY_v1.2.0.md`, `firestore.rules`, `app/src/main/java/com/islami/Aha/data/research/ResearchSchema.kt`.
 
 ---
 
 ## 5. STATUS PENGUMPULAN JURNAL (Target: 24 jurnal, 6 kategori x 4 jurnal)
+
+> Kategori jurnal disusun untuk judul lama. Kategori **Exponential Decay** tidak dipakai lagi; kategori **Notifikasi/UX** dan **Digital Fatigue** perlu ditinjau ulang terhadap judul baru (profiling pengguna) sebelum dicari tambahannya.
 
 **Aturan dari dosen pembimbing:**
 - Jurnal WAJIB terbit dalam 3 tahun terakhir (2023-2026)
@@ -67,20 +87,18 @@
 1. Real-Time ML Personalized Notification Qur'an Tahsin/Tahfiz — Tim Sisfokom, 2026, Sinta & Scopus — https://jurnal.atmaluhur.ac.id/index.php/sisfokom/article/view/2654
 2. Perbandingan RF vs Naive Bayes (Studi Nutrisi) — Wijaya, 2025, REMIK — https://jurnal.polgan.ac.id/index.php/remik/article/view/14652
 
-### 🟡 Exponential Decay/Konsistensi (1/4 — butuh 3 lagi)
-1. Model Kurva Lupa Ebbinghaus (λ=0.30) — Husna dkk, 2025, ATCSJ Sinta 4 — https://journal2.unusa.ac.id/index.php/ATCSJ/article/view/8491
+### ⛔ Exponential Decay/Konsistensi — TIDAK DIPAKAI LAGI (judul berubah)
+1. ~~Model Kurva Lupa Ebbinghaus (λ=0.30) — Husna dkk, 2025, ATCSJ~~
 
-### 🟡 Notifikasi/UX (1/4 — butuh 3 lagi)
+### 🟡 Notifikasi/UX (1/4 — tinjau ulang relevansinya)
 1. Sistem Notifikasi Real-Time Firebase Cloud Messaging — Tim UNIKA St. Thomas, 2024 — https://ejournal.ust.ac.id/index.php/JTIUST/article/view/4437
 
 ### 🟡 Aplikasi Ibadah Sejenis (2/4 — butuh 2 lagi)
 1. Sistem Monitoring Mutaba'ah (Agile XP, SUS) — Rizki dkk, 2024, JIPI Sinta 3 — https://jurnal.stkippgritulungagung.ac.id/index.php/jipi/article/view/4326
 2. Aplikasi Mobile Muhasabah (Kotlin + Jetpack Compose) — Hilmi & Rahmayu, 2026, JUSSI Sinta 5 — https://ejurnal.seminar-id.com/index.php/jussi/article/view/9841
 
-### 🟡 Digital Fatigue/Gen Z (1/4 — butuh 3 lagi)
+### 🟡 Digital Fatigue/Gen Z (1/4 — tinjau ulang relevansinya)
 1. Analisis Social Media Fatigue Mahasiswa — Zulvi dkk, 2025, JKP (IICET) Sinta 2 — https://jurnal.konselingindonesia.com/index.php/jkp/article/view/1390
-
-**Total terkumpul: 11 dari 24 jurnal.**
 
 ### ❌ Jurnal yang SUDAH DIGANTI (jangan dipakai lagi)
 - JEBE Hukum Darah Kewanitaan (2022, terlalu lama)
@@ -94,34 +112,37 @@
 
 ## 6. FILE YANG SUDAH DIBUAT
 
-1. `Ringkasan_Skripsi_AI_Habit_Tracker_v4.docx` — ringkasan lengkap + cheat sheet konsul
-2. `Formulir_Pendaftaran_Skripsi_AI_Habit_Tracker.docx` — rumusan masalah & rencana tahapan penyelesaian masalah
-3. `Flowchart_Sistem_AI_Habit_Tracker.docx` — flowchart lengkap alur sistem + tabel penjelasan
-4. `Matriks_Jurnal_Skripsi.xlsx` — tracker 24 jurnal (perlu diupdate manual dengan data di Bagian 5 di atas)
+> File-file ini disusun saat judul lama masih dipakai. Periksa dulu sebelum dikutip — bagian rumusan masalah, tone notifikasi, dan decay di dalamnya sudah usang.
+
+1. `Ringkasan_Skripsi_AI_Habit_Tracker_v4.docx` — ringkasan + cheat sheet konsul (di repo hanya ada v3)
+2. `Formulir_Pendaftaran_Skripsi_AI_Habit_Tracker.docx` — formulir pendaftaran (berisi rumusan masalah versi lama)
+3. `Flowchart_Sistem_AI_Habit_Tracker.docx` — flowchart alur sistem
+4. `Matriks_Jurnal_Skripsi.xlsx` — tracker jurnal (perlu disesuaikan dengan Bagian 5)
 
 ---
 
 ## 7. TUGAS YANG SEDANG DIKERJAKAN (belum selesai)
 
-**A. Kuesioner untuk siswa SMK/pesantren** (5 bagian):
+**A. Kuesioner untuk siswa SMK/pesantren:**
 - A: Screening & Demografi
 - B: Kebiasaan Ibadah Saat Ini
-- C: Preferensi Waktu Notifikasi (data latih Random Forest)
-- D: Preferensi Gaya Bahasa/Tone Notifikasi
-- E: Kebiasaan Digital & Fatigue
+- C: Preferensi Waktu Notifikasi — **tinjau ulang:** label Random Forest kini diturunkan dari riwayat ibadah, bukan dari kuesioner
+- D: Kebiasaan Digital (bagian Fatigue tinjau ulang terhadap judul baru)
 
-**B. Form Validasi Rules Forward Chaining untuk pakar/ustaz** (5 bagian, HARUS disesuaikan ke fitur ASLI di Bagian 4, bukan contoh generik):
+> Bagian "Preferensi Gaya Bahasa/Tone Notifikasi" dihapus — bukan kebutuhan skripsi lagi.
+
+**B. Form Validasi Rules Forward Chaining untuk pakar/ustaz** (disesuaikan ke fitur ASLI di Bagian 4):
 - A: Identitas & Kompetensi Pakar
 - B: Instruksi & Konteks
-- C: Daftar Rules per fitur nyata — Sholat Wajib, Sholat Sunnah, Puasa Sunnah, Puasa Ramadan, **Mode Cuti (paling sensitif secara fiqih)**, Reminder Jumat, Qadha, Tilawah, Dzikir
+- C: Daftar Rules per fitur nyata — Sholat Wajib, Sholat Sunnah, Puasa Sunnah, Puasa Ramadan, **Mode Cuti (paling sensitif secara fiqih; termasuk cakupan dzikir/tilawah saat cuti)**, Reminder Jumat, Qadha, Tilawah, Dzikir (waktu default tiap dzikir, acuan Subuh/Ashar)
 - D: Pertanyaan terbuka (rules yang terlewat)
 - E: Persetujuan akhir
 
 ---
 
-## 8. LANGKAH SELANJUTNYA YANG PERLU DILANJUTKAN
+## 8. LANGKAH SELANJUTNYA
 
-1. Cari 13 jurnal tambahan untuk genap 24 (prioritas: Decay & Notifikasi/UX yang masih paling kosong)
-2. Selesaikan draf lengkap Kuesioner (Bagian 7A) dan Form Validasi Pakar (Bagian 7B) jadi file Word siap pakai
-3. Tentukan detail final fitur Tilawah & Dzikir yang masih belum dibangun
-4. Update file Excel `Matriks_Jurnal_Skripsi.xlsx` dengan seluruh data di Bagian 5
+1. Rilis v1.2.0 supaya data penelitian mulai terkumpul (tes instrumentasi → merge `feature/pengumpulan-data` ke `main` → build AAB → Data Safety → upload).
+2. Tahap penelitian berikutnya (urutan dari penulis): inferensi status "tidak" (sholat wajib & dzikir berjendela) → Tahap 5 Mode Cuti menulis `udzur` → Tahap 4 `sumber_pencatatan` → Tahap 3 onboarding profil → Tahap 2 Anonymous Auth. Dzikir mode layar menunggu buku rujukan.
+3. Tinjau ulang kategori jurnal & kuesioner terhadap judul baru (Bagian 5 dan 7), lalu lengkapi jurnal.
+4. Selesaikan Form Validasi Pakar (Bagian 7B) jadi file Word siap pakai.
