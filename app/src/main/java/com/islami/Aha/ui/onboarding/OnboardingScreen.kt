@@ -33,10 +33,8 @@ import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material.icons.rounded.Man
 import androidx.compose.material.icons.rounded.Mosque
 import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.Woman
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -80,7 +78,6 @@ private const val HAL_NOTIFIKASI = 6
 private const val JUMLAH_HAL = 7
 
 private val PinkCuti = Color(0xFFF48FB1)
-private val BiruProfil = Color(0xFF7FB8FF)
 private val Emas = Color(0xFFE2B65A)
 
 /**
@@ -363,9 +360,10 @@ private fun ColumnScope.PilihProfil(onSimpan: (GenderProfile) -> Unit, onNanti: 
         )
         Spacer(Modifier.height(20.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            KartuProfil(Icons.Rounded.Man, BiruProfil, "Laki-laki", pilihan == GenderProfile.MALE,
+            // Ikon yang sama dengan dialog Profil Ibadah di Pengaturan.
+            KartuProfil(R.drawable.ic_gender_male, "Laki-laki", pilihan == GenderProfile.MALE,
                 Modifier.weight(1f)) { pilihan = GenderProfile.MALE }
-            KartuProfil(Icons.Rounded.Woman, PinkCuti, "Perempuan", pilihan == GenderProfile.FEMALE,
+            KartuProfil(R.drawable.ic_gender_female, "Perempuan", pilihan == GenderProfile.FEMALE,
                 Modifier.weight(1f)) { pilihan = GenderProfile.FEMALE }
         }
         Spacer(Modifier.height(12.dp))
@@ -404,8 +402,7 @@ private fun ColumnScope.PilihProfil(onSimpan: (GenderProfile) -> Unit, onNanti: 
 
 @Composable
 private fun KartuProfil(
-    icon: ImageVector,
-    warna: Color,
+    iconRes: Int,
     label: String,
     dipilih: Boolean,
     modifier: Modifier,
@@ -422,7 +419,12 @@ private fun KartuProfil(
             .border(BorderStroke(2.dp, border), RoundedCornerShape(22.dp))
             .clickable(onClick = onClick)
     ) {
-        Icon(icon, contentDescription = null, tint = warna, modifier = Modifier.size(44.dp))
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(56.dp),
+            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+        )
         Text(label, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         if (dipilih) Text("Dipilih", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
     }
