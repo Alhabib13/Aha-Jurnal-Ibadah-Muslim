@@ -12,5 +12,13 @@
     "ui": {
       "enabled": false
     }
+  },
+  "hosting": {
+    "public": "docs",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
   }
 }

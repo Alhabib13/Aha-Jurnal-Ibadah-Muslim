@@ -323,8 +323,8 @@
     <string name="statistic_category_weekly_format">%1$d/%2$d minggu ini</string>
     <string name="statistic_coming_soon_title">Statistik Dzikir &amp; Tilawah</string>
     <string name="statistic_coming_soon_desc">akan tersedia segera!</string>
-    <string name="privacy_policy_url">https://aha-islamic-tracker.github.io/Habit-Tracker-Islami/privacy-policy.html</string>
-    <string name="terms_of_service_url">https://aha-islamic-tracker.github.io/Habit-Tracker-Islami/terms-of-service.html</string>
+    <string name="privacy_policy_url">https://aha-jurnal-ibadah-muslim.web.app/privacy-policy.html</string>
+    <string name="terms_of_service_url">https://aha-jurnal-ibadah-muslim.web.app/terms-of-service.html</string>
     <string name="home_haidh_mode_active">Sedang Mode Cuti Ibadah</string>
     <string name="home_haidh_mode_desc">Ibadah Sholat dan Puasa ditiadakan selama masa haidh.\n\nJangan lupa matikan mode ini di menu Pengaturan ketika sudah suci kembali ya!</string>
     <string name="home_haidh_mode_label">Mode Cuti</string>
