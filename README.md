@@ -1,44 +1,62 @@
-# Halo! Saya Alhabib Husein Alaydrus <img src="https://raw.githubusercontent.com/MartinHeinz/MartinHeinz/master/wave.gif" width="30px">
+# Aha : Jurnal Ibadah Muslim
 
-<a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1000&color=2196F3&width=435&lines=Mahasiswa+Teknik+Informatika;Mobile+%26+Web+Developer;Cybersecurity+Enthusiast" alt="Typing SVG" /></a>
+Aplikasi Android untuk mencatat ibadah harian: sholat, puasa, dzikir, dan tilawah. Dibuat sebagai bagian dari skripsi Teknik Informatika oleh **Alhabib Husein Alaydrus**.
 
-Selamat datang di repositori portofolio saya! Saya adalah mahasiswa Teknik Informatika yang sangat antusias dengan pengembangan perangkat lunak, khususnya di bidang *mobile* dan *web development*.
+- Google Play: `com.Islamic.Aha` (versi produksi 1.1.1; versi 1.2.0 sedang dikembangkan)
+- Kebijakan privasi: https://aha-jurnal-ibadah-muslim.web.app/privacy-policy.html
+- Syarat & ketentuan: https://aha-jurnal-ibadah-muslim.web.app/terms-of-service.html
 
-## 🚀 Tentang Saya
+## Fitur
 
-* 🎓 Saat ini saya sedang menempuh studi di semester 7.
-* 💻 Fokus utama saya adalah membangun aplikasi yang responsif dan efisien menggunakan **Android Studio** dan **Firebase**.
-* 🛡️ Selain *software development*, saya memiliki minat yang besar di bidang *Cybersecurity* (khususnya *ethical hacking*) dan terus mengasah pemahaman saya tentang keamanan sistem.
-* 🌐 Saya juga terbiasa menggunakan *environment tools* modern seperti **Docker** dan **Git** untuk menjaga alur kerja *development* yang rapi.
-* 📈 Di luar *coding*, saya memiliki ketertarikan pada investasi digital dan sedang aktif meningkatkan kemampuan bahasa Inggris untuk membaca dokumentasi teknis dengan lebih baik.
+- **Sholat** — sholat fardhu dengan jadwal berdasarkan lokasi (Aladhan API), sholat sunnah, dan tarawih saat Ramadan.
+- **Puasa** — puasa wajib Ramadan dan puasa sunnah yang ditambahkan pengguna.
+- **Dzikir** — daftar dzikir pilihan pengguna dari katalog (pagi, petang, setelah sholat, sebelum tidur, istighfar, sholawat, dan lain-lain), dicatat per sesi.
+- **Tilawah** — sesi bacaan harian, hafalan, dan murajaah berdasarkan rentang ayat, ditambah pencatatan Iqro/metode sejenis.
+- **Mode Cuti** — ibadah yang sedang tidak wajib tidak dihitung dan tidak dinilai.
+- **Statistik** — heatmap, streak, dan progres harian tanpa skor atau peringkat.
+- **Pengingat** — notifikasi waktu sholat dan habit sunnah.
+- **Mode tamu & sinkronisasi** — bisa dipakai tanpa akun; bila login, data disinkronkan ke cloud.
 
-## 🛠️ Tech Stack & Tools
+## Teknologi
 
-* **Frontend / Mobile:** Android Studio
-* **Backend / BaaS:** Firebase (Firestore, Authentication, dll.)
-* **DevOps & Version Control:** Docker, Git
+- Kotlin, Jetpack Compose (Material 3), MVVM
+- Hilt, Room (migrasi manual), WorkManager
+- Firebase: Authentication, Cloud Firestore, Crashlytics, Hosting
+- Firestore Security Rules diuji dengan Firebase Emulator (`firestore-rules-test/`)
 
-## 🔭 Apa yang Sedang Saya Kerjakan?
+## Menjalankan proyek
 
-Saat ini saya sedang fokus pada beberapa proyek utama:
-* 📱 **Aplikasi Habit-Tracking:** Mengembangkan aplikasi pelacak kebiasaan berbasis *mobile* menggunakan Flutter dengan integrasi Firestore untuk manajemen *database*.
-* 🏙️ **Proyek "Masyarakat Ciraos":** Bertindak sebagai *Project Manager* sekaligus *developer* dalam pengembangan proyek sistem informasi ini.
+File berikut **tidak** ada di repo dan harus disiapkan sendiri:
 
-<br>
+| File | Keterangan |
+|---|---|
+| `app/google-services.json` | dari Firebase Console project kamu |
+| `local.properties` | lokasi Android SDK (`sdk.dir=...`) |
+| `keystore.properties` | hanya untuk build release; salin dari `keystore.properties.template` |
 
-<p align="center">
-  <a href="https://github.com/Alhabib13">
-    <img height="180em" src="https://github-readme-stats-eight-theta.vercel.app/api?username=Alhabib13&show_icons=true&theme=algolia&include_all_commits=true&count_private=true"/>
-    <img height="180em" src="https://github-readme-stats-eight-theta.vercel.app/api/top-langs/?username=Alhabib13&layout=compact&theme=algolia"/>
-  </a>
-</p>
+Build debug:
 
-<br>
+```bash
+./gradlew assembleDebug
+```
 
-## 📫 Mari Terhubung!
+Tes:
 
-* **Email:** [Alhabib Husein Alaydrus](alhabib.husein13@gmail.com)
-* **LinkedIn:** [Profil LinkedIn Husein](https://www.linkedin.com/in/alhabib-husein-alaydrus-669910291/)
+```bash
+./gradlew testDebugUnitTest            # tes unit
+./gradlew connectedDebugAndroidTest    # tes instrumentasi (emulator/HP)
+cd firestore-rules-test && npm test    # tes Firestore Security Rules
+```
 
----
-⭐️ *Thanks for dropping by! Feel free to explore my repositories.*
+## Data penelitian
+
+Mulai versi 1.2.0, catatan ibadah (jenis ibadah, tanggal, jam pencatatan) dikumpulkan untuk penelitian skripsi setelah pengguna menyetujui pemberitahuan di aplikasi. Data tidak dijual dan tidak dipakai untuk iklan. Rinciannya ada di kebijakan privasi.
+
+## Atribusi
+
+Data posisi ayat Al-Qur'an (jumlah ayat, halaman, juz) berasal dari [Tanzil Project](https://tanzil.net) (CC BY 3.0), dibangkitkan dengan `tools/gen_quran_data.py`.
+
+## Kontak
+
+- Email: alhabib.husein13@gmail.com
+- LinkedIn: [Alhabib Husein Alaydrus](https://www.linkedin.com/in/alhabib-husein-alaydrus-669910291/)
