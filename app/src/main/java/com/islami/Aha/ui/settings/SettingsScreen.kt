@@ -58,7 +58,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
     onNavigateToLogin: (String?) -> Unit = {},
-    onNavigateToPrivacyData: () -> Unit = {}
+    onNavigateToPrivacyData: () -> Unit = {},
+    onNavigateToAccountSecurity: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -109,6 +110,7 @@ fun SettingsScreen(
         },
         onNavigateBack = onNavigateBack,
         onNavigateToPrivacyData = onNavigateToPrivacyData,
+        onNavigateToAccountSecurity = onNavigateToAccountSecurity,
         onShowLocationDialog = viewModel::showLocationDialog,
         onHideLocationDialog = viewModel::hideLocationDialog,
         onSetLocation = viewModel::setLocation,
@@ -201,6 +203,7 @@ fun SettingsScreenContent(
     onToastDismissed: () -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToPrivacyData: () -> Unit = {},
+    onNavigateToAccountSecurity: () -> Unit = {},
     onShowLocationDialog: () -> Unit,
     onHideLocationDialog: () -> Unit,
     onSetLocation: (String) -> Unit,
@@ -400,27 +403,16 @@ fun SettingsScreenContent(
                     )
                 }
 
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingsClickableItem(
-                        icon = Icons.Outlined.Lock,
-                        iconBackground = WarningAmber.copy(alpha = 0.1f),
-                        iconTint = WarningAmber,
-                        title = stringResource(R.string.settings_change_password_title),
-                        subtitle = stringResource(R.string.settings_change_password_subtitle),
-                        onClick = onChangePasswordClick
-                    )
-                }
-
+                // Ubah Password + Keamanan Akun digabung jadi satu halaman.
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     SettingsClickableItem(
                         icon = Icons.Outlined.Shield,
                         iconBackground = InfoBlue.copy(alpha = 0.1f),
                         iconTint = InfoBlue,
-                        title = stringResource(R.string.settings_account_security_title),
-                        subtitle = stringResource(R.string.settings_account_security_subtitle),
-                        onClick = onAccountSecurityClick
+                        title = "Akun & Keamanan",
+                        subtitle = "Email, kata sandi, hapus akun",
+                        onClick = onNavigateToAccountSecurity
                     )
                 }
 

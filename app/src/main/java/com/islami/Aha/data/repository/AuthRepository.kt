@@ -366,6 +366,29 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    /**
+     * Akun masuk lewat Google tanpa kata sandi Aha: tidak ada "ubah kata sandi", dan login ulang
+     * sebelum hapus akun dilakukan dengan memilih akun Google lagi.
+     */
+    val isGoogleOnlyUser: Boolean
+        get() {
+            val providers = firebaseAuth.currentUser?.providerData?.map { it.providerId }.orEmpty()
+            return GoogleAuthProvider.PROVIDER_ID in providers && EmailAuthProvider.PROVIDER_ID !in providers
+        }
+
+    /** Login ulang dengan token Google yang baru dipilih, lalu hapus akun. */
+    suspend fun reAuthenticateWithGoogleAndDelete(idToken: String): Result<Unit> {
+        val user = firebaseAuth.currentUser ?: return Result.failure(
+            IllegalStateException("User tidak login")
+        )
+        return runCatching {
+            user.reauthenticate(GoogleAuthProvider.getCredential(idToken, null)).await()
+            deleteAccountSafely(user)
+        }.onFailure { error ->
+            com.islami.Aha.util.logCrashlyticsSafe(error)
+        }
+    }
+
     suspend fun reAuthenticateAndDelete(password: String): Result<Unit> {
         val user = firebaseAuth.currentUser ?: return Result.failure(
             IllegalStateException("User tidak login")

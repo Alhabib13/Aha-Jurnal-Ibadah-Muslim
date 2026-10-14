@@ -89,6 +89,12 @@ data class SettingsUiState(
     val showDeleteAccountConfirmation: Boolean = false,
     val isChangingPassword: Boolean = false,
     val isDeletingAccount: Boolean = false,
+    /** Masuk lewat Google: tanpa kata sandi Aha; konfirmasi hapus akun lewat pemilih akun Google. */
+    val isGoogleUser: Boolean = false,
+    /** Konfirmasi hapus akun pengguna Google: layar meluncurkan pemilih akun Google. */
+    val requestGoogleReAuth: Boolean = false,
+    /** Kata sandi baru saja berhasil diganti (halaman Ubah kata sandi kembali sendiri). */
+    val passwordChanged: Boolean = false,
     val isLoggingOut: Boolean = false,
     val showReAuthDialog: Boolean = false,
 
@@ -121,6 +127,7 @@ class SettingsViewModel @Inject constructor(
         SettingsUiState(
             themeMode = ThemeManager.themeMode.value,
             isLoggedIn = authRepository.isLoggedIn,
+            isGoogleUser = authRepository.isGoogleOnlyUser,
             userEmail = authRepository.currentUser?.email.orEmpty(),
             notificationEnabled = sharedPreferences.getBoolean(
                 NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED,
@@ -340,7 +347,8 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isChangingPassword = false,
-                        showChangePasswordDialog = false
+                        showChangePasswordDialog = false,
+                        passwordChanged = true
                     )
                 }
                 showSnackbar(appContext.getString(R.string.settings_snackbar_password_changed))
@@ -529,10 +537,36 @@ class SettingsViewModel @Inject constructor(
                     )
                 }
                 if (error is ReAuthRequiredException) {
-                    _uiState.update { it.copy(showReAuthDialog = true) }
+                    _uiState.update {
+                        if (it.isGoogleUser) it.copy(requestGoogleReAuth = true) else it.copy(showReAuthDialog = true)
+                    }
                 } else {
                     showSnackbar(error?.message ?: appContext.getString(R.string.error_delete_account))
                 }
+            }
+        }
+    }
+
+    fun passwordChangedHandled() = _uiState.update { it.copy(passwordChanged = false) }
+
+    fun googleReAuthLaunched() = _uiState.update { it.copy(requestGoogleReAuth = false) }
+
+    /** Pemilih akun Google mengembalikan token: login ulang lalu hapus akun. null = dibatalkan. */
+    fun confirmGoogleReAuthDelete(idToken: String?, onSuccess: () -> Unit) {
+        if (idToken.isNullOrBlank()) {
+            showSnackbar(appContext.getString(R.string.settings_snackbar_delete_account_failed))
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeletingAccount = true) }
+            val result = authRepository.reAuthenticateWithGoogleAndDelete(idToken)
+            if (result.isSuccess) {
+                clearLocalData()
+                _uiState.update { it.copy(isDeletingAccount = false, isLoggedIn = false, userEmail = "") }
+                onSuccess()
+            } else {
+                _uiState.update { it.copy(isDeletingAccount = false) }
+                showSnackbar(appContext.getString(R.string.settings_snackbar_delete_account_failed))
             }
         }
     }

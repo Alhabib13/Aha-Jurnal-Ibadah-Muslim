@@ -40,6 +40,7 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
     object Settings : Screen("settings")
     object PrivacyData : Screen("privacy_data")
+    object AccountSecurity : Screen("account_security")
 }
 
 @Composable
@@ -202,19 +203,27 @@ fun AhaNavHost(
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToPrivacyData = { navController.navigate(Screen.PrivacyData.route) },
-                onNavigateToLogin = { message ->
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                    if (!message.isNullOrBlank()) {
-                        navController.currentBackStackEntry?.savedStateHandle?.set(
-                            TRANSIENT_SNACKBAR_KEY,
-                            message
-                        )
-                    }
-                }
+                onNavigateToAccountSecurity = { navController.navigate(Screen.AccountSecurity.route) },
+                onNavigateToLogin = { message -> navigateToLoginAfterAccountExit(navController, message) }
             )
         }
+
+        composable(Screen.AccountSecurity.route) {
+            com.islami.Aha.ui.settings.AccountSecurityScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToLogin = { message -> navigateToLoginAfterAccountExit(navController, message) }
+            )
+        }
+    }
+}
+
+/** Setelah keluar / hapus akun: ke Login, buang tumpukan Beranda, opsional tampilkan pesan. */
+private fun navigateToLoginAfterAccountExit(navController: NavHostController, message: String?) {
+    navController.navigate(Screen.Login.route) {
+        popUpTo(Screen.Home.route) { inclusive = true }
+        launchSingleTop = true
+    }
+    if (!message.isNullOrBlank()) {
+        navController.currentBackStackEntry?.savedStateHandle?.set(TRANSIENT_SNACKBAR_KEY, message)
     }
 }

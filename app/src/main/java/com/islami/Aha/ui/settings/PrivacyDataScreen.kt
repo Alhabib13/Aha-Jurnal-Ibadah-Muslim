@@ -219,7 +219,7 @@ fun PrivacyDataScreen(
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
-                    "Untuk menghapus akun beserta seluruh datanya, buka Pengaturan › Keamanan Akun › Hapus Akun Permanen.",
+                    "Untuk menghapus akun beserta seluruh datanya, buka Pengaturan › Akun & Keamanan › Hapus akun permanen.",
                     fontSize = 13.sp,
                     lineHeight = 19.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
