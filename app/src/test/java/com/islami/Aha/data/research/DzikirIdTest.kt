@@ -21,7 +21,7 @@ class DzikirIdTest {
     fun `cocok dengan pola rules`() {
         val id = ResearchSchema.logId(
             "uid1", "2026-10-12", ResearchSchema.Jenis.DZIKIR, ResearchSchema.Detail.ISTIGHFAR,
-            ResearchSchema.dzikirLocalId("kartu-pagi", sesi)
+            ResearchSchema.dzikirLocalId("habit-1", sesi)
         )
         assertTrue(id.matches(Regex("uid1_2026-10-12_dzikir_istighfar_[A-Za-z0-9-]{1,64}_[0-9]{13}")))
     }
@@ -32,7 +32,7 @@ class DzikirIdTest {
             ResearchSchema.slotKey("2026-10-12", ResearchSchema.Jenis.DZIKIR, ResearchSchema.Detail.DZIKIR_PAGI)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            ResearchSchema.slotKey("2026-10-12", ResearchSchema.Jenis.DZIKIR, ResearchSchema.Detail.DZIKIR_PAGI, "kartu-pagi")
+            ResearchSchema.slotKey("2026-10-12", ResearchSchema.Jenis.DZIKIR, ResearchSchema.Detail.DZIKIR_PAGI, "habit-1")
         }
         assertThrows(IllegalArgumentException::class.java) { ResearchSchema.dzikirLocalId("habit_1", sesi) }
         assertThrows(IllegalArgumentException::class.java) { ResearchSchema.dzikirLocalId("habit-1", 179_160_000L) }

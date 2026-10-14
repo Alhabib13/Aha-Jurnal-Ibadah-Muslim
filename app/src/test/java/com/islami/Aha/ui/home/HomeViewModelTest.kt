@@ -74,14 +74,14 @@ class HomeViewModelTest {
         // Habit ber-waktu "bebas" tetap masuk penyebut.
         assertEquals(3, state.totalHabitsCount)
         assertEquals("2/3", state.getCategoryBadge("Dzikir"))
-        assertTrue(state.hiddenCategories.isEmpty())
     }
 
     @Test
-    fun `no dzikir habit means dzikir category is hidden, not shown as zero`() {
-        val state = HomeUiState()
-        assertEquals(listOf("Dzikir"), state.hiddenCategories)
+    fun `no dzikir habit shows neutral entry, never a 0 of 0 badge`() {
+        val state = HomeUiState(selectedMainCategory = "Dzikir")
+        assertEquals("Belum ada", state.getCategoryBadge("Dzikir"))
         assertEquals(0, state.dzikirTotalCount)
+        assertFalse(state.isComingSoon)
     }
 
     @Test
@@ -99,7 +99,6 @@ class HomeViewModelTest {
     fun `dzikir and tilawah stay visible in haidh mode`() {
         val state = HomeUiState(isHaidhMode = true, dzikirHabits = listOf(dz("a", 1), dz("b", 0)))
         assertEquals("1/2", state.getCategoryBadge("Dzikir"))
-        assertTrue(state.hiddenCategories.isEmpty())
         assertEquals("0 hlm", state.getCategoryBadge("Tilawah"))
     }
 

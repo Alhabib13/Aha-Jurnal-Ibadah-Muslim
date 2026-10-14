@@ -78,7 +78,7 @@ data class HomeUiState(
     val isRamadanMonth: Boolean = DateUtils.isRamadanMonth(),
     val showGenderPrompt: Boolean = false,
     val showResearchNotice: Boolean = false,
-    /** Habit dzikir pilihan pengguna; kosong = kategori Dzikir tidak ditampilkan sama sekali. */
+    /** Habit dzikir pilihan pengguna; kosong = Beranda menampilkan pintu masuk netral, bukan 0/0. */
     val dzikirHabits: List<DzikirHabitUi> = emptyList(),
     val tilawahSessions: List<TilawahSessionUi> = emptyList(),
     val iqroProgress: IqroProgressUi? = null,
@@ -110,10 +110,6 @@ data class HomeUiState(
                 com.islami.Aha.data.research.ResearchSchema.Jenis.DZIKIR, isHaidhMode
             )
         ) dzikirHabits.size else 0
-
-    /** Kategori yang disembunyikan dari baris kategori (bukan ditampilkan kosong / nol). */
-    val hiddenCategories: List<String>
-        get() = if (dzikirTotalCount == 0) listOf("Dzikir") else emptyList()
 
     val tilawahHalamanToday: Int
         get() = tilawahSessions.sumOf { it.halaman }
@@ -277,7 +273,7 @@ data class HomeUiState(
                 "$completed/$total"
             }
             // Cakupan Mode Cuti untuk dzikir & tilawah: ModeCutiPolicy (MENUNGGU VALIDASI PAKAR).
-            "Dzikir" -> "$dzikirDoneCount/$dzikirTotalCount"
+            "Dzikir" -> if (dzikirTotalCount == 0) "Belum ada" else "$dzikirDoneCount/$dzikirTotalCount"
             "Tilawah" -> "$tilawahHalamanToday hlm"
             else -> "Segera"
         }

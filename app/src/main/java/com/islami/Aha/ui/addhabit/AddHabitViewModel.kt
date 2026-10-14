@@ -139,6 +139,13 @@ data class AddHabitUiState(
     val dzikirSlugSudahAda: Set<String> = emptySet(),
     val dzikirError: String? = null
 ) {
+    /**
+     * Selama Mode Cuti hanya kategori yang tetap aktif menurut ModeCutiPolicy yang bisa
+     * ditambahkan (bawaan: Dzikir). Sholat & Puasa Sunnah tetap terkunci.
+     */
+    val dzikirBolehSaatCuti: Boolean
+        get() = com.islami.Aha.data.research.ModeCutiPolicy.aktif(ResearchSchema.Jenis.DZIKIR, modeCutiAktif = true)
+
     val availableHabits: List<SunnahHabitPreset>
         get() = getPresetsFor(selectedCategory)
 
@@ -184,11 +191,16 @@ class AddHabitViewModel @Inject constructor(
         viewModelScope.launch {
             com.islami.Aha.util.UserPreferencesManager.isHaidhMode.collect { isHaidhMode ->
                 _uiState.update { it.copy(isHaidhMode = isHaidhMode) }
+                // Mode Cuti: satu-satunya kategori yang terbuka adalah Dzikir.
+                if (isHaidhMode && _uiState.value.dzikirBolehSaatCuti && !_uiState.value.isDzikir) {
+                    selectDzikirCategory()
+                }
             }
         }
     }
 
     fun selectCategory(category: SunnahCategoryType) {
+        if (_uiState.value.isHaidhMode) return // Sholat & Puasa Sunnah terkunci saat Mode Cuti
         _uiState.update { current ->
             val defaultHabit = getPresetsFor(category).first().id
             current.copy(
@@ -386,9 +398,11 @@ class AddHabitViewModel @Inject constructor(
     fun saveHabit() {
         val state = _uiState.value
         if (state.isDzikir) {
+            if (state.isHaidhMode && !state.dzikirBolehSaatCuti) return
             saveDzikir(state)
             return
         }
+        if (state.isHaidhMode) return
         val habitName = state.selectedHabitName
         if (habitName.isBlank()) return
         _uiState.update { it.copy(isSaving = true) }

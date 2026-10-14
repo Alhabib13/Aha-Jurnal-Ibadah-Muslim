@@ -112,6 +112,7 @@ fun HomeScreen(
     transientSnackbarMessage: String? = null,
     onTransientSnackbarShown: () -> Unit = {},
     onNavigateToAddHabit: () -> Unit,
+    onNavigateToAddDzikir: () -> Unit = onNavigateToAddHabit,
     onNavigateToSettings: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -241,6 +242,7 @@ fun HomeScreen(
             onToggleHabitCompletion = viewModel::toggleHabitCompletion,
             onToggleHabitReminder = viewModel::toggleReminderEnabled,
             onNavigateToAddHabit = onNavigateToAddHabit,
+            onNavigateToAddDzikir = onNavigateToAddDzikir,
             onNavigateToSettings = onNavigateToSettings,
             onToggleHaidhMode = viewModel::toggleHaidhMode,
             onSelectMainCategory = viewModel::selectMainCategory,
@@ -436,6 +438,7 @@ fun HomeScreenContent(
     onToggleHabitCompletion: (Habit) -> Unit,
     onToggleHabitReminder: (Habit) -> Unit,
     onNavigateToAddHabit: () -> Unit,
+    onNavigateToAddDzikir: () -> Unit = onNavigateToAddHabit,
     onNavigateToSettings: () -> Unit,
     onToggleHaidhMode: (Boolean) -> Unit,
     onSelectMainCategory: (String) -> Unit,
@@ -531,7 +534,6 @@ fun HomeScreenContent(
                 CategoryCardsRow(
                     selectedCategory = uiState.selectedMainCategory,
                     comingSoonCategories = uiState.comingSoonCategories,
-                    hiddenCategories = uiState.hiddenCategories,
                     onSelectCategory = onSelectMainCategory,
                     getBadge = { uiState.getCategoryBadge(it) }
                 )
@@ -547,7 +549,8 @@ fun HomeScreenContent(
                     progressTextOverride = if (uiState.isTilawahCategory) {
                         "${uiState.tilawahHalamanToday} halaman"
                     } else if (uiState.isDzikirCategory) {
-                        "${uiState.dzikirDoneCount} dari ${uiState.dzikirTotalCount} dicatat"
+                        if (uiState.dzikirTotalCount == 0) "Belum ada"
+                        else "${uiState.dzikirDoneCount} dari ${uiState.dzikirTotalCount} dicatat"
                     } else {
                         null
                     }
@@ -569,14 +572,17 @@ fun HomeScreenContent(
             // Content based on category
             val selectedSubCategory = uiState.subTabCategories.getOrNull(uiState.selectedSubTabIndex)
             if (uiState.isDzikirCategory) {
-                if (uiState.dzikirHabits.isNotEmpty()) {
-                    item {
+                item {
+                    if (uiState.dzikirHabits.isNotEmpty()) {
                         DzikirCard(
                             habits = uiState.dzikirHabits,
                             onRecord = onRecordDzikir,
                             onUndo = onUndoDzikir,
                             onDelete = onDeleteDzikirHabit
                         )
+                    } else {
+                        // Pintu masuk netral, bukan kartu progres 0/0.
+                        DzikirEntryCard(onAdd = onNavigateToAddDzikir)
                     }
                 }
             } else if (uiState.isTilawahCategory) {

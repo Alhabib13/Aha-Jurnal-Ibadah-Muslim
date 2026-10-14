@@ -1,13 +1,10 @@
 package com.islami.Aha.data.dzikir
 
 import android.content.Context
-import android.content.SharedPreferences
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.islami.Aha.data.local.DzikirHabitDao
-import com.islami.Aha.data.local.ResearchLogDao
 import com.islami.Aha.data.model.DzikirHabitEntity
-import com.islami.Aha.data.research.ResearchLogRepository
 import com.islami.Aha.data.research.ResearchSchema
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -32,14 +29,10 @@ data class DzikirHabitDraft(
 @Singleton
 class DzikirHabitRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val dao: DzikirHabitDao,
-    private val researchLogDao: ResearchLogDao,
-    private val sharedPreferences: SharedPreferences
+    private val dao: DzikirHabitDao
 ) {
     companion object {
         const val SUBCOLLECTION = "dzikir_habits"
-        /** Migrasi kartu dzikir lama dijalankan sekali per instalasi. */
-        const val KEY_MIGRASI_KARTU_LAMA = "dzikir_habit_migrasi_kartu_v1"
         private const val NAMA_MAKS = 100
         private const val TIMEOUT_MS = 10_000L
 
@@ -139,36 +132,6 @@ class DzikirHabitRepository @Inject constructor(
                 ?.collection(SUBCOLLECTION)?.document(id)?.delete()
                 ?.addOnFailureListener { runCatching { com.islami.Aha.util.logCrashlyticsSafe(it) } }
         }
-    }
-
-    /**
-     * Pengguna lama yang memakai kartu dzikir dua slot (pagi/petang) mendapat dua HABIT
-     * dzikir_pagi & dzikir_petang (mode centang) — sekali saja per instalasi, dan hanya bila
-     * ada catatan dari kartu itu. ID habit = id kartu lama (kartu-pagi / kartu-petang) supaya
-     * sesi baru menyambung dengan riwayatnya. Fungsi ini hanya MEMBACA research_logs.
-     * @return jumlah habit yang dibuat.
-     */
-    suspend fun migrateLegacyCardsIfNeeded(): Int {
-        if (sharedPreferences.getBoolean(KEY_MIGRASI_KARTU_LAMA, false)) return 0
-        val kandidat = listOf(
-            Triple(ResearchLogRepository.ID_HABIT_KARTU_PAGI, ResearchSchema.Detail.DZIKIR_PAGI, ResearchSchema.WaktuDzikir.PAGI),
-            Triple(ResearchLogRepository.ID_HABIT_KARTU_PETANG, ResearchSchema.Detail.DZIKIR_PETANG, ResearchSchema.WaktuDzikir.PETANG)
-        )
-        val now = System.currentTimeMillis()
-        val dibuat = kandidat.mapIndexedNotNull { i, (id, slug, waktu) ->
-            if (researchLogDao.countDzikirByHabitMarker("_${slug}_${id}_") == 0) return@mapIndexedNotNull null
-            if (dao.getById(id) != null) return@mapIndexedNotNull null
-            DzikirHabitEntity(
-                id = id, slug = slug, namaDetailAsli = null,
-                modePencatatan = ResearchSchema.ModePencatatan.CENTANG,
-                waktuDzikir = waktu, targetHitungan = null,
-                createdAt = now + i, ownerUid = currentUid()
-            )
-        }
-        dao.insertIgnore(dibuat)
-        dibuat.forEach { push(it) }
-        sharedPreferences.edit().putBoolean(KEY_MIGRASI_KARTU_LAMA, true).apply()
-        return dibuat.size
     }
 
     /** Saat login: habit tamu diadopsi & didorong ke cloud; habit dari cloud yang belum ada diambil. */

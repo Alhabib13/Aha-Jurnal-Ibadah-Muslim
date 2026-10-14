@@ -92,13 +92,6 @@ interface ResearchLogDao {
     )
     suspend fun getDzikirHabitPrefixesDikerjakan(tanggal: String): List<String>
 
-    /** Ada baris dzikir dari kartu lama (id habit kartu-pagi / kartu-petang)? Hanya membaca. */
-    @Query(
-        "SELECT COUNT(*) FROM research_logs WHERE jenisIbadah = 'dzikir' " +
-            "AND instr(slotKey, :penandaHabit) > 0"
-    )
-    suspend fun countDzikirByHabitMarker(penandaHabit: String): Int
-
     // ---------- Statistik (heatmap/streak/total) ----------
     // HANYA jenis yang tidak ada di habit_completion_records. Sholat & puasa ditulis ke
     // kedua tabel, jadi memasukkannya di sini akan menghitung ganda.

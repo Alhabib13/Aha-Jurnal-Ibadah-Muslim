@@ -50,9 +50,14 @@ import com.islami.Aha.ui.theme.HabitIslamiTheme
 fun AddHabitScreen(
     viewModel: AddHabitViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
-    onHabitSaved: () -> Unit = {}
+    onHabitSaved: () -> Unit = {},
+    bukaKategoriDzikir: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(bukaKategoriDzikir) {
+        if (bukaKategoriDzikir) viewModel.selectDzikirCategory()
+    }
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
@@ -130,7 +135,7 @@ fun AddHabitScreenContent(
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal),
             bottomBar = {
-                if (!uiState.isHaidhMode) {
+                if (!uiState.isHaidhMode || (uiState.isDzikir && uiState.dzikirBolehSaatCuti)) {
                     Surface(
                         modifier = Modifier
                         .fillMaxWidth()
@@ -190,7 +195,7 @@ fun AddHabitScreenContent(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 64.dp),
+                            .padding(horizontal = 24.dp, vertical = 32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
@@ -213,6 +218,20 @@ fun AddHabitScreenContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
+                    }
+                    if (uiState.dzikirBolehSaatCuti) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Dzikir tetap bisa ditambahkan selama Mode Cuti.",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            DzikirSection(uiState = uiState, actions = dzikirActions)
+                            Spacer(modifier = Modifier.height(80.dp))
+                        }
                     }
                 } else {
                 Column(

@@ -64,12 +64,6 @@ class ResearchLogRepository @Inject constructor(
         const val KEY_RESEARCH_NOTICE_ACK = "research_notice_ack_v1"
         private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
 
-        /**
-         * Id habit kartu dzikir lama (dua centang, sebelum Tahap 2). Baris lama memakai id ini;
-         * migrasi Tahap 2 membuat habit dzikir dengan id yang sama (DzikirHabitRepository).
-         */
-        const val ID_HABIT_KARTU_PAGI = "kartu-pagi"
-        const val ID_HABIT_KARTU_PETANG = "kartu-petang"
 
         private fun prefixSesiDzikir(tanggal: String, slug: String, idHabit: String) =
             "${tanggal}_${ResearchSchema.Jenis.DZIKIR}_${slug}_${idHabit}_"

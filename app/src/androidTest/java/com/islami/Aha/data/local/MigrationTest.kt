@@ -250,8 +250,8 @@ class MigrationTest {
         helper.createDatabase(name, 15).apply {
             seedHabits(this); seedUserHabits(this, withSyncColumns = true); seedCompletions(this, withIsSynced = true)
             seedContent(this)
-            // Baris dari kartu dzikir lama (id habit kartu-pagi) + tilawah.
-            insert(this, "research_logs", "slotKey" to "${day(0)}_dzikir_dzikir_pagi_kartu-pagi_1791600000000",
+            // Baris dzikir per sesi + tilawah.
+            insert(this, "research_logs", "slotKey" to "${day(0)}_dzikir_dzikir_pagi_habit-x_1791600000000",
                 "tanggal" to day(0), "jenisIbadah" to "dzikir", "namaDetail" to "dzikir_pagi", "namaDetailAsli" to null,
                 "status" to "dikerjakan", "jumlah" to null, "jilid" to null, "jamPencatatan" to 1_791_600_000_000L,
                 "sumberPencatatan" to "tidak_diketahui", "ownerUid" to "uidA", "isSynced" to 1L, "updatedAt" to 5L,

@@ -121,6 +121,21 @@ private fun DzikirHabitRow(h: DzikirHabitUi, onRecord: () -> Unit, onUndo: () ->
     }
 }
 
+/** Pengguna belum menambahkan habit dzikir: ajakan netral, tanpa angka progres. */
+@Composable
+fun DzikirEntryCard(onAdd: () -> Unit) {
+    SectionCard {
+        Text("Dzikir", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            "Belum ada dzikir di daftarmu. Tambahkan dzikir yang biasa kamu amalkan untuk mulai mencatat.",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = onAdd) { Text("Tambahkan dzikir") }
+    }
+}
+
 /** Angka bulat dalam [range]; null bila kosong/di luar rentang (tombol simpan nonaktif). */
 private fun parseInRange(text: String, range: IntRange): Int? = text.toIntOrNull()?.takeIf { it in range }
 

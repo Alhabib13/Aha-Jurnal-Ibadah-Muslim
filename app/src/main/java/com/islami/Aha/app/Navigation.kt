@@ -25,6 +25,9 @@ import com.islami.Aha.ui.statistic.StatisticScreen
 
 private const val TRANSIENT_SNACKBAR_KEY = "transient_snackbar"
 
+/** Kategori awal Add Habit (dipakai pintu masuk Dzikir di Beranda). */
+const val ADD_HABIT_KATEGORI_KEY = "add_habit_kategori"
+
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
     object Onboarding : Screen("onboarding")
@@ -149,6 +152,11 @@ fun AhaNavHost(
                     backStackEntry.savedStateHandle.remove<String>(TRANSIENT_SNACKBAR_KEY)
                 },
                 onNavigateToAddHabit = { navController.navigate(Screen.AddHabit.route) },
+                onNavigateToAddDzikir = {
+                    navController.navigate(Screen.AddHabit.route)
+                    // Entri baru: buka Add Habit langsung di kategori Dzikir.
+                    navController.currentBackStackEntry?.savedStateHandle?.set(ADD_HABIT_KATEGORI_KEY, "dzikir")
+                },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
             )
         }
@@ -157,9 +165,10 @@ fun AhaNavHost(
             StatisticScreen() // Navigasi dikelola oleh BottomNav
         }
 
-        composable(Screen.AddHabit.route) {
+        composable(Screen.AddHabit.route) { backStackEntry ->
             val context = LocalContext.current
             AddHabitScreen(
+                bukaKategoriDzikir = backStackEntry.savedStateHandle.get<String>(ADD_HABIT_KATEGORI_KEY) == "dzikir",
                 onNavigateBack = { navController.popBackStack() },
                 onHabitSaved = {
                     navController.previousBackStackEntry?.savedStateHandle?.set(

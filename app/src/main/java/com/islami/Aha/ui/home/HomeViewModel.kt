@@ -125,8 +125,6 @@ class HomeViewModel @Inject constructor(
             )
             tilawahState.syncOnLogin()
             dzikirHabitRepository.syncOnLogin()
-            // Sekali saja: pengguna kartu dzikir lama mendapat HABIT dzikir pagi/petang (bukan log).
-            dzikirHabitRepository.migrateLegacyCardsIfNeeded()
             researchLogRepository.scheduleUpload()
             syncTodayCompletionsToUiState()
             val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
@@ -712,17 +710,7 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             }.collect { list ->
-                _uiState.update {
-                    it.copy(
-                        dzikirHabits = list,
-                        // Tanpa habit dzikir, kategori Dzikir tidak tampil: jangan biarkan terpilih.
-                        selectedMainCategory = if (list.isEmpty() && it.selectedMainCategory == "Dzikir") {
-                            "Sholat"
-                        } else {
-                            it.selectedMainCategory
-                        }
-                    )
-                }
+                _uiState.update { it.copy(dzikirHabits = list) }
             }
         }
         viewModelScope.launch {

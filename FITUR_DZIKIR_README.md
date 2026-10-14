@@ -9,20 +9,19 @@ Kartu dua slot pagi/petang sudah diganti daftar habit dzikir pilihan pengguna.
   `users/{uid}/dzikir_habits/{id}` (`slug`, `mode_pencatatan`, `waktu_dzikir`, `dibuat_pada`,
   opsional `nama_detail_asli` [wajib untuk dzikir_lainnya] dan `target_hitungan`).
   Kode: `data/dzikir/DzikirHabitRepository.kt`. Tidak pernah menulis `logs`/`research_logs`.
+- **Add Habit saat Mode Cuti**: hanya kategori yang TETAP_AKTIF di ModeCutiPolicy (Dzikir) yang
+  terbuka; Sholat & Puasa Sunnah tetap terkunci.
 - **Add Habit → Dzikir**: 9 entri katalog, boleh pilih beberapa sekaligus, dzikir_lainnya boleh
   lebih dari satu asal namanya beda. Mode "layar" tampil tetapi nonaktif ("bacaannya belum
   tersedia"). Target hitungan opsional, kosong secara bawaan, tanpa nilai anjuran.
-- **Beranda**: kategori Dzikir hanya tampil bila ada habit dzikir. Tiap habit punya tombol
+- **Beranda**: kategori Dzikir selalu tampil. Tanpa habit dzikir, isinya pintu masuk netral
+  ("Belum ada dzikir... Tambahkan dzikir") yang membuka Add Habit di kategori Dzikir, bukan kartu
+  progres 0/0 (fitur yang tidak terlihat tidak menghasilkan data). Tiap habit punya tombol
   "Catat" (satu sesi; ketukan ganda ≤ 60 detik = sesi yang sama), "Batalkan terakhir"
   (baris dihapus), dan "Hapus" (habit keluar dari daftar, catatan lama tetap).
   `sumber_pencatatan` = `tidak_diketahui`.
 - **Rasio "Progress Hari Ini"**: habit dengan ≥ 1 sesi hari ini / semua habit dzikir, termasuk
   yang ber-waktu `bebas` (yang tidak pernah disimpulkan "tidak"). Heatmap: 1 per habit per hari.
-- **Migrasi pengguna kartu lama** (sekali per instalasi, pref `dzikir_habit_migrasi_kartu_v1`):
-  bila ada baris research_logs dari kartu lama, dibuat habit `kartu-pagi` (dzikir_pagi) dan/atau
-  `kartu-petang` (dzikir_petang), mode centang. ID habit = id kartu lama sehingga riwayat menyambung.
-  Hanya membaca research_logs. Rilis produksi tidak pernah memakai kartu dua slot, jadi migrasi
-  ini praktis hanya mengenai instalasi uji.
 
 ## Mode Cuti — MENUNGGU_VALIDASI_PAKAR
 
@@ -107,3 +106,13 @@ semuanya nullable; migrasi 14→15 hanya `ALTER TABLE ADD COLUMN`).
 - Pemetaan waktu default tiap slug (terutama `tahlil` dan `asmaul_husna` sebagai `bebas`).
 - Acuan selisih adzan: dzikir pagi diukur dari Subuh, dzikir petang dari Ashar.
 - Cakupan Mode Cuti terhadap dzikir (saat ini: TETAP_AKTIF; lihat bagian "Mode Cuti" di atas).
+
+## Keputusan yang sudah ditutup
+
+- **Status `udzur` untuk dzikir: TIDAK** (diputuskan pemilik proyek, 2026-10-14). Udzur adalah alasan
+  sah yang menggugurkan kewajiban; dzikir bukan kewajiban, jadi tidak ada yang digugurkan.
+  Rules (`validStatus`) dan `JENIS_BOLEH_UDZUR` sudah sesuai (hanya sholat_wajib & puasa). Tidak dibuka lagi.
+- **Waktu dzikir tidak bisa dipilih pengguna**: diambil dari `waktu_default` katalog, supaya pembedaan
+  berjendela vs bebas di rules tidak rusak (mis. "istighfar waktu pagi"). Ditinjau ulang setelah ada data nyata.
+- **Heatmap dzikir**: 1 per habit per hari; data per sesi tetap utuh di `logs`.
+- **Migrasi kartu dua slot: dihapus.** Kartu itu tidak pernah dirilis, jadi kodenya tidak melayani pengguna nyata.

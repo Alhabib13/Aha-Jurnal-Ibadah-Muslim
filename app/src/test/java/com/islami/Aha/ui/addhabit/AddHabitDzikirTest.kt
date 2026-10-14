@@ -100,6 +100,26 @@ class AddHabitDzikirTest {
     }
 
     @Test
+    fun `Mode Cuti - hanya Dzikir yang terbuka, Sholat dan Puasa Sunnah tetap terkunci`() = runTest(dispatcher) {
+        com.islami.Aha.util.UserPreferencesManager.setHaidhMode(true, "test")
+        try {
+            val vmCuti = AddHabitViewModel(mockk<Context>(relaxed = true), mockk<SunnahHabitSharedViewModel>(relaxed = true), repo)
+            advanceUntilIdle()
+            assertTrue(vmCuti.uiState.value.isHaidhMode)
+            assertTrue(vmCuti.uiState.value.isDzikir)
+            vmCuti.selectCategory(SunnahCategoryType.PUASA)
+            assertTrue(vmCuti.uiState.value.isDzikir) // pindah kategori ditolak
+            vmCuti.toggleDzikirEntry(ResearchSchema.Detail.ISTIGHFAR)
+            vmCuti.saveHabit()
+            advanceUntilIdle()
+            assertTrue(vmCuti.uiState.value.saveSuccess)
+            coVerify { repo.addAll(listOf(DzikirHabitDraft(ResearchSchema.Detail.ISTIGHFAR)), any()) }
+        } finally {
+            com.islami.Aha.util.UserPreferencesManager.setHaidhMode(false, "test")
+        }
+    }
+
+    @Test
     fun `tanpa pilihan tidak menyimpan`() = runTest(dispatcher) {
         vm.selectDzikirCategory()
         advanceUntilIdle()
