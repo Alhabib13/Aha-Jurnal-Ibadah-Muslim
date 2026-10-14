@@ -20,15 +20,22 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Mosque
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.VolumeDown
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -262,5 +269,138 @@ fun NotificationSoundSelectionDialog(
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------- Pengaturan notifikasi
+
+/**
+ * Dibuka dari ikon gear di halaman Notifikasi. Satu-satunya tempat mengatur suara & getar
+ * (menu lama di Pengaturan sudah dihapus).
+ */
+@Composable
+fun NotificationSettingsSheet(
+    ringkasanSuaraSholat: Map<String, String>,
+    namaWaktu: Map<String, String>,
+    suaraLainnya: NotificationScheduler.NotificationSoundOption,
+    getarAktif: Boolean,
+    onWaktuClick: (String) -> Unit,
+    onSuaraLainnyaClick: () -> Unit,
+    onToggleGetar: () -> Unit,
+    onPengaturanHpClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    PilihanSheet("Pengaturan notifikasi", "Suara dan getar untuk pengingat ibadah.", onDismiss) {
+        Text(
+            "SUARA TIAP WAKTU SHOLAT",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.5.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), RoundedCornerShape(18.dp))
+        ) {
+            namaWaktu.entries.forEachIndexed { i, (slug, nama) ->
+                if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                BarisPengaturan(
+                    ikon = Icons.Rounded.Mosque,
+                    judul = nama,
+                    nilai = ringkasanSuaraSholat[slug].orEmpty(),
+                    onClick = { onWaktuClick(slug) }
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "LAINNYA",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.5.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), RoundedCornerShape(18.dp))
+        ) {
+            BarisPengaturan(
+                ikon = Icons.AutoMirrored.Rounded.VolumeUp,
+                judul = "Suara pengingat lainnya",
+                keterangan = "Sholat sunnah, puasa, dan pengingat lain",
+                nilai = suaraLainnya.displayName,
+                onClick = onSuaraLainnyaClick
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggleGetar)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                IkonBulat(Icons.Rounded.Vibration)
+                Text("Getar", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Switch(checked = getarAktif, onCheckedChange = { onToggleGetar() })
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            BarisPengaturan(
+                ikon = Icons.Rounded.Settings,
+                judul = "Pengaturan notifikasi HP",
+                keterangan = "Izin, layar kunci, dan mode Jangan Ganggu",
+                nilai = "",
+                onClick = onPengaturanHpClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun IkonBulat(ikon: ImageVector) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+        contentAlignment = Alignment.Center
+    ) { Icon(ikon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp)) }
+}
+
+@Composable
+private fun BarisPengaturan(
+    ikon: ImageVector,
+    judul: String,
+    nilai: String,
+    keterangan: String? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        IkonBulat(ikon)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(judul, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            if (keterangan != null) {
+                Text(keterangan, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (nilai.isNotEmpty()) {
+            Text(nilai, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        }
+        Icon(
+            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

@@ -120,11 +120,6 @@ fun SettingsScreen(
         onShowThemeModeDialog = viewModel::showThemeModeDialog,
         onHideThemeModeDialog = viewModel::hideThemeModeDialog,
         onSetThemeMode = viewModel::setThemeMode,
-        onToggleNotification = viewModel::toggleNotification,
-        onNotificationSoundClick = viewModel::onNotificationSoundClick,
-        onHideNotificationSoundDialog = viewModel::hideNotificationSoundDialog,
-        onSetNotificationSound = viewModel::setNotificationSound,
-        onToggleNotificationVibration = viewModel::toggleNotificationVibration,
         onChangePasswordClick = viewModel::onChangePasswordClick,
         onHideChangePasswordDialog = viewModel::hideChangePasswordDialog,
         onSubmitChangePassword = viewModel::submitPasswordChange,
@@ -216,11 +211,6 @@ fun SettingsScreenContent(
     onShowGenderDialog: () -> Unit,
     onHideGenderDialog: () -> Unit,
     onSetGenderProfile: (com.islami.Aha.util.GenderProfile) -> Unit,
-    onToggleNotification: () -> Unit,
-    onNotificationSoundClick: () -> Unit,
-    onHideNotificationSoundDialog: () -> Unit,
-    onSetNotificationSound: (NotificationScheduler.NotificationSoundOption) -> Unit,
-    onToggleNotificationVibration: () -> Unit,
     onChangePasswordClick: () -> Unit,
     onHideChangePasswordDialog: () -> Unit,
     onSubmitChangePassword: (String, String, String) -> Unit,
@@ -334,55 +324,6 @@ fun SettingsScreenContent(
                     }
                 )
             }
-
-            // =============================================================
-            // SECTION: NOTIFIKASI
-            // =============================================================
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_notifications))
-            }
-
-            // Pengingat Ibadah
-            item {
-                SettingsToggleItem(
-                    icon = Icons.Outlined.Notifications,
-                    iconBackground = InfoBlue.copy(alpha = 0.1f),
-                    iconTint = InfoBlue,
-                    title = stringResource(R.string.settings_reminder_title),
-                    subtitle = stringResource(R.string.settings_reminder_subtitle),
-                    isChecked = uiState.notificationEnabled,
-                    onToggle = onToggleNotification
-                )
-            }
-
-            // Suara Notifikasi
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.AutoMirrored.Filled.VolumeUp,
-                    iconBackground = CategoryDzikirStart.copy(alpha = 0.1f),
-                    iconTint = CategoryDzikirStart,
-                    title = stringResource(R.string.settings_sound_title),
-                    subtitle = uiState.notificationSound.displayName,
-                    onClick = onNotificationSoundClick
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsToggleItem(
-                    icon = Icons.Outlined.Vibration,
-                    iconBackground = InfoBlue.copy(alpha = 0.1f),
-                    iconTint = InfoBlue,
-                    title = stringResource(R.string.settings_vibration_title),
-                    subtitle = stringResource(R.string.settings_vibration_subtitle),
-                    isChecked = uiState.notificationVibrationEnabled,
-                    onToggle = onToggleNotificationVibration
-                )
-            }
-
-            // Removed AutoStart per user request
 
             // =============================================================
             // SECTION: AKUN
@@ -704,14 +645,6 @@ fun SettingsScreenContent(
         }
     }
 
-    if (uiState.showNotificationSoundDialog) {
-        NotificationSoundSelectionDialog(
-            currentOption = uiState.notificationSound,
-            onSelect = onSetNotificationSound,
-            onDismiss = onHideNotificationSoundDialog
-        )
-    }
-
     if (uiState.showChangePasswordDialog) {
         ChangePasswordDialog(
             userEmail = uiState.userEmail,
@@ -799,11 +732,6 @@ fun SettingsScreenPreview() {
             onShowGenderDialog = {},
             onHideGenderDialog = {},
             onSetGenderProfile = {},
-            onToggleNotification = {},
-            onNotificationSoundClick = {},
-            onHideNotificationSoundDialog = {},
-            onSetNotificationSound = {},
-            onToggleNotificationVibration = {},
             onChangePasswordClick = {},
             onHideChangePasswordDialog = {},
             onSubmitChangePassword = { _, _, _ -> },

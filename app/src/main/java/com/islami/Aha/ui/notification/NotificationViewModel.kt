@@ -33,7 +33,10 @@ data class NotificationUiState(
     val sunnahHabitToDelete: SunnahHabit? = null,
     val showEditSunnahDialog: Boolean = false,
     val sunnahHabitToEdit: SunnahHabit? = null,
-    val snackbarMessage: String? = null
+    val snackbarMessage: String? = null,
+    val notificationSound: NotificationScheduler.NotificationSoundOption =
+        NotificationScheduler.NotificationSoundOption.SYSTEM_DEFAULT,
+    val vibrationEnabled: Boolean = true
 ) {
     val deleteTargetName: String
         get() = habitToDelete?.name ?: sunnahHabitToDelete?.name ?: ""
@@ -48,12 +51,16 @@ class NotificationViewModel @Inject constructor(
     private val featureConfigRepository: FeatureConfigRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
-        NotificationUiState(
-            globalNotificationEnabled = sharedPreferences.getBoolean(
-                NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED,
-                true
+        NotificationScheduler.getChannelSettings(context).let { channel ->
+            NotificationUiState(
+                globalNotificationEnabled = sharedPreferences.getBoolean(
+                    NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED,
+                    true
+                ),
+                notificationSound = channel.soundOption,
+                vibrationEnabled = channel.vibrationEnabled
             )
-        )
+        }
     )
     val uiState: StateFlow<NotificationUiState> = _uiState.asStateFlow()
 
@@ -300,6 +307,28 @@ class NotificationViewModel @Inject constructor(
             }
             hideDeleteConfirmation()
         }
+    }
+
+    // === Pengaturan notifikasi (dipindah dari layar Pengaturan) ===
+
+    fun setNotificationSound(option: NotificationScheduler.NotificationSoundOption) {
+        sharedPreferences.edit()
+            .putString(NotificationScheduler.KEY_NOTIFICATION_SOUND, option.value)
+            .apply()
+        _uiState.update { it.copy(notificationSound = option) }
+        NotificationScheduler.applyChannelSettings(context)
+        showSnackbar("Suara pengingat lainnya diperbarui")
+    }
+
+    fun toggleVibration() {
+        val enabled = !_uiState.value.vibrationEnabled
+        sharedPreferences.edit()
+            .putBoolean(NotificationScheduler.KEY_NOTIFICATION_VIBRATION, enabled)
+            .apply()
+        _uiState.update { it.copy(vibrationEnabled = enabled) }
+        // Ikut membangun ulang channel tiap waktu sholat.
+        NotificationScheduler.applyChannelSettings(context)
+        showSnackbar(if (enabled) "Getar notifikasi diaktifkan" else "Getar notifikasi dimatikan")
     }
 
     fun clearSnackbar() {

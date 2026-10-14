@@ -15,6 +15,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -126,6 +128,7 @@ fun SuaraSholatSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -138,15 +141,26 @@ fun SuaraSholatSheet(
             )
             Spacer(Modifier.height(4.dp))
 
-            KartuSuara(
-                ikon = Icons.Rounded.Mosque,
-                warnaIkon = Color(0xFFE2B65A),
-                judul = SuaraSholat.Pilihan.ADZAN.label,
-                keterangan = "Rekaman berlisensi terbuka · 1:27",
-                dipilih = setelan.pilihan == SuaraSholat.Pilihan.ADZAN,
-                onDengar = { putar(SuaraSholat.adzanUri(context)) },
-                onClick = { simpan(SuaraSholat.Pilihan.ADZAN) }
-            )
+            Judul("ADZAN")
+            SuaraSholat.Rekaman.untukWaktu(slug).forEach { rekaman ->
+                val dipilih = setelan.pilihan == SuaraSholat.Pilihan.ADZAN && setelan.rekaman == rekaman
+                KartuSuara(
+                    ikon = Icons.Rounded.Mosque,
+                    warnaIkon = Color(0xFFE2B65A),
+                    judul = rekaman.nama,
+                    keterangan = if (rekaman == SuaraSholat.Rekaman.SUBUH_MALMO) "Dengan lafal khusus Subuh · ${rekaman.durasi}"
+                    else "Durasi ${rekaman.durasi}",
+                    dipilih = dipilih,
+                    onDengar = { putar(SuaraSholat.adzanUri(context, rekaman)) },
+                    onClick = {
+                        SuaraSholat.simpanRekaman(context, slug, rekaman)
+                        versi++
+                        onChanged()
+                    }
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Judul("LAINNYA")
             KartuSuara(
                 ikon = Icons.Rounded.NotificationsActive,
                 warnaIkon = MaterialTheme.colorScheme.primary,
@@ -204,13 +218,24 @@ fun SuaraSholatSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                SuaraSholat.ATRIBUSI_ADZAN,
+                SuaraSholat.Rekaman.untukWaktu(slug).joinToString("\n") { it.atribusi },
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
+}
+
+@Composable
+private fun Judul(teks: String) {
+    Text(
+        teks,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.5.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable

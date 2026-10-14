@@ -70,7 +70,6 @@ data class SettingsUiState(
     val showTimeFormatDialog: Boolean = false,
     val showThemeModeDialog: Boolean = false,
     val showGenderDialog: Boolean = false,
-    val showNotificationSoundDialog: Boolean = false,
     val showChangePasswordDialog: Boolean = false,
     val showAccountSecurityDialog: Boolean = false,
     val isEmailVerified: Boolean = false,
@@ -215,78 +214,6 @@ class SettingsViewModel @Inject constructor(
     fun setThemeMode(mode: com.islami.Aha.ui.theme.ThemeMode) {
         ThemeManager.setThemeMode(mode)
         _uiState.update { it.copy(themeMode = mode, showThemeModeDialog = false) }
-    }
-
-    // === Notifikasi ===
-
-    fun toggleNotification() {
-        val enabled = !_uiState.value.notificationEnabled
-        if (enabled) {
-            val capability = NotificationScheduler.getNotificationCapability(appContext)
-            if (capability != NotificationScheduler.NotificationCapability.AVAILABLE) {
-                showSnackbar(
-                    when (capability) {
-                        NotificationScheduler.NotificationCapability.PERMISSION_DENIED ->
-                            appContext.getString(com.islami.Aha.R.string.notification_permission_required_message)
-                        NotificationScheduler.NotificationCapability.SYSTEM_DISABLED ->
-                            appContext.getString(com.islami.Aha.R.string.notification_system_disabled_message)
-                        NotificationScheduler.NotificationCapability.CHANNEL_DISABLED ->
-                            appContext.getString(com.islami.Aha.R.string.notification_channel_disabled_message)
-                        NotificationScheduler.NotificationCapability.AVAILABLE -> ""
-                    }
-                )
-                return
-            }
-        }
-        sharedPreferences.edit()
-            .putBoolean(NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED, enabled)
-            .apply()
-        _uiState.update { it.copy(notificationEnabled = enabled) }
-
-        viewModelScope.launch {
-            if (enabled) {
-                rescheduleAllActiveReminders()
-                showSnackbar(appContext.getString(R.string.settings_snackbar_reminder_enabled))
-            } else {
-                cancelAllExistingReminders()
-                showSnackbar(appContext.getString(R.string.settings_snackbar_reminder_disabled))
-            }
-        }
-    }
-
-    fun onNotificationSoundClick() {
-        _uiState.update { it.copy(showNotificationSoundDialog = true) }
-    }
-
-    fun hideNotificationSoundDialog() {
-        _uiState.update { it.copy(showNotificationSoundDialog = false) }
-    }
-
-    fun setNotificationSound(option: NotificationScheduler.NotificationSoundOption) {
-        sharedPreferences.edit()
-            .putString(NotificationScheduler.KEY_NOTIFICATION_SOUND, option.value)
-            .apply()
-        _uiState.update {
-            it.copy(
-                notificationSound = option,
-                showNotificationSoundDialog = false
-            )
-        }
-        NotificationScheduler.applyChannelSettings(appContext)
-        showSnackbar(appContext.getString(R.string.settings_snackbar_sound_updated))
-    }
-
-    fun toggleNotificationVibration() {
-        val enabled = !_uiState.value.notificationVibrationEnabled
-        sharedPreferences.edit()
-            .putBoolean(NotificationScheduler.KEY_NOTIFICATION_VIBRATION, enabled)
-            .apply()
-        _uiState.update { it.copy(notificationVibrationEnabled = enabled) }
-        NotificationScheduler.applyChannelSettings(appContext)
-        showSnackbar(
-            if (enabled) "Getar notifikasi diaktifkan"
-            else "Getar notifikasi dimatikan"
-        )
     }
 
     // === Privasi & Keamanan ===
@@ -884,31 +811,6 @@ class SettingsViewModel @Inject constructor(
         sunnahHabits.forEach { habit ->
             if (!habit.reminderEnabled || habit.reminderTime.isNullOrBlank()) return@forEach
             val (hour, minute) = parseHourMinute(habit.reminderTime) ?: return@forEach
-            NotificationScheduler.scheduleHabitReminder(
-                context = appContext,
-                habitId = habit.id,
-                habitName = habit.name,
-                hour = hour,
-                minute = minute
-            )
-        }
-    }
-
-    private suspend fun rescheduleAllActiveReminders() {
-        habitDao.getActiveReminderHabits().forEach { habit ->
-            val (hour, minute) = parseHourMinute(habit.time) ?: return@forEach
-            NotificationScheduler.scheduleHabitReminder(
-                context = appContext,
-                habitId = "default_${habit.id}",
-                habitName = habit.name,
-                hour = hour,
-                minute = minute
-            )
-        }
-
-        userHabitDao.getActiveReminderHabits().forEach { habit ->
-            val reminderTime = habit.reminderTime ?: return@forEach
-            val (hour, minute) = parseHourMinute(reminderTime) ?: return@forEach
             NotificationScheduler.scheduleHabitReminder(
                 context = appContext,
                 habitId = habit.id,

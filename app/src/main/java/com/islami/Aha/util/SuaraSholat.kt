@@ -23,7 +23,7 @@ import com.islami.Aha.R
  */
 object SuaraSholat {
     enum class Pilihan(val value: String, val label: String) {
-        ADZAN("adzan", "Adzan bawaan"),
+        ADZAN("adzan", "Adzan"),
         NADA_HP("nada_hp", "Nada notifikasi HP"),
         FILE_SENDIRI("file", "File suaraku sendiri"),
         SENYAP("senyap", "Senyap (hanya getar)");
@@ -33,7 +33,39 @@ object SuaraSholat {
         }
     }
 
-    data class Setelan(val pilihan: Pilihan, val uri: Uri?, val namaFile: String?)
+    data class Setelan(val pilihan: Pilihan, val uri: Uri?, val namaFile: String?, val rekaman: Rekaman)
+
+    /** Rekaman adzan bawaan. Semua berlisensi terbuka; volume diseragamkan (-16 LUFS). */
+    enum class Rekaman(val id: String, val nama: String, val durasi: String, val raw: Int, val atribusi: String) {
+        AAQIB(
+            "aaqib", "Adzan 1", "1:27", R.raw.adzan_aaqib_azeez,
+            "Adzan 1: “The Adhan – Muslim Call to Prayer – Aaqib Azeez”, rekaman Atcovi (Wikimedia Commons), CC BY-SA 4.0; volume diseragamkan."
+        ),
+        FREESOUND(
+            "freesound", "Adzan 2", "2:31", R.raw.adzan_umum_freesound,
+            "Adzan 2: “Athan Of Muslims” oleh Senan_2009 (Freesound), CC0; volume diseragamkan."
+        ),
+        SHALQAR(
+            "shalqar", "Adzan 3 · Masjid Shalqar", "2:15", R.raw.adzan_shalqar,
+            "Adzan 3: “Adhan in Shalqar mosque”, rekaman Esetok (Wikimedia Commons), CC BY-SA 4.0; dipotong dan volume diseragamkan."
+        ),
+        SUBUH_MALMO(
+            "subuh_malmo", "Adzan Subuh · Masjid Malmö", "4:03", R.raw.adzan_subuh_malmo,
+            "Adzan Subuh: “Eid al-Fitr Fajr azan at Malmö Mosque – 19 August 2012”, Islamic Center Malmö (Wikimedia Commons), CC BY 3.0; dipotong dan volume diseragamkan."
+        );
+
+        companion object {
+            fun from(id: String?, slug: String) = entries.firstOrNull { it.id == id } ?: bawaanUntuk(slug)
+
+            /** Subuh memakai adzan Subuh (ada "ash-shalatu khairun minan naum"). */
+            fun bawaanUntuk(slug: String) = if (slug == "subuh") SUBUH_MALMO else AAQIB
+
+            /** Adzan Subuh hanya ditawarkan untuk Subuh (lafal tatswib khusus Subuh). */
+            fun untukWaktu(slug: String) =
+                if (slug == "subuh") listOf(SUBUH_MALMO) + entries.filter { it != SUBUH_MALMO }
+                else entries.filter { it != SUBUH_MALMO }
+        }
+    }
 
     /** slug → nama tampilan. Urutan = urutan waktu sholat. */
     val WAKTU = linkedMapOf(
@@ -44,9 +76,6 @@ object SuaraSholat {
         "isya" to "Isya"
     )
 
-    const val ATRIBUSI_ADZAN =
-        "Adzan bawaan: “The Adhan – Muslim Call to Prayer – Aaqib Azeez”, rekaman oleh Atcovi, " +
-            "Wikimedia Commons, lisensi CC BY-SA 4.0."
 
     private const val TAG = "SuaraSholat"
     private const val PREFS = "suara_sholat"
@@ -61,21 +90,30 @@ object SuaraSholat {
         return WAKTU.keys.firstOrNull { n.contains(it) }
     }
 
-    fun adzanUri(context: Context): Uri =
-        Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/${R.raw.adzan_aaqib_azeez}")
+    /** Dirujuk dengan nama, bukan nomor resource (nomor bisa bergeser antar versi aplikasi). */
+    fun adzanUri(context: Context, rekaman: Rekaman): Uri = Uri.parse(
+        "${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/raw/" +
+            context.resources.getResourceEntryName(rekaman.raw)
+    )
 
     fun setelan(context: Context, slug: String): Setelan {
         val p = prefs(context)
         val pilihan = Pilihan.from(p.getString("pilihan_$slug", null))
         val uri = p.getString("uri_$slug", null)?.let(Uri::parse)
-        return Setelan(pilihan, uri, p.getString("nama_$slug", null))
+        val rekaman = Rekaman.from(p.getString("rekaman_$slug", null), slug)
+        return Setelan(pilihan, uri, p.getString("nama_$slug", null), rekaman)
+    }
+
+    fun simpanRekaman(context: Context, slug: String, rekaman: Rekaman) {
+        prefs(context).edit().putString("rekaman_$slug", rekaman.id).apply()
+        simpan(context, slug, Pilihan.ADZAN)
     }
 
     /** Uri yang benar-benar dibunyikan; null = senyap. */
     fun soundUri(context: Context, slug: String): Uri? {
         val s = setelan(context, slug)
         return when (s.pilihan) {
-            Pilihan.ADZAN -> adzanUri(context)
+            Pilihan.ADZAN -> adzanUri(context, s.rekaman)
             Pilihan.NADA_HP -> s.uri ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             Pilihan.FILE_SENDIRI -> s.uri ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             Pilihan.SENYAP -> null
@@ -85,7 +123,7 @@ object SuaraSholat {
     fun ringkasan(context: Context, slug: String): String {
         val s = setelan(context, slug)
         return when (s.pilihan) {
-            Pilihan.ADZAN -> "Adzan"
+            Pilihan.ADZAN -> s.rekaman.nama.substringBefore(" · ")
             Pilihan.NADA_HP -> if (s.uri == null) "Nada default" else (s.namaFile ?: "Nada HP")
             Pilihan.FILE_SENDIRI -> s.namaFile ?: "File sendiri"
             Pilihan.SENYAP -> "Senyap"
@@ -136,6 +174,11 @@ object SuaraSholat {
         val versi = prefs(context).getInt("versi_$slug", 1)
         val id = "sholat_${slug}_v$versi"
         val nm = context.getSystemService(NotificationManager::class.java)
+        // Channel dibangun dengan suara lain (mis. setelan lama/versi aplikasi lama): bangun ulang.
+        if (prefs(context).getString("uri_kanal_$slug", null) != soundUri(context, slug)?.toString()) {
+            bangunUlangChannel(context, slug)
+            return "sholat_${slug}_v${prefs(context).getInt("versi_$slug", 1)}"
+        }
         if (nm.getNotificationChannel(id) == null) buatChannel(context, slug, id)
         return id
     }
@@ -179,5 +222,6 @@ object SuaraSholat {
             vibrationPattern = if (getar) longArrayOf(0, 180, 80, 180) else longArrayOf(0)
         }
         nm.createNotificationChannel(channel)
+        prefs(context).edit().putString("uri_kanal_$slug", uri?.toString()).apply()
     }
 }

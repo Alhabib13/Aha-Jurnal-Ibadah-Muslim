@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.rounded.Mosque
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -53,7 +54,8 @@ import com.islami.Aha.ui.notification.NotificationUiState
 @Composable
 fun NotificationHeader(
     isEnabled: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onSettingsClick: (() -> Unit)? = null
 ) {
     val globalSwitchDescription = if (isEnabled) {
         stringResource(R.string.notification_switch_global_on)
@@ -94,6 +96,18 @@ fun NotificationHeader(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
+                }
+                if (onSettingsClick != null) {
+                    IconButton(
+                        onClick = onSettingsClick,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = "Pengaturan notifikasi",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
 

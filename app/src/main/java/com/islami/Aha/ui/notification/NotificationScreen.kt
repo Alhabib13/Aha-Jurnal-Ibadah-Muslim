@@ -55,6 +55,9 @@ import com.islami.Aha.ui.notification.components.EditSunnahHabitDialog
 import com.islami.Aha.ui.notification.components.DeleteConfirmationDialog
 import com.islami.Aha.ui.notification.components.SuaraSholatSheet
 import com.islami.Aha.util.SuaraSholat
+import com.islami.Aha.util.NotificationScheduler
+import com.islami.Aha.ui.settings.components.NotificationSettingsSheet
+import com.islami.Aha.ui.settings.components.NotificationSoundSelectionDialog
 import androidx.compose.ui.platform.LocalContext
 
 
@@ -121,7 +124,9 @@ fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
             onDeleteSunnahClick = viewModel::showSunnahDeleteConfirmation,
             onEditSunnahClick = viewModel::showEditSunnahDialog,
             onDismissEditSunnah = viewModel::hideEditSunnahDialog,
-            onSaveEditSunnah = viewModel::updateSunnahHabit
+            onSaveEditSunnah = viewModel::updateSunnahHabit,
+            onSetNotificationSound = viewModel::setNotificationSound,
+            onToggleVibration = viewModel::toggleVibration
         )
 
         AhaToastHost(
@@ -160,7 +165,9 @@ fun NotificationScreenContent(
     onDeleteSunnahClick: (SunnahHabit) -> Unit,
     onEditSunnahClick: (SunnahHabit) -> Unit,
     onDismissEditSunnah: () -> Unit,
-    onSaveEditSunnah: (String, String?, String, Int?) -> Unit
+    onSaveEditSunnah: (String, String?, String, Int?) -> Unit,
+    onSetNotificationSound: (NotificationScheduler.NotificationSoundOption) -> Unit = {},
+    onToggleVibration: () -> Unit = {}
 ) {
     val sholatFardhu = uiState.habits.filter { it.category == "Sholat Fardhu" }
     val sholatSunnah = uiState.habits.filter {
@@ -177,11 +184,49 @@ fun NotificationScreenContent(
     val ringkasanSuara = remember(versiSuara) {
         SuaraSholat.WAKTU.keys.associateWith { SuaraSholat.ringkasan(context, it) }
     }
+    var pengaturanDibuka by remember { mutableStateOf(false) }
+    var suaraLainnyaDibuka by remember { mutableStateOf(false) }
     slugSuaraDibuka?.let { slug ->
         SuaraSholatSheet(
             slug = slug,
             onChanged = { versiSuara++ },
             onDismiss = { slugSuaraDibuka = null }
+        )
+    }
+    if (suaraLainnyaDibuka) {
+        NotificationSoundSelectionDialog(
+            currentOption = uiState.notificationSound,
+            onSelect = {
+                onSetNotificationSound(it)
+                suaraLainnyaDibuka = false
+            },
+            onDismiss = { suaraLainnyaDibuka = false }
+        )
+    }
+    // Lembar pengaturan kembali muncul setelah lembar suara yang dibuka darinya ditutup.
+    if (pengaturanDibuka && slugSuaraDibuka == null && !suaraLainnyaDibuka) {
+        NotificationSettingsSheet(
+            ringkasanSuaraSholat = ringkasanSuara,
+            namaWaktu = SuaraSholat.WAKTU,
+            suaraLainnya = uiState.notificationSound,
+            getarAktif = uiState.vibrationEnabled,
+            onWaktuClick = { slugSuaraDibuka = it },
+            onSuaraLainnyaClick = { suaraLainnyaDibuka = true },
+            onToggleGetar = {
+                onToggleVibration()
+                versiSuara++
+            },
+            onPengaturanHpClick = {
+                val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                } else {
+                    android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                }
+                runCatching { context.startActivity(intent) }
+            },
+            onDismiss = { pengaturanDibuka = false }
         )
     }
 
@@ -195,7 +240,8 @@ fun NotificationScreenContent(
                     item {
                         NotificationHeader(
                             isEnabled = uiState.globalNotificationEnabled,
-                            onToggle = onToggleGlobalNotification
+                            onToggle = onToggleGlobalNotification,
+                            onSettingsClick = { pengaturanDibuka = true }
                         )
                     }
                     if (isHaidhMode) {
