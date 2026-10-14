@@ -54,7 +54,9 @@ data class CategoryStatistic(
     val totalCount: Int,
     val percentage: Int,
     val streak: Int,
-    val gradientIndex: Int = 0
+    val gradientIndex: Int = 0,
+    /** Keterangan keadaan pengganti hitungan (mis. "Mode Cuti aktif", "Belum ada"); null = tampilkan angka. */
+    val keterangan: String? = null
 )
 
 data class StatisticUiState(
@@ -193,7 +195,13 @@ class StatisticViewModel @Inject constructor(
                         totalCount = total,
                         percentage = if (total > 0) (completed * 100) / total else 0,
                         streak = 0,
-                        gradientIndex = index
+                        gradientIndex = index,
+                        // Semua kategori di sini sholat/puasa: tidak dihitung saat Mode Cuti.
+                        keterangan = when {
+                            isTodayHaidh -> "Mode Cuti aktif"
+                            total == 0 -> "Belum ada"
+                            else -> null
+                        }
                     )
                 }
 

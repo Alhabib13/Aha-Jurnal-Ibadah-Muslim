@@ -122,17 +122,27 @@ fun ProgressCard(completed: Int, total: Int, percentage: Int, isHaidhMode: Boole
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = stringResource(R.string.statistic_today_progress_format, completed, total),
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        Text(
-                            text = stringResource(R.string.statistic_today_progress_suffix),
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                        )
+                        if (total == 0) {
+                            // Tidak ada yang dihitung hari ini: keterangan, bukan "0 dari 0".
+                            Text(
+                                text = "Belum ada",
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Text(
+                                text = stringResource(R.string.statistic_today_progress_format, completed, total),
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Text(
+                                text = stringResource(R.string.statistic_today_progress_suffix),
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                            )
+                        }
                     }
                 }
 
@@ -148,7 +158,7 @@ fun ProgressCard(completed: Int, total: Int, percentage: Int, isHaidhMode: Boole
                             modifier = Modifier.size(60.dp),
                             colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary)
                         )
-                    } else {
+                    } else if (total > 0) {
                         val progress = percentage / 100f
                         val onPrimary = MaterialTheme.colorScheme.onPrimary
                         androidx.compose.foundation.Canvas(modifier = Modifier.size(80.dp)) {
@@ -409,12 +419,14 @@ fun CategoryStatCard(category: CategoryStatistic, modifier: Modifier = Modifier)
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Text(
-                    text = stringResource(R.string.statistic_percent_format, category.percentage),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                if (category.keterangan == null) {
+                    Text(
+                        text = stringResource(R.string.statistic_percent_format, category.percentage),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -425,7 +437,7 @@ fun CategoryStatCard(category: CategoryStatistic, modifier: Modifier = Modifier)
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = stringResource(
+                    text = category.keterangan ?: stringResource(
                         R.string.statistic_category_weekly_format,
                         category.completedCount,
                         category.totalCount
@@ -450,7 +462,7 @@ fun CategoryStatCard(category: CategoryStatistic, modifier: Modifier = Modifier)
                     .clip(RoundedCornerShape(4.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                val fraction = (category.percentage / 100f).coerceIn(0f, 1f)
+                val fraction = if (category.keterangan != null) 0f else (category.percentage / 100f).coerceIn(0f, 1f)
                 if (fraction > 0f) {
                     Box(
                         modifier = Modifier

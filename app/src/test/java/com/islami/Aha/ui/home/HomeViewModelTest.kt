@@ -5,6 +5,7 @@ import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -263,5 +264,29 @@ class HomeViewModelTest {
     fun `puasa sub tab display names include ramadan label`() {
         val state = HomeUiState(selectedMainCategory = "Puasa")
         assertEquals(listOf("Sunnah", "Wajib (Ramadan)"), state.subTabDisplayNames)
+    }
+
+    // ===================== Tidak ada angka saat penyebut nol / Mode Cuti =====================
+
+    @Test
+    fun `puasa badge without any puasa habit says belum ada, not 0 of 0`() {
+        val state = HomeUiState(isRamadanMonth = false, allHabits = sampleHabits.filter { it.category.startsWith("Sholat") })
+        assertEquals("Belum ada", state.getCategoryBadge("Puasa"))
+    }
+
+    @Test
+    fun `sholat header during mode cuti shows state, never a count`() {
+        val state = HomeUiState(selectedMainCategory = "Sholat", isHaidhMode = true, allHabits = sampleHabits)
+        assertEquals(0, state.totalHabitsCount)
+        assertEquals("Mode Cuti aktif", state.habitHeaderLabel)
+        assertEquals("Mode Cuti aktif", state.copy(selectedMainCategory = "Puasa").habitHeaderLabel)
+    }
+
+    @Test
+    fun `header with zero denominator says belum ada, otherwise uses the count`() {
+        val kosong = HomeUiState(selectedMainCategory = "Sholat", selectedSubTabIndex = 1)
+        assertEquals("Belum ada", kosong.habitHeaderLabel)
+        val isi = HomeUiState(selectedMainCategory = "Sholat", selectedSubTabIndex = 0, allHabits = sampleHabits)
+        assertNull(isi.habitHeaderLabel)
     }
 }

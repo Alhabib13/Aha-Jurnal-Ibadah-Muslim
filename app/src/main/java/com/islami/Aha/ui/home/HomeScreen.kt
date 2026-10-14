@@ -546,14 +546,7 @@ fun HomeScreenContent(
                 HabitSectionHeader(
                     completedCount = uiState.completedHabitsCount,
                     totalCount = uiState.totalHabitsCount,
-                    progressTextOverride = if (uiState.isTilawahCategory) {
-                        "${uiState.tilawahHalamanToday} halaman"
-                    } else if (uiState.isDzikirCategory) {
-                        if (uiState.dzikirTotalCount == 0) "Belum ada"
-                        else "${uiState.dzikirDoneCount} dari ${uiState.dzikirTotalCount} dicatat"
-                    } else {
-                        null
-                    }
+                    progressTextOverride = uiState.habitHeaderLabel
                 )
             }
 
