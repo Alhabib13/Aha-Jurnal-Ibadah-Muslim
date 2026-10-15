@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.Color
 import com.islami.Aha.R
 import com.islami.Aha.data.model.Habit
 import com.islami.Aha.ui.theme.Emerald
@@ -42,7 +43,13 @@ import com.islami.Aha.ui.theme.Gold
 import com.islami.Aha.ui.theme.InfoBlue
 
 @Composable
-fun HabitSectionHeader(completedCount: Int, totalCount: Int, progressTextOverride: String? = null) {
+fun HabitSectionHeader(
+    completedCount: Int,
+    totalCount: Int,
+    progressTextOverride: String? = null,
+    judul: String? = null,
+    keterangan: String? = null
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -50,12 +57,17 @@ fun HabitSectionHeader(completedCount: Int, totalCount: Int, progressTextOverrid
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = stringResource(R.string.home_habit_today_title),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = judul ?: stringResource(R.string.home_habit_today_title),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            if (keterangan != null) {
+                Text(keterangan, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         Surface(
             shape = RoundedCornerShape(50),
             color = MaterialTheme.colorScheme.secondaryContainer
@@ -92,152 +104,72 @@ fun HomeHabitItem(
         stringResource(R.string.notification_switch_habit_off_format, habit.name)
     }
 
-    // Determine if this is the current prayer time
-    val isCurrentPrayer = isCurrentPrayerTime(habit.time, currentTime)
+    // Waktu sholat yang sedang berjalan diberi bingkai emas.
+    val isCurrentPrayer = isCurrentPrayerTime(habit.time, currentTime) && !habit.isCompleted
+    val hijau = Color(0xFF14A87D)
+    val emas = Color(0xFFF2C66D)
+    val shape = RoundedCornerShape(16.dp)
 
-    val backgroundColor = when {
-        habit.isCompleted -> MaterialTheme.colorScheme.surfaceVariant
-        isCurrentPrayer -> MaterialTheme.colorScheme.surfaceVariant
-        else -> MaterialTheme.colorScheme.surface
-    }
-
-    val checkScale = if (habit.isCompleted) 1f else 0.8f
-
-    val accentColor = InfoBlue
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (habit.isCompleted) 0.dp else 2.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .then(if (isCurrentPrayer) Modifier.border(1.dp, emas.copy(alpha = 0.7f), shape) else Modifier)
+            .toggleable(value = habit.isCompleted, role = Role.Checkbox) { onCheckedChange(!habit.isCompleted) }
+            .semantics { stateDescription = completionStateDescription }
+            .padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 4.dp)
     ) {
-        Row(
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
-                .fillMaxWidth()
+                .size(32.dp)
+                .clip(CircleShape)
                 .then(
-                    if (isCurrentPrayer && !habit.isCompleted) {
-                        Modifier.drawBehind {
-                            drawRect(
-                                color = accentColor,
-                                size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)
-                            )
-                        }
-                    } else {
-                        Modifier
-                    }
-                ),
-            verticalAlignment = Alignment.CenterVertically
+                    if (habit.isCompleted) Modifier.background(hijau)
+                    else Modifier.border(2.dp, if (isCurrentPrayer) emas else MaterialTheme.colorScheme.outline, CircleShape)
+                )
         ) {
-
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Icon
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = habitIconContainerColor(habit),
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (isMasjidIcon(habit.icon)) {
-                            Icon(
-                                imageVector = Icons.Rounded.Mosque,
-                                contentDescription = habit.name,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = getHabitItemIcon(habit),
-                                contentDescription = habit.name,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
+            if (habit.isCompleted) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = habit.name.removePrefix("Sholat ").ifBlank { habit.name },
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (habit.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val keterangan = habit.time.ifEmpty { habit.description }
+                if (keterangan.isNotEmpty()) {
+                    Text(keterangan.replace(":", "."), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Name + Time
-                Column(modifier = Modifier.weight(1f)) {
+                if (isCurrentPrayer) {
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text = habit.name,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textDecoration = if (habit.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                        "Sekarang",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = emas,
+                        modifier = Modifier.clip(CircleShape).background(emas.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 1.dp)
                     )
-                    if (habit.time.isNotEmpty()) {
-                        Text(
-                            text = habit.time,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else if (habit.description.isNotEmpty()) {
-                        Text(
-                            text = habit.description,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Bell icon
-                IconButton(
-                    onClick = onToggleReminder
-                ) {
-                    Icon(
-                        imageVector = if (habit.isReminderEnabled) {
-                            Icons.Outlined.Notifications
-                        } else {
-                            Icons.Outlined.NotificationsOff
-                        },
-                        contentDescription = reminderStateDescription,
-                        tint = if (habit.isReminderEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Circular checkbox
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .scale(checkScale)
-                        .clip(CircleShape)
-                    .then(
-                        if (habit.isCompleted) {
-                            Modifier.background(InfoBlue, CircleShape)
-                        } else {
-                            Modifier.border(2.dp, InfoBlue, CircleShape)
-                        }
-                    )
-                    .semantics {
-                        role = Role.Checkbox
-                        stateDescription = completionStateDescription
-                    }
-                    .toggleable(
-                        value = habit.isCompleted,
-                        role = Role.Checkbox,
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { onCheckedChange(!habit.isCompleted) },
-                contentAlignment = Alignment.Center
-            ) {
-                if (habit.isCompleted) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = stringResource(R.string.home_completed_cd),
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                } else if (habit.isCompleted) {
+                    Spacer(Modifier.width(8.dp))
+                    Text("Dicatat", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = hijau)
                 }
             }
+        }
+        IconButton(onClick = onToggleReminder) {
+            Icon(
+                imageVector = if (habit.isReminderEnabled) Icons.Outlined.Notifications else Icons.Outlined.NotificationsOff,
+                contentDescription = reminderStateDescription,
+                tint = if (habit.isReminderEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

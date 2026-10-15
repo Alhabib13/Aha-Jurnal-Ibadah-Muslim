@@ -138,68 +138,26 @@ fun CategoryCardsRow(
     }
 }
 
+/**
+ * Kontrol segmen (Fardhu/Sunnah, Al-Qur'an/Iqro, Sunnah/Wajib): satu wadah bulat, pilihan aktif
+ * diisi warna kategori.
+ */
 @Composable
 fun SubTabRow(
     tabs: List<String>,
     selectedIndex: Int,
-    onSelectTab: (Int) -> Unit
+    onSelectTab: (Int) -> Unit,
+    accent: Color = Color(0xFF2ECC9B),
+    onAccent: Color = Color(0xFF062B1F)
 ) {
-    val useEqualWidthTabs = tabs.size <= 3
-
-    if (useEqualWidthTabs) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            tabs.forEachIndexed { index, tab ->
-                val isSelected = index == selectedIndex
-                val tabStateDescription = if (isSelected) {
-                    stringResource(R.string.home_state_selected)
-                } else {
-                    stringResource(R.string.home_state_not_selected)
-                }
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(50))
-                        .semantics {
-                            role = Role.Tab
-                            selected = isSelected
-                            stateDescription = tabStateDescription
-                        }
-                        .clickable { onSelectTab(index) },
-                    shape = RoundedCornerShape(50),
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    border = if (!isSelected) {
-                        androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                    } else null
-                ) {
-                    Text(
-                        text = tab,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 9.dp)
-                    )
-                }
-            }
-        }
-        return
-    }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         tabs.forEachIndexed { index, tab ->
             val isSelected = index == selectedIndex
@@ -208,29 +166,29 @@ fun SubTabRow(
             } else {
                 stringResource(R.string.home_state_not_selected)
             }
-            Surface(
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 40.dp)
                     .clip(RoundedCornerShape(50))
+                    .background(if (isSelected) accent else Color.Transparent)
                     .semantics {
                         role = Role.Tab
                         selected = isSelected
                         stateDescription = tabStateDescription
                     }
-                    .clickable { onSelectTab(index) },
-                shape = RoundedCornerShape(50),
-                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                border = if (!isSelected) {
-                    androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                } else null
+                    .clickable { onSelectTab(index) }
+                    .padding(horizontal = 8.dp)
             ) {
                 Text(
                     text = tab,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    textAlign = TextAlign.Center,
+                    color = if (isSelected) onAccent else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

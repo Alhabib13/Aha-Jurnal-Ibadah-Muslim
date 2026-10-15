@@ -101,6 +101,27 @@ data class HomeUiState(
     val tilawahTargetHalaman: Int? = null,
     val showKhatamDialog: Boolean = false
 ) {
+    /** Judul bagian sesuai kategori yang dipilih. */
+    val judulBagian: String
+        get() = when (selectedMainCategory) {
+            "Sholat" -> "Sholat hari ini"
+            "Puasa" -> "Puasa hari ini"
+            "Dzikir" -> "Dzikir hari ini"
+            "Tilawah" -> "Tilawah hari ini"
+            else -> "Habit hari ini"
+        }
+
+    val keteranganBagian: String?
+        get() = if (isDzikirCategory && dzikirHabits.isNotEmpty()) "Ketuk Catat setiap selesai berdzikir" else null
+
+    /** Warna kontrol segmen mengikuti kategori. */
+    val warnaSegmen: Pair<Long, Long>
+        get() = when (selectedMainCategory) {
+            "Puasa" -> 0xFF7C4DE0 to 0xFFFFFFFF
+            "Tilawah" -> 0xFFEDB84E to 0xFF3A2400
+            else -> 0xFF2ECC9B to 0xFF062B1F
+        }
+
     /** Imsak, Subuh, Terbit, Dzuhur, Ashar, Maghrib, Isya — untuk kartu waktu sholat. */
     val jadwalHarian: List<JadwalWaktu>
         get() = susunJadwalHarian(allHabits, jadwalImsak, jadwalTerbit, currentTime)

@@ -151,9 +151,6 @@ private fun KartuDzikir(h: DzikirHabitUi, onRecord: () -> Unit, onUndo: () -> Un
                     Icon(Icons.Rounded.MoreVert, contentDescription = "Pilihan lain untuk ${h.nama}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 DropdownMenu(expanded = menuTerbuka, onDismissRequest = { menuTerbuka = false }) {
-                    if (h.dicatatHariIni) {
-                        DropdownMenuItem(text = { Text("Batalkan catatan terakhir") }, onClick = { menuTerbuka = false; onUndo() })
-                    }
                     DropdownMenuItem(text = { Text("Hapus dari daftar") }, onClick = { menuTerbuka = false; onDelete() })
                 }
             }
@@ -163,7 +160,7 @@ private fun KartuDzikir(h: DzikirHabitUi, onRecord: () -> Unit, onUndo: () -> Un
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .background(MaterialTheme.colorScheme.background)
                 .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
         ) {
             if (h.dicatatHariIni) {
@@ -183,8 +180,17 @@ private fun KartuDzikir(h: DzikirHabitUi, onRecord: () -> Unit, onUndo: () -> Un
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    if (h.sesiHariIni > 1) {
-                        Text("Terakhir ${h.jamTerakhir.orEmpty()}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (h.sesiHariIni > 1) {
+                            Text("Terakhir ${h.jamTerakhir.orEmpty()} · ", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(
+                            "Batalkan",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = HijauAksen,
+                            modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onUndo).padding(vertical = 2.dp)
+                        )
                     }
                 }
             } else {

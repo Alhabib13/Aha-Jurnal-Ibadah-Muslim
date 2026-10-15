@@ -548,7 +548,9 @@ fun HomeScreenContent(
                 HabitSectionHeader(
                     completedCount = uiState.completedHabitsCount,
                     totalCount = uiState.totalHabitsCount,
-                    progressTextOverride = uiState.habitHeaderLabel
+                    progressTextOverride = uiState.habitHeaderLabel,
+                    judul = uiState.judulBagian,
+                    keterangan = uiState.keteranganBagian
                 )
             }
 
@@ -558,7 +560,9 @@ fun HomeScreenContent(
                     SubTabRow(
                         tabs = uiState.subTabDisplayNames,
                         selectedIndex = uiState.selectedSubTabIndex,
-                        onSelectTab = onSelectSubTab
+                        onSelectTab = onSelectSubTab,
+                        accent = androidx.compose.ui.graphics.Color(uiState.warnaSegmen.first),
+                        onAccent = androidx.compose.ui.graphics.Color(uiState.warnaSegmen.second)
                     )
                 }
                 item { Spacer(modifier = Modifier.height(8.dp)) }
