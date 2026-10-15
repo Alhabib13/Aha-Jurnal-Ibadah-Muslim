@@ -178,7 +178,8 @@ class NotificationReceiver : BroadcastReceiver() {
         else "Sudah mengerjakan $namaTampil? Ketuk Sudah untuk mencatat."
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_nav_notification)
+            .setSmallIcon(R.drawable.ic_stat_aha)
+            .setColor(0xFF0D7C5F.toInt())
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -249,7 +250,8 @@ class NotificationReceiver : BroadcastReceiver() {
         val notificationText = if (habitId == "haidh_reminder") "Apakah masa cuti ibadah Anda sudah selesai? Jangan lupa matikan mode cuti di aplikasi Aha." else context.getString(R.string.notification_trigger_text_format, finalHabitName)
 
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_nav_notification)
+            .setSmallIcon(R.drawable.ic_stat_aha)
+            .setColor(0xFF0D7C5F.toInt())
             .setContentTitle(notificationTitle)
             .setContentText(notificationText)
             .setGroup(GROUP_KEY_HABIT_REMINDER)
@@ -285,7 +287,8 @@ class NotificationReceiver : BroadcastReceiver() {
         val notificationManager = context.getSystemService(NotificationManager::class.java)
         notificationManager.notify(NotificationScheduler.notificationId(habitId), notification)
         val summaryNotification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_nav_notification)
+            .setSmallIcon(R.drawable.ic_stat_aha)
+            .setColor(0xFF0D7C5F.toInt())
             .setContentTitle(notificationTitle)
             .setContentText(context.getString(R.string.notification_summary_text))
             .setGroup(GROUP_KEY_HABIT_REMINDER)

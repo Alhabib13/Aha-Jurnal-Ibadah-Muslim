@@ -200,7 +200,8 @@ class ReminderActionReceiver : BroadcastReceiver() {
             "Alhamdulillah, sudah tercatat"
         }
         val builder = NotificationCompat.Builder(context, CONFIRM_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_nav_notification)
+            .setSmallIcon(R.drawable.ic_stat_aha)
+            .setColor(0xFF0D7C5F.toInt())
             .setContentTitle("${p.namaTampil} tercatat")
             .setContentText(teks)
             .setPriority(NotificationCompat.PRIORITY_LOW)
