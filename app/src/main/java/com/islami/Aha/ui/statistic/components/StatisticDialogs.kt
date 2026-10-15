@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.statistic.components
 
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -79,7 +81,7 @@ fun PastDayHabitsList(
             Spacer(Modifier.height(10.dp))
             Text(
                 "Mode Cuti di tanggal ini: sholat dan puasa tidak perlu dicatat.",
-                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MerahMuda,
+                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MerahMuda.teks(),
                 modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(MerahMuda.copy(alpha = 0.12f)).padding(horizontal = 12.dp, vertical = 8.dp)
             )
         }
@@ -129,7 +131,7 @@ fun PastDayHabitsList(
 @Composable
 private fun JudulBagian(judul: String, ringkas: String?, warna: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp)) {
-        Text(judul.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = warna, letterSpacing = 0.5.sp, modifier = Modifier.weight(1f))
+        Text(judul.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = warna.teks(), letterSpacing = 0.5.sp, modifier = Modifier.weight(1f))
         if (ringkas != null) Text(ringkas, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

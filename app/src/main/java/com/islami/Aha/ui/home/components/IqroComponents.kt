@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -211,7 +213,7 @@ private fun KartuCatatIqro(
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                textStyle = TextStyle(fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = EmasMuda, textAlign = TextAlign.Center),
+                textStyle = TextStyle(fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = EmasMuda.teks(), textAlign = TextAlign.Center),
                 cursorBrush = SolidColor(EmasMuda),
                 modifier = Modifier
                     .width(80.dp)
@@ -243,7 +245,7 @@ private fun KartuCatatIqro(
             Column(Modifier.weight(1f)) {
                 Text(
                     ringkasan(progress, jilid, halaman),
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF2C66D)
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF2C66D).teks()
                 )
                 if (hariIni) {
                     Text(

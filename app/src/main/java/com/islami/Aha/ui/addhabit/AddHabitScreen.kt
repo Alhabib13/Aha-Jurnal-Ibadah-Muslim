@@ -393,7 +393,7 @@ private fun PilihIbadah(uiState: AddHabitUiState, onSelectHabit: (String) -> Uni
         ) {
             Text(
                 "Lainnya: $lainnyaTeks, atau tulis sendiri",
-                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7BE3C2), textAlign = TextAlign.Center
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7BE3C2).teks(), textAlign = TextAlign.Center
             )
         }
     }
@@ -506,7 +506,7 @@ private fun KartuPengingat(aktif: Boolean, jam: String, onToggle: () -> Unit, on
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(Emas.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Notifications, contentDescription = null, tint = Emas, modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.Notifications, contentDescription = null, tint = Emas.teks(), modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -532,7 +532,7 @@ private fun KartuPengingat(aktif: Boolean, jam: String, onToggle: () -> Unit, on
                     .padding(horizontal = 14.dp)
             ) {
                 Text(stringResource(R.string.reminder_time), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                Text(jam, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Emas)
+                Text(jam, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Emas.teks())
             }
         }
     }
@@ -606,7 +606,7 @@ fun TimePickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.ok), color = HijauAksen, fontWeight = FontWeight.Bold) } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.ok), color = HijauAksen.teks(), fontWeight = FontWeight.Bold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant) } },
         title = { Text(stringResource(R.string.select_time), fontWeight = FontWeight.SemiBold) },
         text = { content() },

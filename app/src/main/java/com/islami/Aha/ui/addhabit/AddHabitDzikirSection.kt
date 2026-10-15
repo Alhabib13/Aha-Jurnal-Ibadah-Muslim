@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.addhabit
 
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -144,7 +146,7 @@ private fun DzikirEntryCard(
             if (entry.slug == ResearchSchema.Detail.DZIKIR_LAINNYA && i == pilihan.lastIndex) {
                 Text(
                     "+ Tambah dzikir lainnya",
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Toska,
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Toska.teks(),
                     modifier = Modifier
                         .padding(start = 12.dp, bottom = 12.dp)
                         .clip(CircleShape)

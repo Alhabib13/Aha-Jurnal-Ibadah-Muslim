@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -196,7 +198,7 @@ fun PilihAyatSheet(
                     },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    textStyle = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Emas, textAlign = TextAlign.Center),
+                    textStyle = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Emas.teks(), textAlign = TextAlign.Center),
                     cursorBrush = SolidColor(Emas),
                     modifier = Modifier
                         .width(64.dp)
@@ -211,7 +213,7 @@ fun PilihAyatSheet(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "Ayat terakhir surah",
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Emas,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Emas.teks(),
                     modifier = Modifier.clip(CircleShape).clickable(role = Role.Button) { ayat = maks }.padding(vertical = 4.dp)
                 )
             }

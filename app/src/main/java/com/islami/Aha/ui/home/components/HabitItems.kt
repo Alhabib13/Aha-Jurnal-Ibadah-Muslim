@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.material3.MaterialTheme
 
 import androidx.compose.animation.animateColorAsState
@@ -70,14 +72,14 @@ fun HabitSectionHeader(
         }
         Surface(
             shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.secondaryContainer
+            color = Color(0xFFF2C66D).copy(alpha = 0.16f)
         ) {
             Text(
                 text = progressTextOverride
                     ?: stringResource(R.string.home_habit_progress_format, completedCount, totalCount),
                 fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Gold,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFF2C66D).teks(),
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
             )
         }
@@ -155,12 +157,12 @@ fun HomeHabitItem(
                         "Sekarang",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = emas,
+                        color = emas.teks(),
                         modifier = Modifier.clip(CircleShape).background(emas.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 1.dp)
                     )
                 } else if (habit.isCompleted) {
                     Spacer(Modifier.width(8.dp))
-                    Text(if (jamDicatat != null) "Dicatat $jamDicatat" else "Dicatat", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = hijau)
+                    Text(if (jamDicatat != null) "Dicatat $jamDicatat" else "Dicatat", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = hijau.teks())
                 }
             }
         }

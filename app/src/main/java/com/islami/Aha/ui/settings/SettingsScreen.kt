@@ -252,117 +252,97 @@ fun SettingsScreenContent(
             // =============================================================
             // SECTION: UMUM
             // =============================================================
+            item { SettingsSectionHeader(title = stringResource(R.string.settings_section_general)) }
             item {
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_general))
-            }
-
-            // Format Waktu
-            item {
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Schedule,
-                    iconBackground = WarningAmber.copy(alpha = 0.1f),
-                    iconTint = WarningAmber,
-                    title = stringResource(R.string.settings_time_format_title),
-                    subtitle = uiState.selectedTimeFormat.displayName,
-                    onClick = onShowTimeFormatDialog
-                )
-            }
-
-            // Mode Tema
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.Outlined.DarkMode,
-                    iconBackground = CategoryPuasaStart.copy(alpha = 0.1f),
-                    iconTint = CategoryPuasaStart,
-                    title = stringResource(R.string.settings_dark_mode_title),
-                    subtitle = uiState.themeMode.displayName,
-                    onClick = onShowThemeModeDialog
-                )
-            }
-
-            // Profil Ibadah (Gender)
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
                 val genderText = when (uiState.genderProfile) {
                     com.islami.Aha.util.GenderProfile.MALE -> stringResource(R.string.settings_gender_male_active)
                     com.islami.Aha.util.GenderProfile.FEMALE -> stringResource(R.string.settings_gender_female_active)
                     else -> stringResource(R.string.settings_gender_not_set)
                 }
                 val profilTerkunci = uiState.genderProfile != com.islami.Aha.util.GenderProfile.UNSPECIFIED
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Person,
-                    iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    title = stringResource(R.string.settings_gender_title),
-                    subtitle = if (profilTerkunci) "$genderText · permanen" else genderText,
-                    onClick = {
-                        if (profilTerkunci) {
-                            // Profil ibadah permanen (keputusan pemilik proyek): tidak bisa diganti.
-                            android.widget.Toast.makeText(
-                                context,
-                                "Profil ibadah sudah disimpan dan tidak bisa diubah.",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        } else if (uiState.isHaidhMode) {
-                            android.widget.Toast.makeText(
-                                context,
-                                context.getString(R.string.settings_gender_haidh_warning),
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            onShowGenderDialog()
+                SettingsGroup {
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Schedule,
+                        iconBackground = WarningAmber.copy(alpha = 0.14f),
+                        iconTint = WarningAmber,
+                        title = stringResource(R.string.settings_time_format_title),
+                        subtitle = uiState.selectedTimeFormat.displayName,
+                        onClick = onShowTimeFormatDialog
+                    )
+                    SettingsDivider()
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.DarkMode,
+                        iconBackground = CategoryPuasaStart.copy(alpha = 0.14f),
+                        iconTint = CategoryPuasaStart,
+                        title = stringResource(R.string.settings_dark_mode_title),
+                        subtitle = uiState.themeMode.displayName,
+                        onClick = onShowThemeModeDialog
+                    )
+                    SettingsDivider()
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Person,
+                        iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        title = stringResource(R.string.settings_gender_title),
+                        subtitle = if (profilTerkunci) "$genderText · permanen" else genderText,
+                        onClick = {
+                            if (profilTerkunci) {
+                                // Profil ibadah permanen (keputusan pemilik proyek): tidak bisa diganti.
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Profil ibadah sudah disimpan dan tidak bisa diubah.",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            } else if (uiState.isHaidhMode) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.settings_gender_haidh_warning),
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                onShowGenderDialog()
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
 
             // =============================================================
             // SECTION: AKUN
             // =============================================================
+            item { SettingsSectionHeader(title = stringResource(R.string.settings_section_account)) }
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_account))
-            }
-
-            if (uiState.isLoggedIn) {
-                item {
-                    SettingsInfoItem(
-                        icon = Icons.Outlined.Person,
-                        iconBackground = CategoryDzikirStart.copy(alpha = 0.1f),
-                        iconTint = CategoryDzikirStart,
-                        title = stringResource(R.string.settings_active_account_title),
-                        value = uiState.userEmail.ifBlank { stringResource(R.string.settings_user_fallback) }
-                    )
-                }
-
-                // Ubah Password + Keamanan Akun digabung jadi satu halaman.
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingsClickableItem(
-                        icon = Icons.Outlined.Shield,
-                        iconBackground = InfoBlue.copy(alpha = 0.1f),
-                        iconTint = InfoBlue,
-                        title = "Akun & Keamanan",
-                        subtitle = "Email, kata sandi, hapus akun",
-                        onClick = onNavigateToAccountSecurity
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingsClickableItem(
-                        icon = Icons.Outlined.Logout,
-                        iconBackground = ErrorRed.copy(alpha = 0.1f),
-                        iconTint = ErrorRed,
-                        title = stringResource(R.string.settings_logout_title),
-                        subtitle = stringResource(R.string.settings_logout_subtitle),
-                        titleColor = ErrorRed,
-                        onClick = onLogoutClick
-                    )
-                }
-            } else {
-                item {
+                if (uiState.isLoggedIn) {
+                    SettingsGroup {
+                        SettingsInfoItem(
+                            icon = Icons.Outlined.Person,
+                            iconBackground = CategoryDzikirStart.copy(alpha = 0.14f),
+                            iconTint = CategoryDzikirStart,
+                            title = stringResource(R.string.settings_active_account_title),
+                            value = uiState.userEmail.ifBlank { stringResource(R.string.settings_user_fallback) }
+                        )
+                        SettingsDivider()
+                        // Ubah Password + Keamanan Akun digabung jadi satu halaman.
+                        SettingsClickableItem(
+                            icon = Icons.Outlined.Shield,
+                            iconBackground = InfoBlue.copy(alpha = 0.14f),
+                            iconTint = InfoBlue,
+                            title = "Akun & Keamanan",
+                            subtitle = "Email, kata sandi, hapus akun",
+                            onClick = onNavigateToAccountSecurity
+                        )
+                        SettingsDivider()
+                        SettingsClickableItem(
+                            icon = Icons.Outlined.Logout,
+                            iconBackground = ErrorRed.copy(alpha = 0.12f),
+                            iconTint = ErrorRed,
+                            title = stringResource(R.string.settings_logout_title),
+                            subtitle = stringResource(R.string.settings_logout_subtitle),
+                            titleColor = ErrorRed,
+                            onClick = onLogoutClick
+                        )
+                    }
+                } else {
                     GuestLoginCard(onLoginClick = onLoginClick)
                 }
             }
@@ -370,98 +350,81 @@ fun SettingsScreenContent(
             // =============================================================
             // SECTION: DATA
             // =============================================================
+            item { SettingsSectionHeader(title = stringResource(R.string.settings_section_data)) }
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_data))
-            }
-
-            item {
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Lock,
-                    iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    title = "Privasi & Data",
-                    subtitle = "Penelitian, data penelitianmu, kebijakan privasi",
-                    onClick = onNavigateToPrivacyData
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            item {
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Download,
-                    iconBackground = CategoryTilawahStart.copy(alpha = 0.1f),
-                    iconTint = CategoryTilawahStart,
-                    title = stringResource(R.string.settings_import_title),
-                    subtitle = stringResource(R.string.settings_import_subtitle),
-                    onClick = onImportDataClick
-                )
-            }
-
-            if (uiState.isLoggedIn) {
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
+                SettingsGroup {
                     SettingsClickableItem(
-                        icon = Icons.Outlined.Upload,
-                        iconBackground = InfoBlue.copy(alpha = 0.1f),
-                        iconTint = InfoBlue,
-                        title = stringResource(R.string.settings_export_title),
-                        subtitle = stringResource(R.string.settings_export_subtitle),
-                        onClick = onExportDataClick
+                        icon = Icons.Outlined.Lock,
+                        iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        title = "Privasi & Data",
+                        subtitle = "Penelitian, data penelitianmu, kebijakan privasi",
+                        onClick = onNavigateToPrivacyData
                     )
+                    SettingsDivider()
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Download,
+                        iconBackground = CategoryTilawahStart.copy(alpha = 0.14f),
+                        iconTint = CategoryTilawahStart,
+                        title = stringResource(R.string.settings_import_title),
+                        subtitle = stringResource(R.string.settings_import_subtitle),
+                        onClick = onImportDataClick
+                    )
+                    if (uiState.isLoggedIn) {
+                        SettingsDivider()
+                        SettingsClickableItem(
+                            icon = Icons.Outlined.Upload,
+                            iconBackground = InfoBlue.copy(alpha = 0.14f),
+                            iconTint = InfoBlue,
+                            title = stringResource(R.string.settings_export_title),
+                            subtitle = stringResource(R.string.settings_export_subtitle),
+                            onClick = onExportDataClick
+                        )
+                    }
                 }
             }
-
-            // Reset Data
+            // Reset dipisah dari baris lain supaya tidak terpencet.
+            item { Spacer(modifier = Modifier.height(12.dp)) }
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.Outlined.DeleteForever,
-                    iconBackground = ErrorRed.copy(alpha = 0.1f),
-                    iconTint = ErrorRed,
-                    title = stringResource(R.string.settings_reset_title),
-                    subtitle = if (uiState.isLoggedIn) {
-                        stringResource(R.string.settings_reset_subtitle_logged_in)
-                    } else {
-                        stringResource(R.string.settings_reset_subtitle_guest)
-                    },
-                    titleColor = ErrorRed,
-                    onClick = onShowResetConfirmation
-                )
+                SettingsGroup {
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.DeleteForever,
+                        iconBackground = ErrorRed.copy(alpha = 0.12f),
+                        iconTint = ErrorRed,
+                        title = stringResource(R.string.settings_reset_title),
+                        subtitle = if (uiState.isLoggedIn) {
+                            stringResource(R.string.settings_reset_subtitle_logged_in)
+                        } else {
+                            stringResource(R.string.settings_reset_subtitle_guest)
+                        },
+                        titleColor = ErrorRed,
+                        onClick = onShowResetConfirmation
+                    )
+                }
             }
 
             // =============================================================
             // SECTION: TENTANG
             // =============================================================
+            item { SettingsSectionHeader(title = stringResource(R.string.settings_section_about)) }
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_about))
-            }
-
-            // Versi Aplikasi
-            item {
-                SettingsInfoItem(
-                    icon = Icons.Outlined.Info,
-                    iconBackground = MaterialTheme.colorScheme.surfaceVariant,
-                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    title = stringResource(R.string.settings_app_version_title),
-                    value = BuildConfig.VERSION_NAME.ifBlank { "-" }
-                )
-            }
-
-            // Kebijakan privasi ada di Privasi & Data (dekat persetujuan penelitian), tidak diulang di sini.
-
-            // Syarat & Ketentuan
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Description,
-                    iconBackground = CategoryTilawahStart.copy(alpha = 0.1f),
-                    iconTint = CategoryTilawahStart,
-                    title = stringResource(R.string.settings_terms_title),
-                    subtitle = stringResource(R.string.settings_terms_subtitle),
-                    onClick = onTermsClick
-                )
+                SettingsGroup {
+                    SettingsInfoItem(
+                        icon = Icons.Outlined.Info,
+                        title = stringResource(R.string.settings_app_version_title),
+                        value = BuildConfig.VERSION_NAME.ifBlank { "-" }
+                    )
+                    SettingsDivider()
+                    // Kebijakan privasi ada di Privasi & Data (dekat persetujuan penelitian), tidak diulang di sini.
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Description,
+                        iconBackground = CategoryTilawahStart.copy(alpha = 0.14f),
+                        iconTint = CategoryTilawahStart,
+                        title = stringResource(R.string.settings_terms_title),
+                        subtitle = stringResource(R.string.settings_terms_subtitle),
+                        onClick = onTermsClick
+                    )
+                }
             }
 
             // Footer

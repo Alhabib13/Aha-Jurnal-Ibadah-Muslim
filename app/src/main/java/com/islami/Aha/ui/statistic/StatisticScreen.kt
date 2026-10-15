@@ -1,5 +1,9 @@
 package com.islami.Aha.ui.statistic
 
+import com.islami.Aha.ui.theme.temaGelap
+
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -275,7 +279,7 @@ private fun KartuKalender(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Legenda(HijauSedikit, "Sedikit")
+            Legenda(warnaSedikit(), "Sedikit")
             Legenda(HijauBanyak, "Banyak")
             Legenda(null, "Mode Cuti")
             Text("Ketuk tanggal untuk melihat", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -305,6 +309,10 @@ private fun Modifier.garisPutus(radius: androidx.compose.ui.unit.Dp) = drawBehin
     )
 }
 
+/** "Sedikit" di kalender: hijau tua di tema gelap, hijau muda di tema terang. */
+@Composable
+private fun warnaSedikit(): Color = if (temaGelap()) HijauSedikit else Color(0xFFBDEBDB)
+
 @Composable
 private fun SelTanggal(h: HariKalender, dipilih: Boolean, onClick: () -> Unit) {
     val bentuk = RoundedCornerShape(10.dp)
@@ -312,14 +320,16 @@ private fun SelTanggal(h: HariKalender, dipilih: Boolean, onClick: () -> Unit) {
         h.nanti -> Color.Transparent
         h.cuti && h.intensitas == Intensitas.KOSONG -> MerahMuda.copy(alpha = 0.16f)
         h.intensitas == Intensitas.BANYAK -> HijauBanyak
-        h.intensitas == Intensitas.SEDIKIT -> HijauSedikit
+        h.intensitas == Intensitas.SEDIKIT -> warnaSedikit()
         else -> MaterialTheme.colorScheme.background
     }
     val warnaTeks = when {
         h.nanti -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        h.hariIni && h.intensitas == Intensitas.KOSONG -> Emas.teks()
         h.hariIni -> Emas
-        h.intensitas != Intensitas.KOSONG -> Color.White
-        h.cuti -> MerahMuda
+        h.intensitas == Intensitas.BANYAK -> Color.White
+        h.intensitas == Intensitas.SEDIKIT -> if (temaGelap()) Color.White else Color(0xFF0B5A44)
+        h.cuti -> MerahMuda.teks()
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val keterangan = buildString {
@@ -337,8 +347,8 @@ private fun SelTanggal(h: HariKalender, dipilih: Boolean, onClick: () -> Unit) {
             .then(if (h.cuti) Modifier.garisPutus(10.dp) else Modifier)
             .then(
                 when {
-                    dipilih -> Modifier.border(2.dp, if (h.hariIni) Emas else MaterialTheme.colorScheme.onSurface, bentuk)
-                    h.hariIni -> Modifier.border(2.dp, Emas, bentuk)
+                    dipilih -> Modifier.border(2.dp, if (h.hariIni) Emas.teks() else MaterialTheme.colorScheme.onSurface, bentuk)
+                    h.hariIni -> Modifier.border(2.dp, Emas.teks(), bentuk)
                     else -> Modifier
                 }
             )
@@ -393,7 +403,7 @@ private fun KartuDetailHari(s: StatisticUiState, onUbahCatatan: () -> Unit) {
             Text("Catatan hari ini diisi dari Beranda.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             OutlinedButton(onClick = onUbahCatatan, shape = CircleShape) {
-                Text("Catat atau ubah sholat & puasa", fontWeight = FontWeight.SemiBold, color = HijauAksen)
+                Text("Catat atau ubah sholat & puasa", fontWeight = FontWeight.SemiBold, color = HijauAksen.teks())
             }
         }
     }
@@ -402,14 +412,14 @@ private fun KartuDetailHari(s: StatisticUiState, onUbahCatatan: () -> Unit) {
 @Composable
 private fun ChipDetail(c: ChipCatatan) {
     val warna = when (c.jenis) {
-        JenisChip.SHOLAT -> Color(0xFF7BE3C2)
+        JenisChip.SHOLAT -> HijauAksen
         JenisChip.SUNNAH_PUASA -> Ungu
         JenisChip.DZIKIR -> Toska
         JenisChip.TILAWAH, JenisChip.IQRO -> Emas
     }
     Text(
         c.label,
-        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = warna,
+        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = warna.teks(),
         modifier = Modifier.clip(CircleShape).background(warna.copy(alpha = 0.16f)).padding(horizontal = 10.dp, vertical = 4.dp)
     )
 }
@@ -468,7 +478,7 @@ private fun KotakIbadah(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(judul, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = warna)
+        Text(judul, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = warna.teks())
         if (angka > 0) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("$angka", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
@@ -481,7 +491,7 @@ private fun KotakIbadah(
             if (aksi != null) {
                 Text(
                     aksi.first,
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = HijauAksen,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = HijauAksen.teks(),
                     modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = aksi.second).padding(vertical = 2.dp)
                 )
             }
@@ -495,7 +505,7 @@ private fun KartuKhatam(s: StatisticUiState) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Perjalanan khatam", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             if (s.khatamJuz != null) {
-                Text("Juz ${s.khatamJuz} dari 30", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Emas)
+                Text("Juz ${s.khatamJuz} dari 30", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Emas.teks())
             }
         }
         (1..30).chunked(15).forEach { baris ->

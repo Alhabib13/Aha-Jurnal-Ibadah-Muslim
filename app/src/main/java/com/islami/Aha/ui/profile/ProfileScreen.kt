@@ -176,7 +176,10 @@ fun ProfileScreenContent(
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
+                val daftarState = androidx.compose.foundation.lazy.rememberLazyListState()
+                com.islami.Aha.ui.theme.IkonStatusBarTerang(aktif = daftarState.firstVisibleItemIndex == 0)
                 LazyColumn(
+                    state = daftarState,
                     modifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background),

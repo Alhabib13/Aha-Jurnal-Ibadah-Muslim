@@ -178,13 +178,13 @@ private fun BannerEmas(ikon: androidx.compose.ui.graphics.vector.ImageVector, ju
             .background(EmasAksen.copy(alpha = 0.12f))
             .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp)
     ) {
-        Icon(ikon, contentDescription = null, tint = EmasAksen, modifier = Modifier.size(20.dp))
+        Icon(ikon, contentDescription = null, tint = EmasAksen.teks(), modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            if (judul != null) Text(judul, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = EmasAksen)
+            if (judul != null) Text(judul, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = EmasAksen.teks())
             Text(isi, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
         }
-        TextButton(onClick = onAksi) { Text(aksi, color = EmasAksen, fontWeight = FontWeight.Bold) }
+        TextButton(onClick = onAksi) { Text(aksi, color = EmasAksen.teks(), fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -214,7 +214,7 @@ fun CategorySectionHeader(title: String, count: Int, warna: Color = HijauAksen) 
         modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, color = warna, modifier = Modifier.weight(1f))
+        Text(title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, color = warna.teks(), modifier = Modifier.weight(1f))
         Text(
             pluralStringResource(R.plurals.notification_count_ibadah_format, count, count),
             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -245,7 +245,7 @@ private fun BarisPengingat(
             Text(
                 jamTitik(jam) ?: "--.--",
                 fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
-                color = if (menyala && jam != null) warnaJam else MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (menyala && jam != null) warnaJam.teks() else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { tengah() }
@@ -288,9 +288,9 @@ fun HabitReminderCard(
                         .clickable(role = Role.Button, onClick = onSuaraClick)
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = null, tint = HijauAksen, modifier = Modifier.size(14.dp))
+                    Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = null, tint = HijauAksen.teks(), modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(suara, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = HijauAksen, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(suara, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = HijauAksen.teks(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             } else {
                 Text(stringResource(R.string.notification_frequency_daily), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

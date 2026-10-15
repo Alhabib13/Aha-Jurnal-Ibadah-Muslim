@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -148,7 +150,7 @@ fun TilawahQuranSection(
                     Box(
                         modifier = Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(EmasMuda.copy(alpha = 0.16f)),
                         contentAlignment = Alignment.Center
-                    ) { Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null, tint = EmasMuda, modifier = Modifier.size(18.dp)) }
+                    ) { Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null, tint = EmasMuda.teks(), modifier = Modifier.size(18.dp)) }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -318,7 +320,7 @@ private fun KartuCatatSesi(
             Text(
                 hasil?.let { "${it.jumlahAyat} ayat · ${it.jumlahHalaman} halaman" } ?: "\"Sampai\" harus sesudah titik mulai",
                 fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                color = if (hasil != null) Color(0xFFF2C66D) else MaterialTheme.colorScheme.error,
+                color = if (hasil != null) Color(0xFFF2C66D).teks() else MaterialTheme.colorScheme.error,
                 modifier = Modifier.weight(1f)
             )
             Button(
@@ -365,7 +367,7 @@ private fun BarisPosisi(label: String, posisi: AyatPosition, menonjol: Boolean, 
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, fontSize = 12.sp, color = if (menonjol) EmasMuda else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+            Text(label, fontSize = 12.sp, color = if (menonjol) EmasMuda.teks() else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
             Text(
                 "${namaSurah(posisi.surah)} ${posisi.ayat}",
                 fontSize = if (menonjol) 17.sp else 15.sp,

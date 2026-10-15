@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.home.components
 
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -96,9 +98,9 @@ fun DzikirCard(
                 .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(18.dp))
                 .clickable(role = Role.Button, onClick = onAdd)
         ) {
-            Icon(Icons.Rounded.Add, contentDescription = null, tint = HijauAksen, modifier = Modifier.size(18.dp))
+            Icon(Icons.Rounded.Add, contentDescription = null, tint = HijauAksen.teks(), modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Tambah dzikir", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = HijauAksen)
+            Text("Tambah dzikir", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = HijauAksen.teks())
         }
     }
     val target = habits.firstOrNull { it.id == hapusId }
@@ -129,7 +131,7 @@ private fun KartuDzikir(h: DzikirHabitUi, onRecord: () -> Unit, onUndo: () -> Un
             Box(
                 modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(gaya.warna.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center
-            ) { Icon(gaya.ikon, contentDescription = null, tint = gaya.warna, modifier = Modifier.size(22.dp)) }
+            ) { Icon(gaya.ikon, contentDescription = null, tint = gaya.warna.teks(), modifier = Modifier.size(22.dp)) }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(h.nama, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
@@ -138,7 +140,7 @@ private fun KartuDzikir(h: DzikirHabitUi, onRecord: () -> Unit, onUndo: () -> Un
                         h.waktuLabel,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = gaya.warna,
+                        color = gaya.warna.teks(),
                         modifier = Modifier.clip(CircleShape).background(gaya.warna.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                     h.targetHitungan?.let {
@@ -188,7 +190,7 @@ private fun KartuDzikir(h: DzikirHabitUi, onRecord: () -> Unit, onUndo: () -> Un
                             "Batalkan",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = HijauAksen,
+                            color = HijauAksen.teks(),
                             modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onUndo).padding(vertical = 2.dp)
                         )
                     }

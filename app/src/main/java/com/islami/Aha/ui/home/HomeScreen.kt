@@ -468,7 +468,11 @@ fun HomeScreenContent(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
+        val daftarState = androidx.compose.foundation.lazy.rememberLazyListState()
+        // Kepala hijau di bawah status bar: ikon putih selama kepala masih terlihat.
+        com.islami.Aha.ui.theme.IkonStatusBarTerang(aktif = daftarState.firstVisibleItemIndex == 0)
         LazyColumn(
+            state = daftarState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {

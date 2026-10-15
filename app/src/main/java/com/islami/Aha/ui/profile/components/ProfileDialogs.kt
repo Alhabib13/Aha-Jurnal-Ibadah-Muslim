@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.profile.components
 
+import com.islami.Aha.ui.theme.teks
+
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -218,7 +220,7 @@ fun EditProfileDialog(
                 if (canChangeUsername) "Nama bisa diubah sekali setiap 30 hari."
                 else pluralStringResource(R.plurals.profile_username_locked_days_format, daysUntilUsernameChange, daysUntilUsernameChange),
                 fontSize = 12.sp,
-                color = if (canChangeUsername) MaterialTheme.colorScheme.onSurfaceVariant else Emas
+                color = if (canChangeUsername) MaterialTheme.colorScheme.onSurfaceVariant else Emas.teks()
             )
 
             if (userInfo.email.isNotBlank()) {
@@ -321,8 +323,8 @@ private fun TombolPil(ikon: ImageVector, label: String, warna: Color, enabled: B
             .clickable(role = Role.Button, enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
-        Icon(ikon, contentDescription = null, tint = warna, modifier = Modifier.size(16.dp))
+        Icon(ikon, contentDescription = null, tint = warna.teks(), modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = warna)
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = warna.teks())
     }
 }

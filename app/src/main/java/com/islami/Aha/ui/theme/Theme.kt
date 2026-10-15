@@ -31,7 +31,8 @@ private val LightColorScheme = lightColorScheme(
     tertiaryContainer = GoldLight,
     onTertiaryContainer = Gray900,
 
-    background = BackgroundLight,
+    // Sedikit keabuan supaya kartu putih (surface) terlihat terpisah dari latar.
+    background = androidx.compose.ui.graphics.Color(0xFFEFF3F5),
     onBackground = Gray900,
 
     surface = SurfaceWhite,

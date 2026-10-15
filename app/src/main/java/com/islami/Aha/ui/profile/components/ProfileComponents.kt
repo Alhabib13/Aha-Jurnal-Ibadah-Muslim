@@ -1,5 +1,7 @@
 package com.islami.Aha.ui.profile.components
 
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -206,7 +208,7 @@ fun JejakIbadahSection(jejak: List<Jejak>, onLihatSemua: () -> Unit) {
             if (jejak.size > 3) {
                 Text(
                     "Lihat semua",
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = HijauAksen,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = HijauAksen.teks(),
                     modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onLihatSemua).padding(horizontal = 4.dp, vertical = 4.dp)
                 )
             }
@@ -245,7 +247,7 @@ fun Linimasa(jejak: List<Jejak>) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(32.dp).clip(CircleShape).background(gaya.warna.copy(alpha = 0.16f))
-                ) { Icon(gaya.ikon, contentDescription = null, tint = gaya.warna, modifier = Modifier.size(16.dp)) }
+                ) { Icon(gaya.ikon, contentDescription = null, tint = gaya.warna.teks(), modifier = Modifier.size(16.dp)) }
                 if (!terakhir) {
                     Box(
                         Modifier
@@ -312,7 +314,7 @@ private fun BarisKebiasaan(ikon: ImageVector, warna: Color, label: String, jumla
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(warna.copy(alpha = 0.16f))
-        ) { Icon(ikon, contentDescription = null, tint = warna, modifier = Modifier.size(16.dp)) }
+        ) { Icon(ikon, contentDescription = null, tint = warna.teks(), modifier = Modifier.size(16.dp)) }
         Spacer(Modifier.width(12.dp))
         Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
         Text(
