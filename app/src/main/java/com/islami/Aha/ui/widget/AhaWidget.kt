@@ -24,7 +24,6 @@ import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -55,10 +54,6 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -361,64 +356,63 @@ class AhaWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val data = muatDataWidget(context)
+        // Dijadwalkan di sini (masih di dalam pekerjaan Glance yang dijaga hidup oleh sistem).
+        AhaWidgetUpdater.jadwalkanPergantianWaktu(context, data)
         provideContent { KontenWidget(data) }
     }
 }
 
 class AhaWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = AhaWidget()
-    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        super.onUpdate(context, appWidgetManager, appWidgetIds)
-        // Jadwalkan pergantian waktu berikutnya.
-        AhaWidgetUpdater.requestUpdate(context)
-    }
 }
 
 // ---------------------------------------------------------------- pembaruan
 
+/**
+ * Pembaruan widget lewat siaran APPWIDGET_UPDATE ke penerima Glance. Penerima itu memakai
+ * goAsync, jadi sistem menjaga proses tetap hidup sampai widget selesai digambar. Dulu
+ * dipakai coroutine lepas; prosesnya dibekukan Android begitu tombol notifikasi selesai,
+ * sehingga widget tidak ikut berubah setelah "Sudah".
+ */
 object AhaWidgetUpdater {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private const val REQ_PERGANTIAN = 778_001
 
     private fun idWidget(context: Context): IntArray =
         AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, AhaWidgetReceiver::class.java))
 
-    /** Gambar ulang widget Aha (dipanggil setelah ada catatan baru). */
+    private fun intentPembaruan(context: Context, ids: IntArray) =
+        Intent(context, AhaWidgetReceiver::class.java).apply {
+            action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        }
+
+    /** Gambar ulang widget Aha (dipanggil setelah ada catatan baru). Aman dari receiver mana pun. */
     fun requestUpdate(context: Context) {
         val app = context.applicationContext
-        if (runCatching { idWidget(app).isEmpty() }.getOrDefault(true)) return
-        scope.launch {
-            runCatching { AhaWidget().updateAll(app) }
-            jadwalkanPergantianWaktu(app)
-        }
+        val ids = runCatching { idWidget(app) }.getOrDefault(IntArray(0))
+        if (ids.isEmpty()) return
+        runCatching { app.sendBroadcast(intentPembaruan(app, ids)) }
     }
 
     /**
      * Alarm ringan (tidak membangunkan HP) di pergantian waktu sholat berikutnya, supaya
      * "Berikutnya" dan lingkaran emas tetap benar walau pengingat dimatikan.
      */
-    fun jadwalkanPergantianWaktu(context: Context) {
+    fun jadwalkanPergantianWaktu(context: Context, d: DataWidget) {
         val app = context.applicationContext
-        scope.launch {
-            runCatching {
-                val ids = idWidget(app)
-                if (ids.isEmpty()) return@runCatching
-                val d = muatDataWidget(app)
-                val sekarang = LocalDateTime.now()
-                val jamBerikut = d.waktu.mapNotNull { it.jam }.firstOrNull { it.isAfter(sekarang.toLocalTime()) }
-                val target = if (jamBerikut != null) LocalDate.now().atTime(jamBerikut)
-                else LocalDate.now().plusDays(1).atStartOfDay().plusMinutes(1)
-                val millis = target.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                val intent = Intent(app, AhaWidgetReceiver::class.java).apply {
-                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                }
-                val pi = PendingIntent.getBroadcast(
-                    app, REQ_PERGANTIAN, intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                (app.getSystemService(Context.ALARM_SERVICE) as AlarmManager).set(AlarmManager.RTC, millis, pi)
-            }
+        runCatching {
+            val ids = idWidget(app)
+            if (ids.isEmpty()) return@runCatching
+            val sekarang = LocalDateTime.now()
+            val jamBerikut = d.waktu.mapNotNull { it.jam }.firstOrNull { it.isAfter(sekarang.toLocalTime()) }
+            val target = if (jamBerikut != null) LocalDate.now().atTime(jamBerikut)
+            else LocalDate.now().plusDays(1).atStartOfDay().plusMinutes(1)
+            val millis = target.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val pi = PendingIntent.getBroadcast(
+                app, REQ_PERGANTIAN, intentPembaruan(app, ids),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            (app.getSystemService(Context.ALARM_SERVICE) as AlarmManager).set(AlarmManager.RTC, millis, pi)
         }
     }
 }

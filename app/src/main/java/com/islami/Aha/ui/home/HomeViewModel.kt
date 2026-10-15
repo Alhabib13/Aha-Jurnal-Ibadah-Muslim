@@ -880,7 +880,9 @@ class HomeViewModel @Inject constructor(
     fun toggleHaidhMode(enabled: Boolean) {
         viewModelScope.launch {
             UserPreferencesManager.setHaidhMode(enabled, reason = "toggleHaidhMode(UI)")
-            
+            // Widget menyembunyikan hitungan sholat saat Mode Cuti: gambar ulang.
+            com.islami.Aha.ui.widget.AhaWidgetUpdater.requestUpdate(context)
+
             // Sync immediately instead of 2 second delay to prevent state loss on navigation
             syncHaidhJob?.cancel()
             syncHaidhJob = launch {
