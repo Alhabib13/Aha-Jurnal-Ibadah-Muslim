@@ -728,11 +728,23 @@ class HomeViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            todayKeyFlow.flatMapLatest { today ->
+                researchLogRepository.observeDikerjakan(today, com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB)
+            }.collect { rows ->
+                val jam = rows.mapNotNull { r ->
+                    val detail = r.namaDetail ?: return@mapNotNull null
+                    val ms = r.jamPencatatan ?: return@mapNotNull null
+                    detail to jamFormat.format(java.util.Date(ms))
+                }.toMap()
+                _uiState.update { it.copy(jamSholatDicatat = jam) }
+            }
+        }
+        viewModelScope.launch {
             researchLogRepository.observeLatestIqro().collect { row ->
                 val progress = row?.let { r ->
                     val jilid = r.jilid ?: return@let null
                     val halaman = r.jumlah ?: return@let null
-                    IqroProgressUi(jilid, halaman, r.tanggal)
+                    IqroProgressUi(jilid, halaman, r.tanggal, r.jamPencatatan?.let { jamFormat.format(java.util.Date(it)) }.orEmpty())
                 }
                 _uiState.update { it.copy(iqroProgress = progress) }
             }

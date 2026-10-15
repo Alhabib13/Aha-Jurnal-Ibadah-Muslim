@@ -35,7 +35,7 @@ data class DzikirHabitUi(
 }
 
 /** Posisi terakhir Iqro/metode sejenis. */
-data class IqroProgressUi(val jilid: Int, val halaman: Int, val tanggal: String)
+data class IqroProgressUi(val jilid: Int, val halaman: Int, val tanggal: String, val jam: String = "")
 
 internal const val BELUM_ADA = "Belum ada"
 internal const val MODE_CUTI_AKTIF = "Mode Cuti aktif"
@@ -94,6 +94,8 @@ data class HomeUiState(
     val dzikirHabits: List<DzikirHabitUi> = emptyList(),
     val tilawahSessions: List<TilawahSessionUi> = emptyList(),
     val iqroProgress: IqroProgressUi? = null,
+    /** Sholat fardhu hari ini: nama_detail -> jam pencatatan "HH.mm" (dari research_logs). */
+    val jamSholatDicatat: Map<String, String> = emptyMap(),
     val tilawahJenisDipilih: String = com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN,
     /** Posisi AKHIR sesi terakhir per jenis sesi Al-Qur'an. */
     val tilawahPenanda: Map<String, com.islami.Aha.data.quran.AyatPosition?> = emptyMap(),
@@ -129,6 +131,14 @@ data class HomeUiState(
     /** "01:27" — jam:menit menuju sholat berikutnya. */
     val hitungMundur: String
         get() = if (nextPrayerMenit < 0) "" else "%02d:%02d".format(nextPrayerMenit / 60, nextPrayerMenit % 60)
+
+    /** Jam pencatatan sholat fardhu yang sudah dicentang hari ini; null bila tidak diketahui. */
+    fun jamDicatat(habit: com.islami.Aha.data.model.Habit): String? {
+        if (!habit.isCompleted) return null
+        val slot = com.islami.Aha.data.research.ResearchMapping.fromDefaultHabit(habit.name, habit.category) ?: return null
+        if (slot.jenisIbadah != com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB) return null
+        return jamSholatDicatat[slot.namaDetail]
+    }
 
     val bacaanHarianHalamanToday: Int
         get() = tilawahSessions

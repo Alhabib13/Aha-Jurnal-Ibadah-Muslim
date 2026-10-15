@@ -91,6 +91,7 @@ fun HomeHabitItem(
     onCheckedChange: (Boolean) -> Unit,
     onToggleReminder: () -> Unit,
     currentTime: String,
+    jamDicatat: String? = null,
     modifier: Modifier = Modifier
 ) {
     val completionStateDescription = if (habit.isCompleted) {
@@ -159,7 +160,7 @@ fun HomeHabitItem(
                     )
                 } else if (habit.isCompleted) {
                     Spacer(Modifier.width(8.dp))
-                    Text("Dicatat", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = hijau)
+                    Text(if (jamDicatat != null) "Dicatat $jamDicatat" else "Dicatat", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = hijau)
                 }
             }
         }

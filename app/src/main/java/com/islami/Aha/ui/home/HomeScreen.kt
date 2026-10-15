@@ -588,7 +588,7 @@ fun HomeScreenContent(
             } else if (uiState.isTilawahCategory) {
                 if (uiState.isTilawahIqroTab) {
                     // Iqro satu kelompok tampilan dengan Al-Qur'an; data tetap jenis_ibadah "iqro".
-                    item { IqroCard(progress = uiState.iqroProgress, onSave = onSaveIqro) }
+                    item { IqroSection(progress = uiState.iqroProgress, onSave = onSaveIqro) }
                 } else {
                     item {
                         TilawahQuranSection(
@@ -605,7 +605,7 @@ fun HomeScreenContent(
                         )
                     }
                 }
-                item { TanzilAttribution() }
+                if (!uiState.isTilawahIqroTab) item { TanzilAttribution() }
             } else if (uiState.isComingSoon) {
                 item {
                     ComingSoonState(categoryName = uiState.selectedMainCategory)
@@ -656,6 +656,7 @@ fun HomeScreenContent(
                         onCheckedChange = { onToggleHabitCompletion(habit) },
                         onToggleReminder = { onToggleHabitReminder(habit) },
                         currentTime = uiState.currentTime,
+                        jamDicatat = uiState.jamDicatat(habit),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
