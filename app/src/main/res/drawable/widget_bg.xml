@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Latar widget: gradasi emerald seperti kepala aplikasi. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#F018212B" />
+    <gradient
+        android:angle="315"
+        android:startColor="#0D7C5F"
+        android:centerColor="#119272"
+        android:endColor="#1FB489"
+        android:type="linear" />
     <corners android:radius="24dp" />
 </shape>
