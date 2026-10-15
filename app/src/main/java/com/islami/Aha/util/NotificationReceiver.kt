@@ -196,7 +196,8 @@ class NotificationReceiver : BroadcastReceiver() {
             // Tanpa channel: suara & getar diatur di notifikasinya.
             val uri = if (slug != null) SuaraSholat.soundUri(context, slug)
             else NotificationScheduler.getSoundUri(NotificationScheduler.getChannelSettings(context).soundOption)
-            if (uri != null) builder.setSound(uri) else builder.setSilent(true)
+            @Suppress("DEPRECATION")
+            if (uri != null) builder.setSound(uri, android.media.AudioManager.STREAM_ALARM) else builder.setSilent(true)
             builder.setVibrate(
                 if (NotificationScheduler.getChannelSettings(context).vibrationEnabled) longArrayOf(0, 180, 80, 180)
                 else longArrayOf(0)

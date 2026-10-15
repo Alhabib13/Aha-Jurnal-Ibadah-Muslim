@@ -169,13 +169,18 @@ object SuaraSholat {
 
     // ---------------------------------------------------------------- channel
 
+    /** Penanda jalur volume kanal; nilai berbeda = kanal lama dibangun ulang. */
+    private const val JALUR_VOLUME = "alarm"
+
     fun channelId(context: Context, slug: String): String {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return NotificationScheduler.CHANNEL_ID
         val versi = prefs(context).getInt("versi_$slug", 1)
         val id = "sholat_${slug}_v$versi"
         val nm = context.getSystemService(NotificationManager::class.java)
-        // Channel dibangun dengan suara lain (mis. setelan lama/versi aplikasi lama): bangun ulang.
-        if (prefs(context).getString("uri_kanal_$slug", null) != soundUri(context, slug)?.toString()) {
+        // Channel dibangun dengan suara lain atau jalur volume lama (mis. versi aplikasi lama): bangun ulang.
+        if (prefs(context).getString("uri_kanal_$slug", null) != soundUri(context, slug)?.toString() ||
+            prefs(context).getString("jalur_kanal_$slug", null) != JALUR_VOLUME
+        ) {
             bangunUlangChannel(context, slug)
             return "sholat_${slug}_v${prefs(context).getInt("versi_$slug", 1)}"
         }
@@ -211,7 +216,9 @@ object SuaraSholat {
             setSound(
                 uri,
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    // Jalur volume ALARM: adzan tetap berbunyi walau volume notifikasi dibisukan
+                    // atau HP dalam mode senyap. Pilihan "Senyap" di aplikasi tetap tanpa suara.
+                    .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(
                         if (setelan(context, slug).pilihan == Pilihan.NADA_HP) AudioAttributes.CONTENT_TYPE_SONIFICATION
                         else AudioAttributes.CONTENT_TYPE_MUSIC
@@ -222,6 +229,9 @@ object SuaraSholat {
             vibrationPattern = if (getar) longArrayOf(0, 180, 80, 180) else longArrayOf(0)
         }
         nm.createNotificationChannel(channel)
-        prefs(context).edit().putString("uri_kanal_$slug", uri?.toString()).apply()
+        prefs(context).edit()
+            .putString("uri_kanal_$slug", uri?.toString())
+            .putString("jalur_kanal_$slug", JALUR_VOLUME)
+            .apply()
     }
 }
