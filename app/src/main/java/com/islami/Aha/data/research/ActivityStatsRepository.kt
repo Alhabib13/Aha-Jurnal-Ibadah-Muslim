@@ -40,6 +40,8 @@ class ActivityStatsRepository @Inject constructor(
 
     suspend fun hasDzikirHabits(): Boolean = dzikirHabitDao.getAll().isNotEmpty()
 
+    suspend fun countDzikirHabits(): Int = dzikirHabitDao.getAll().size
+
     suspend fun getDistinctCompletionDatesDesc(): List<String> =
         (habitCompletionDao.getDistinctCompletionDatesDesc() + researchLogDao.getActivityDistinctDatesDesc())
             .distinct()

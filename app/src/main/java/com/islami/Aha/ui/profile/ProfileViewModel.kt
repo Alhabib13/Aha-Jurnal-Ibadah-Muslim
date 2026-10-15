@@ -38,21 +38,6 @@ data class UserInfo(
     val isLoggedIn: Boolean = false
 )
 
-data class Achievement(
-    val id: String,
-    val name: String,
-    val description: String,
-    val isUnlocked: Boolean,
-    val progress: Float
-)
-
-data class WeeklySummary(
-    val completionPercentage: Float = 0f,
-    val activeDays: Int = 0,
-    val totalDays: Int = 7,
-    val bestCategory: String = "-"
-)
-
 data class ProfileUiState(
     val isLoading: Boolean = true,
     val isSavingAvatar: Boolean = false,
@@ -63,9 +48,10 @@ data class ProfileUiState(
     val currentStreak: Int = 0,
     val sholatCount: Int = 0,
     val puasaCount: Int = 0,
+    val dzikirCount: Int = 0,
     val reminderCount: Int = 0,
-    val achievements: List<Achievement> = emptyList(),
-    val weeklySummary: WeeklySummary = WeeklySummary(),
+    /** Momen yang sudah dilalui, terbaru di atas. */
+    val jejak: List<Jejak> = emptyList(),
     val showLogoutConfirmation: Boolean = false,
     val snackbarMessage: String? = null,
     val lastUsernameChangedAt: Long = 0L
@@ -106,6 +92,8 @@ class ProfileViewModel @Inject constructor(
         private const val KEY_USER_EMAIL = "user_email"
         private const val KEY_USER_AVATAR_URI = "user_avatar_uri"
         private const val KEY_LAST_USERNAME_CHANGED = AuthRepository.KEY_LAST_USERNAME_CHANGED
+        private const val SEMUA_AWAL = "0000-01-01"
+        private const val SEMUA_AKHIR = "9999-12-31"
     }
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -171,44 +159,23 @@ class ProfileViewModel @Inject constructor(
                 val totalCompletedToday = visibleHabits.count { it.isCompleted } +
                     visibleSunnahHabits.count { it.isCompletedToday } +
                     dzikir.done
-                val allCompleteToday = totalHabits > 0 && totalCompletedToday == totalHabits
-
                 val sholatCount = sunnahHabits.count { it.category == SunnahCategoryType.SHOLAT }
                 val puasaCount = sunnahHabits.count { it.category == SunnahCategoryType.PUASA }
-                val reminderCount = sunnahHabits.count { it.reminderEnabled }
+                // Pengingat aktif: sholat fardhu bawaan + habit sunnah yang pengingatnya menyala.
+                val reminderCount = habits.count { it.category == "Sholat Fardhu" && it.isReminderEnabled } + sunnahHabits.count { it.reminderEnabled }
 
-                // Real historical data from completion records
                 val completionDates = activityStats.getDistinctCompletionDatesDesc()
                 val historicalTotal = activityStats.getTotalCompletionCount()
                 val currentStreak = calculateCurrentStreak(completionDates, haidhDates)
 
-                // Weekly active days (last 7 days)
-                val last7DateKeys = DateUtils.getDateKeysLastDays(7)
-                val weeklyDailyCounts = if (last7DateKeys.isNotEmpty()) {
-                    activityStats.getDailyCountsBetween(last7DateKeys.first(), last7DateKeys.last())
-                } else {
-                    emptyList()
-                }
-                val weeklyActiveDays = weeklyDailyCounts.count { it.count > 0 }
-
-                val categoryCompletions = visibleHabits.groupBy { it.category }
-                    .mapValues { (_, categoryHabits) ->
-                        val completed = categoryHabits.count { it.isCompleted }
-                        val total = categoryHabits.size
-                        if (total > 0) (completed * 100f) / total else 0f
-                    }
-                val bestCategory = categoryCompletions.maxByOrNull { it.value }
-                val bestCategoryName = if ((bestCategory?.value ?: 0f) > 0f) {
-                    bestCategory?.key ?: "-"
-                } else "-"
-
-                val activeHaidhDaysInLast7Days = last7DateKeys.count { it in haidhDates }
-                val effectiveDays = maxOf(1f, 7f - activeHaidhDaysInLast7Days)
-                val weeklyPercentage = if (totalHabits > 0) {
-                    val weeklyTotalCompleted = weeklyDailyCounts.sumOf { it.count }
-                    // Tilawah/iqro menambah pembilang tanpa slot; batasi agar tidak lewat 100%.
-                    minOf(100f, (weeklyTotalCompleted * 100f) / (totalHabits * effectiveDays))
-                } else 0f
+                val namaHabit = habits.associate { "default_${it.id}" to it.name } +
+                    sunnahHabits.associate { "sunnah_${it.id}" to it.name }
+                val jejak = susunJejak(
+                    records = activityStats.getCompletionRecordsBetween(SEMUA_AWAL, SEMUA_AKHIR),
+                    namaHabit = namaHabit,
+                    aktivitas = activityStats.getAktivitasLainBetween(SEMUA_AWAL, SEMUA_AKHIR),
+                    tanggalCuti = haidhDates
+                )
 
                 _uiState.update {
                     it.copy(
@@ -219,19 +186,10 @@ class ProfileViewModel @Inject constructor(
                         currentStreak = currentStreak,
                         sholatCount = sholatCount,
                         puasaCount = puasaCount,
+                        dzikirCount = activityStats.countDzikirHabits(),
                         reminderCount = reminderCount,
                         lastUsernameChangedAt = sharedPreferences.getLong(KEY_LAST_USERNAME_CHANGED, 0L),
-                        achievements = generateAchievements(
-                            totalCompleted = historicalTotal,
-                            currentStreak = currentStreak,
-                            allCompleteToday = allCompleteToday
-                        ),
-                        weeklySummary = WeeklySummary(
-                            completionPercentage = weeklyPercentage,
-                            activeDays = weeklyActiveDays,
-                            totalDays = 7,
-                            bestCategory = bestCategoryName
-                        )
+                        jejak = jejak
                     )
                 }
             }
@@ -280,57 +238,6 @@ class ProfileViewModel @Inject constructor(
             avatarInitial = avatarInitial,
             avatarUri = avatarUri,
             isLoggedIn = true
-        )
-    }
-
-    private fun generateAchievements(
-        totalCompleted: Int,
-        currentStreak: Int,
-        allCompleteToday: Boolean
-    ): List<Achievement> {
-        return listOf(
-            Achievement(
-                id = "first_step",
-                name = "Langkah Pertama",
-                description = "Selesaikan ibadah pertama",
-                isUnlocked = totalCompleted >= 1,
-                progress = if (totalCompleted >= 1) 1f else 0f
-            ),
-            Achievement(
-                id = "burning",
-                name = "Semangat Membara",
-                description = "Streak 7 hari berturut",
-                isUnlocked = currentStreak >= 7,
-                progress = (currentStreak / 7f).coerceAtMost(1f)
-            ),
-            Achievement(
-                id = "consistent",
-                name = "Bintang Konsisten",
-                description = "Streak 14 hari berturut",
-                isUnlocked = currentStreak >= 14,
-                progress = (currentStreak / 14f).coerceAtMost(1f)
-            ),
-            Achievement(
-                id = "champion",
-                name = "Juara Istiqomah",
-                description = "Streak 30 hari berturut",
-                isUnlocked = currentStreak >= 30,
-                progress = (currentStreak / 30f).coerceAtMost(1f)
-            ),
-            Achievement(
-                id = "hundred",
-                name = "Seratus Ibadah",
-                description = "100 ibadah total selesai",
-                isUnlocked = totalCompleted >= 100,
-                progress = (totalCompleted / 100f).coerceAtMost(1f)
-            ),
-            Achievement(
-                id = "sharpshooter",
-                name = "Penembak Jitu",
-                description = "Semua habit selesai 1 hari",
-                isUnlocked = allCompleteToday,
-                progress = if (allCompleteToday) 1f else 0f
-            )
         )
     }
 
