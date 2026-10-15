@@ -5,8 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.islami.Aha.data.repository.FeatureConfigRepository
 import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
-import com.islami.Aha.data.model.DailyCompletionCount
-import com.islami.Aha.domain.model.SunnahHabit
 import com.islami.Aha.ui.addhabit.SunnahCategoryType
 import com.islami.Aha.ui.shared.SunnahHabitSharedViewModel
 import com.islami.Aha.util.DateUtils
@@ -19,8 +17,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
+import com.islami.Aha.data.quran.QuranCalculator
+import com.islami.Aha.data.quran.QuranData
+import com.islami.Aha.data.research.ResearchSchema
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 private data class StatCombineData(
@@ -39,41 +43,34 @@ data class PastDayHabitItem(
     val isSunnah: Boolean
 )
 
-data class DailyStatistic(
-    val dayName: String,
-    val completedCount: Int,
-    val isToday: Boolean = false,
-    val dateKey: String = "",
-    val isHaidh: Boolean = false
-)
-
-data class CategoryStatistic(
-    val name: String,
-    val icon: String,
-    val completedCount: Int,
-    val totalCount: Int,
-    val percentage: Int,
-    val streak: Int,
-    val gradientIndex: Int = 0,
-    /** Keterangan keadaan pengganti hitungan (mis. "Mode Cuti aktif", "Belum ada"); null = tampilkan angka. */
-    val keterangan: String? = null
-)
-
 data class StatisticUiState(
     val isLoading: Boolean = true,
-    val currentDate: String = "",
+    /** "Kamis, 15 Oktober 2026 · 4 Jumadil Awal 1448 H" */
+    val judulTanggal: String = "",
     val todayCompleted: Int = 0,
     val todayTotal: Int = 0,
-    val todayPercentage: Int = 0,
-    val weeklyStats: List<DailyStatistic> = emptyList(),
-    val categoryStats: List<CategoryStatistic> = emptyList(),
+    /** "5 sholat fardhu + 2 dzikir pilihanmu"; kosong bila tidak ada ibadah harian. */
+    val rincianHariIni: String = "",
+    val modeCuti: Boolean = false,
     val currentStreak: Int = 0,
-    val longestStreak: Int = 0,
-    val totalCompleted: Int = 0,
-    val averagePerDay: Float = 0f,
-    val sunnahTotal: Int = 0,
-    val sunnahCompleted: Int = 0
-)
+    val bulan: YearMonth = YearMonth.now(),
+    val labelBulan: String = "",
+    val labelHijriBulan: String = "",
+    val bisaMaju: Boolean = false,
+    val kalender: List<HariKalender?> = emptyList(),
+    val tanggalDipilih: String = "",
+    val judulTanggalDipilih: String = "",
+    val chipsDipilih: List<ChipCatatan> = emptyList(),
+    val tanggalDipilihCuti: Boolean = false,
+    val pekan: RingkasanPekan = RingkasanPekan(),
+    val punyaDzikir: Boolean = false,
+    val punyaSunnah: Boolean = false,
+    /** Juz posisi bacaan harian; null = belum ada sesi. */
+    val khatamJuz: Int? = null,
+    val khatamKeterangan: String = ""
+) {
+    val tanggalDipilihHariIni: Boolean get() = tanggalDipilih == DateUtils.getTodayKey()
+}
 
 @HiltViewModel
 class StatisticViewModel @Inject constructor(
@@ -84,7 +81,8 @@ class StatisticViewModel @Inject constructor(
     private val featureConfigRepository: FeatureConfigRepository,
     private val completionSyncRepository: com.islami.Aha.data.repository.CompletionSyncRepository,
     private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
-    private val activityStats: com.islami.Aha.data.research.ActivityStatsRepository
+    private val activityStats: com.islami.Aha.data.research.ActivityStatsRepository,
+    private val tilawahState: com.islami.Aha.data.research.TilawahStateRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StatisticUiState())
@@ -98,17 +96,31 @@ class StatisticViewModel @Inject constructor(
     private val _pastDayHabits = MutableStateFlow<List<PastDayHabitItem>>(emptyList())
     val pastDayHabits: StateFlow<List<PastDayHabitItem>> = _pastDayHabits.asStateFlow()
 
+    private val _bulan = MutableStateFlow(YearMonth.now())
+    private val _tanggal = MutableStateFlow(DateUtils.getTodayKey())
+    /** Dinaikkan setelah catatan hari lampau diubah lewat lembar (tabel itu tidak punya Flow). */
+    private val _muatUlang = MutableStateFlow(0)
+
+    private val idLocale = Locale.forLanguageTag("id-ID")
+
     init {
         featureConfigRepository.refresh()
         loadStatistics()
     }
 
+    fun bulanSebelumnya() { _bulan.update { it.minusMonths(1) } }
+
+    fun bulanBerikutnya() { _bulan.update { b -> if (b < YearMonth.now()) b.plusMonths(1) else b } }
+
+    fun pilihTanggal(tanggal: String) {
+        if (tanggal > DateUtils.getTodayKey()) return
+        _tanggal.value = tanggal
+    }
+
     private fun loadStatistics() {
         statsJob?.cancel()
         statsJob = viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-
-            combine(
+            val sumber = combine(
                 habitDao.getHabits(),
                 sunnahHabitSharedViewModel.sunnahHabits,
                 featureConfigRepository.featureConfig,
@@ -116,200 +128,122 @@ class StatisticViewModel @Inject constructor(
                 activityStats.observeChanges()
             ) { habits, sunnahHabits, config, haidhDates, researchTick ->
                 StatCombineData(habits, sunnahHabits, config, haidhDates, researchTick)
-            }.collect { data ->
-                val habits = data.habits
-                val sunnahHabits = data.sunnahHabits
-                val config = data.config
-                val haidhDates = data.haidhDates
-                val isTodayHaidh = haidhDates.contains(DateUtils.getTodayKey())
-                val visibleHabits = habits.filter {
-                    if (it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled)) {
-                        return@filter false
-                    }
-                    if (it.category == "Sholat Tarawih" && (!DateUtils.isRamadanMonth() || !config.sholatTarawihEnabled)) {
-                        return@filter false
-                    }
-                    if (isTodayHaidh && (it.category.startsWith("Sholat") || it.category.startsWith("Puasa"))) {
-                        return@filter false
-                    }
-                    true
-                }
-                val visibleSunnahHabits = sunnahHabits.filter {
-                    if (isTodayHaidh && (it.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.SHOLAT || it.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.PUASA)) {
-                        return@filter false
-                    }
-                    true
-                }
-
-                val fardhuCompleted = visibleHabits.count { it.isCompleted }
-                val sunnahCompleted = visibleSunnahHabits.count { it.isCompletedToday }
-                // Dzikir: mengikuti habit dzikir pilihan pengguna (Mode Cuti: ModeCutiPolicy).
-                // Tilawah/iqro di luar rasio.
-                val dzikir = activityStats.getDzikirProgress(DateUtils.getTodayKey(), isTodayHaidh)
-                val todayCompleted = fardhuCompleted + sunnahCompleted + dzikir.done
-                val todayTotal = visibleHabits.size + visibleSunnahHabits.size + dzikir.total
-                val todayPercentage = if (todayTotal > 0) (todayCompleted * 100) / todayTotal else 0
-
-                val categoryOrder = buildList {
-                    add("Sholat Fardhu")
-                    add("Sholat Sunnah")
-                    if (DateUtils.isRamadanMonth() && config.sholatTarawihEnabled) {
-                        add("Sholat Tarawih")
-                    }
-                    if (DateUtils.isRamadanMonth()) {
-                        add("Puasa Wajib")
-                    }
-                    add("Puasa Sunnah")
-                }
-                val categoryIcons = mapOf(
-                    "Sholat Fardhu" to "masjid",
-                    "Sholat Sunnah" to "sun",
-                    "Sholat Tarawih" to "moon",
-                    "Puasa Wajib" to "plate",
-                    "Puasa Sunnah" to "moon"
-                )
-
-                val categoryStats = categoryOrder.mapIndexed { index, categoryName ->
-                    val categoryHabits = visibleHabits.filter { it.category == categoryName }
-                    var completed = categoryHabits.count { it.isCompleted }
-                    var total = categoryHabits.size
-
-                    // Include user-added sunnah habits in their respective categories
-                    when (categoryName) {
-                        "Sholat Sunnah" -> {
-                            val sunnah = visibleSunnahHabits.filter { it.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.SHOLAT }
-                            total += sunnah.size
-                            completed += sunnah.count { it.isCompletedToday }
-                        }
-                        "Puasa Sunnah" -> {
-                            val sunnah = visibleSunnahHabits.filter { it.category == com.islami.Aha.ui.addhabit.SunnahCategoryType.PUASA }
-                            total += sunnah.size
-                            completed += sunnah.count { it.isCompletedToday }
-                        }
-                    }
-
-                    CategoryStatistic(
-                        name = categoryName,
-                        icon = categoryIcons[categoryName] ?: "chart",
-                        completedCount = completed,
-                        totalCount = total,
-                        percentage = if (total > 0) (completed * 100) / total else 0,
-                        streak = 0,
-                        gradientIndex = index,
-                        // Semua kategori di sini sholat/puasa: tidak dihitung saat Mode Cuti.
-                        keterangan = when {
-                            isTodayHaidh -> "Mode Cuti aktif"
-                            total == 0 -> "Belum ada"
-                            else -> null
-                        }
-                    )
-                }
-
-                val last7DateKeys = DateUtils.getDateKeysLastDays(7)
-                val dailyCounts = if (last7DateKeys.isNotEmpty()) {
-                    activityStats.getDailyCountsBetween(last7DateKeys.first(), last7DateKeys.last())
-                } else {
-                    emptyList()
-                }
-                val completionDates = activityStats.getDistinctCompletionDatesDesc()
-                val currentStreak = calculateCurrentStreak(completionDates, haidhDates)
-                val longestStreak = calculateLongestStreak(completionDates)
-                val historicalTotal = activityStats.getTotalCompletionCount()
-                val activeDaysCount = completionDates.size
-                val averagePerDay = if (activeDaysCount > 0) {
-                    historicalTotal.toFloat() / activeDaysCount
-                } else 0f
-
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        currentDate = getCurrentDateFormatted(),
-                        todayCompleted = todayCompleted,
-                        todayTotal = todayTotal,
-                        todayPercentage = todayPercentage,
-                        categoryStats = categoryStats,
-                        weeklyStats = generateWeeklyStats(last7DateKeys, dailyCounts, haidhDates),
-                        currentStreak = currentStreak,
-                        longestStreak = longestStreak,
-                        totalCompleted = historicalTotal,
-                        averagePerDay = averagePerDay,
-                        sunnahTotal = sunnahHabits.size,
-                        sunnahCompleted = sunnahCompleted
-                    )
-                }
             }
+            combine(sumber, _bulan, _tanggal, tilawahState.version, _muatUlang) { data, bulan, tanggal, _, _ ->
+                Triple(data, bulan, tanggal)
+            }.collectLatest { (data, bulan, tanggal) -> hitung(data, bulan, tanggal) }
         }
     }
 
-    private fun getCurrentDateFormatted(): String {
-        val dateFormat = SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.forLanguageTag("id-ID"))
-        return dateFormat.format(Date())
-    }
-
-    private fun generateWeeklyStats(
-        dateKeys: List<String>,
-        dailyCounts: List<DailyCompletionCount>,
-        haidhDates: Set<String>
-    ): List<DailyStatistic> {
-        val countsByDate = dailyCounts.associate { it.dateKey to it.count }
+    private suspend fun hitung(data: StatCombineData, bulan: YearMonth, tanggal: String) {
+        val habits = data.habits
+        val sunnahHabits = data.sunnahHabits
+        val config = data.config
+        val haidhDates = data.haidhDates
         val todayKey = DateUtils.getTodayKey()
-        return dateKeys.map { key ->
-            val dayName = runCatching {
-                val day = java.time.LocalDate.parse(key)
-                when (day.dayOfWeek) {
-                    java.time.DayOfWeek.SUNDAY -> "Min"
-                    java.time.DayOfWeek.MONDAY -> "Sen"
-                    java.time.DayOfWeek.TUESDAY -> "Sel"
-                    java.time.DayOfWeek.WEDNESDAY -> "Rab"
-                    java.time.DayOfWeek.THURSDAY -> "Kam"
-                    java.time.DayOfWeek.FRIDAY -> "Jum"
-                    java.time.DayOfWeek.SATURDAY -> "Sab"
-                }
-            }.getOrDefault("-")
-            DailyStatistic(
-                dayName = dayName,
-                completedCount = countsByDate[key] ?: 0,
-                isToday = key == todayKey,
-                dateKey = key,
-                isHaidh = haidhDates.contains(key)
+        val isTodayHaidh = haidhDates.contains(todayKey)
+        val visibleHabits = habits.filter {
+            if (it.category == "Puasa Wajib" && (!DateUtils.isRamadanMonth() || !config.puasaWajibRamadanEnabled)) return@filter false
+            if (it.category == "Sholat Tarawih" && (!DateUtils.isRamadanMonth() || !config.sholatTarawihEnabled)) return@filter false
+            if (isTodayHaidh && (it.category.startsWith("Sholat") || it.category.startsWith("Puasa"))) return@filter false
+            true
+        }
+        val visibleSunnahHabits = sunnahHabits.filter {
+            !(isTodayHaidh && (it.category == SunnahCategoryType.SHOLAT || it.category == SunnahCategoryType.PUASA))
+        }
+
+        // Hari ini: sholat/puasa harian + sunnah + dzikir pilihan. Tilawah/iqro di luar hitungan.
+        val dzikir = activityStats.getDzikirProgress(todayKey, isTodayHaidh)
+        val fardhuTotal = visibleHabits.count { it.category == "Sholat Fardhu" }
+        val lainTotal = visibleHabits.size - fardhuTotal + visibleSunnahHabits.size
+        val todayCompleted = visibleHabits.count { it.isCompleted } + visibleSunnahHabits.count { it.isCompletedToday } + dzikir.done
+        val todayTotal = visibleHabits.size + visibleSunnahHabits.size + dzikir.total
+        val rincian = listOfNotNull(
+            fardhuTotal.takeIf { it > 0 }?.let { "$it sholat fardhu" },
+            lainTotal.takeIf { it > 0 }?.let { "$it sunnah & puasa" },
+            dzikir.total.takeIf { it > 0 }?.let { "$it dzikir pilihanmu" }
+        ).joinToString(" + ")
+
+        val namaHabit = habits.associate { "default_${it.id}" to it.name } +
+            sunnahHabits.associate { "sunnah_${it.id}" to it.name }
+        val urutanKunci = habits.map { "default_${it.id}" } + sunnahHabits.map { "sunnah_${it.id}" }
+
+        // Kalender bulan.
+        val awalBulan = bulan.atDay(1).toString()
+        val akhirBulan = bulan.atEndOfMonth().toString()
+        val jumlahPerTanggal = activityStats.getDailyCountsBetween(awalBulan, akhirBulan).associate { it.dateKey to it.count }
+        val kalender = susunBulan(bulan, jumlahPerTanggal, haidhDates, LocalDate.now(), todayTotal)
+
+        // Detail tanggal terpilih.
+        val chips = susunCatatanHari(
+            activityStats.getCompletionRecordsBetween(tanggal, tanggal),
+            namaHabit,
+            urutanKunci,
+            activityStats.getAktivitasLainBetween(tanggal, tanggal)
+        )
+
+        // 7 hari terakhir.
+        val tujuhHari = DateUtils.getDateKeysLastDays(7)
+        val pekan = if (tujuhHari.isEmpty()) RingkasanPekan() else susunRingkasanPekan(
+            activityStats.getCompletionRecordsBetween(tujuhHari.first(), tujuhHari.last()),
+            namaHabit,
+            activityStats.getAktivitasLainBetween(tujuhHari.first(), tujuhHari.last())
+        )
+
+        // Perjalanan khatam: posisi bacaan harian.
+        val posisi = tilawahState.penanda(ResearchSchema.Detail.BACAAN_HARIAN)
+        val khatamJuz = posisi?.let { QuranCalculator.juzOf(it) }
+        val khatamKeterangan = posisi?.let {
+            "Bacaan harian sampai ${com.islami.Aha.ui.home.components.namaSurah(it.surah)} ${it.ayat} · " +
+                "halaman ${QuranCalculator.halamanOf(it)} dari ${QuranData.TOTAL_HALAMAN}"
+        } ?: "Belum ada sesi bacaan harian. Catat di Beranda, tab Tilawah."
+
+        val completionDates = activityStats.getDistinctCompletionDatesDesc()
+        val tglDipilih = runCatching { LocalDate.parse(tanggal) }.getOrNull()
+
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                judulTanggal = "${getCurrentDateFormatted()} · ${DateUtils.getHijriDateFormatted()}",
+                todayCompleted = todayCompleted,
+                todayTotal = todayTotal,
+                rincianHariIni = rincian,
+                modeCuti = isTodayHaidh,
+                currentStreak = calculateCurrentStreak(completionDates, haidhDates),
+                bulan = bulan,
+                labelBulan = bulan.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", idLocale)),
+                labelHijriBulan = DateUtils.hijriRentang(bulan.atDay(1), bulan.atEndOfMonth()),
+                bisaMaju = bulan < YearMonth.now(),
+                kalender = kalender,
+                tanggalDipilih = tanggal,
+                judulTanggalDipilih = tglDipilih?.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", idLocale)) ?: tanggal,
+                chipsDipilih = chips,
+                tanggalDipilihCuti = haidhDates.contains(tanggal),
+                pekan = pekan,
+                punyaDzikir = activityStats.hasDzikirHabits(),
+                punyaSunnah = sunnahHabits.isNotEmpty(),
+                khatamJuz = khatamJuz,
+                khatamKeterangan = khatamKeterangan
             )
         }
     }
 
+    private fun getCurrentDateFormatted(): String =
+        SimpleDateFormat("EEEE, d MMMM yyyy", idLocale).format(Date())
+
     private fun calculateCurrentStreak(distinctDatesDesc: List<String>, haidhDates: Set<String>): Int {
         if (distinctDatesDesc.isEmpty() && haidhDates.isEmpty()) return 0
         val dateSet = distinctDatesDesc.toSet()
-        var cursor = java.time.LocalDate.now()
+        var cursor = LocalDate.now()
         var streak = 0
-        
         if (!dateSet.contains(cursor.toString()) && !haidhDates.contains(cursor.toString())) {
             cursor = cursor.minusDays(1)
         }
-        
         while (dateSet.contains(cursor.toString()) || haidhDates.contains(cursor.toString())) {
-            if (dateSet.contains(cursor.toString())) {
-                streak++ 
-            }
+            if (dateSet.contains(cursor.toString())) streak++
             cursor = cursor.minusDays(1)
         }
         return streak
-    }
-
-    private fun calculateLongestStreak(distinctDatesDesc: List<String>): Int {
-        if (distinctDatesDesc.isEmpty()) return 0
-        val sortedAsc = distinctDatesDesc.mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }.sorted()
-        if (sortedAsc.isEmpty()) return 0
-        var longest = 1
-        var current = 1
-        for (i in 1 until sortedAsc.size) {
-            if (sortedAsc[i - 1].plusDays(1) == sortedAsc[i]) {
-                current++
-                if (current > longest) longest = current
-            } else {
-                current = 1
-            }
-        }
-        return longest
     }
 
     fun onDayClicked(dateKey: String) {
@@ -410,8 +344,8 @@ class StatisticViewModel @Inject constructor(
             }
             // Reload the list to reflect changes
             loadPastDayHabits(dateKey)
-            // Reload statistics since a past record changed
-            loadStatistics()
+            // Muat ulang statistik karena catatan hari lampau berubah
+            _muatUlang.update { it + 1 }
         }
     }
 

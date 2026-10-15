@@ -73,6 +73,13 @@ interface ResearchLogDao {
 
     // ---------- UI dzikir / tilawah / iqro ----------
 
+    /** Statistik: semua baris "dikerjakan" dalam rentang tanggal (semua jenis). */
+    @Query(
+        "SELECT * FROM research_logs WHERE status = 'dikerjakan' " +
+            "AND tanggal BETWEEN :startDateKey AND :endDateKey ORDER BY tanggal ASC, jamPencatatan ASC"
+    )
+    suspend fun getDikerjakanBetween(startDateKey: String, endDateKey: String): List<com.islami.Aha.data.model.ResearchLogEntity>
+
     @Query(
         "SELECT * FROM research_logs WHERE tanggal = :tanggal AND jenisIbadah = :jenis " +
             "AND status = 'dikerjakan' ORDER BY jamPencatatan ASC"

@@ -605,7 +605,6 @@ fun HomeScreenContent(
                         )
                     }
                 }
-                if (!uiState.isTilawahIqroTab) item { TanzilAttribution() }
             } else if (uiState.isComingSoon) {
                 item {
                     ComingSoonState(categoryName = uiState.selectedMainCategory)

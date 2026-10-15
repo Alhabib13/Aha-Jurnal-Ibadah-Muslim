@@ -396,15 +396,3 @@ fun KhatamDialog(onDismiss: () -> Unit) {
         confirmButton = { Button(onClick = onDismiss) { Text("Mulai lagi dari ${namaSurah(1)}") } }
     )
 }
-
-/** Atribusi wajib lisensi CC BY 3.0 untuk data halaman & juz. */
-@Composable
-fun TanzilAttribution() {
-    Text(
-        "Data halaman & juz: Tanzil.net (CC BY 3.0)",
-        fontSize = 11.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-    )
-}

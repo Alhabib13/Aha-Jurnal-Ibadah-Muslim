@@ -24,6 +24,19 @@ object DateUtils {
         return "$day $monthName $year H"
     }
 
+    /** "Rabiul Akhir – Jumadil Awal 1448" untuk rentang tanggal Masehi; "" bila di luar kalender Hijriah. */
+    fun hijriRentang(awal: LocalDate, akhir: LocalDate): String = runCatching {
+        val a = HijrahDate.from(awal)
+        val b = HijrahDate.from(akhir)
+        fun bulan(h: HijrahDate) = hijriMonthNames[h.get(java.time.temporal.ChronoField.MONTH_OF_YEAR) - 1]
+        fun tahun(h: HijrahDate) = h.get(java.time.temporal.ChronoField.YEAR)
+        when {
+            bulan(a) == bulan(b) && tahun(a) == tahun(b) -> "${bulan(a)} ${tahun(a)}"
+            tahun(a) == tahun(b) -> "${bulan(a)} – ${bulan(b)} ${tahun(b)}"
+            else -> "${bulan(a)} ${tahun(a)} – ${bulan(b)} ${tahun(b)}"
+        }
+    }.getOrDefault("")
+
     fun getTodayKey(): String {
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ROOT)
         return LocalDate.now().format(formatter)

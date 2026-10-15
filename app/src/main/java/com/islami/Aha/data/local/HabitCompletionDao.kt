@@ -19,6 +19,9 @@ interface HabitCompletionDao {
     @Query("SELECT dateKey, COUNT(*) as count FROM habit_completion_records WHERE dateKey BETWEEN :startDateKey AND :endDateKey GROUP BY dateKey")
     suspend fun getDailyCountsBetween(startDateKey: String, endDateKey: String): List<DailyCompletionCount>
 
+    @Query("SELECT * FROM habit_completion_records WHERE dateKey BETWEEN :startDateKey AND :endDateKey")
+    suspend fun getRecordsBetween(startDateKey: String, endDateKey: String): List<HabitCompletionRecord>
+
     @Query("SELECT * FROM habit_completion_records WHERE dateKey = :dateKey")
     suspend fun getRecordsForDate(dateKey: String): List<HabitCompletionRecord>
 

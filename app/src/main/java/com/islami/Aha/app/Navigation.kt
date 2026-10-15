@@ -166,7 +166,13 @@ fun AhaNavHost(
         }
 
         composable(Screen.Statistic.route) {
-            StatisticScreen() // Navigasi dikelola oleh BottomNav
+            StatisticScreen(
+                onNavigateToAddHabit = { navController.navigate(Screen.AddHabit.route) },
+                onNavigateToAddDzikir = {
+                    navController.navigate(Screen.AddHabit.route)
+                    navController.currentBackStackEntry?.savedStateHandle?.set(ADD_HABIT_KATEGORI_KEY, "dzikir")
+                }
+            )
         }
 
         composable(Screen.AddHabit.route) { backStackEntry ->
