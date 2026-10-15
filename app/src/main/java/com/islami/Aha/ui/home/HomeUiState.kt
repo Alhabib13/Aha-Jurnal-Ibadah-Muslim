@@ -27,7 +27,9 @@ data class DzikirHabitUi(
     val targetHitungan: Int?,
     /** Jumlah sesi yang dicatat hari ini (0 = belum dicatat, BUKAN "tidak dikerjakan"). */
     val sesiHariIni: Int,
-    val jamTerakhir: String?
+    val jamTerakhir: String?,
+    /** ResearchSchema.WaktuDzikir, untuk ikon & warna kartu. */
+    val waktu: String = ""
 ) {
     val dicatatHariIni: Boolean get() = sesiHariIni > 0
 }
@@ -52,6 +54,12 @@ data class HomeUiState(
     val nextPrayerName: String = "",
     val nextPrayerTimeRemaining: String = "",
     val nextPrayerProgress: Float = 0f,
+    /** Jam sholat berikutnya ("HH.mm") dan sisa menitnya, untuk hitung mundur. */
+    val nextPrayerJam: String = "",
+    val nextPrayerMenit: Int = -1,
+    /** Imsak & Terbit dari API jadwal (kosong = belum pernah sinkron lokasi). */
+    val jadwalImsak: String = "",
+    val jadwalTerbit: String = "",
     val prayerTimeSource: String = "DEFAULT",
     val prayerTimeLastSyncAtMs: Long = 0L,
     val prayerTimeStatusText: String = "",
@@ -93,6 +101,14 @@ data class HomeUiState(
     val tilawahTargetHalaman: Int? = null,
     val showKhatamDialog: Boolean = false
 ) {
+    /** Imsak, Subuh, Terbit, Dzuhur, Ashar, Maghrib, Isya — untuk kartu waktu sholat. */
+    val jadwalHarian: List<JadwalWaktu>
+        get() = susunJadwalHarian(allHabits, jadwalImsak, jadwalTerbit, currentTime)
+
+    /** "01:27" — jam:menit menuju sholat berikutnya. */
+    val hitungMundur: String
+        get() = if (nextPrayerMenit < 0) "" else "%02d:%02d".format(nextPrayerMenit / 60, nextPrayerMenit % 60)
+
     val bacaanHarianHalamanToday: Int
         get() = tilawahSessions
             .filter { it.jenisSesi == com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN }

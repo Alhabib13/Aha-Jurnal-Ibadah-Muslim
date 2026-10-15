@@ -477,13 +477,14 @@ fun HomeScreenContent(
                 HomeHeader(
                     isLoggedIn = uiState.isLoggedIn,
                     userName = uiState.userName,
-                    currentTime = uiState.currentTime,
                     gregorianDate = uiState.gregorianDate,
                     hijriDate = uiState.hijriDate,
                     location = uiState.location,
                     nextPrayerName = uiState.nextPrayerName,
-                    nextPrayerTimeRemaining = uiState.nextPrayerTimeRemaining,
+                    nextPrayerJam = uiState.nextPrayerJam,
+                    hitungMundur = uiState.hitungMundur,
                     nextPrayerProgress = uiState.nextPrayerProgress,
+                    jadwal = uiState.jadwalHarian,
                     prayerTimeStatusText = uiState.prayerTimeStatusText,
                     showRamadanSchedule = uiState.showRamadanScheduleCard,
                     ramadanImsakTime = uiState.ramadanImsakTime,
@@ -572,7 +573,8 @@ fun HomeScreenContent(
                             habits = uiState.dzikirHabits,
                             onRecord = onRecordDzikir,
                             onUndo = onUndoDzikir,
-                            onDelete = onDeleteDzikirHabit
+                            onDelete = onDeleteDzikirHabit,
+                            onAdd = onNavigateToAddDzikir
                         )
                     } else {
                         // Pintu masuk netral, bukan kartu progres 0/0.

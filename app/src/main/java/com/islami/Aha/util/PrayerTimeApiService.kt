@@ -24,7 +24,9 @@ object PrayerTimeApiService {
         val dzuhur: String,
         val ashar: String,
         val maghrib: String,
-        val isya: String
+        val isya: String,
+        /** Matahari terbit (akhir waktu Subuh). Bukan waktu sholat. */
+        val terbit: String = ""
     )
 
     sealed class FetchResult {
@@ -69,7 +71,8 @@ object PrayerTimeApiService {
                 dzuhur = normalize(timings.optString("Dhuhr")),
                 ashar = normalize(timings.optString("Asr")),
                 maghrib = normalize(timings.optString("Maghrib")),
-                isya = normalize(timings.optString("Isha"))
+                isya = normalize(timings.optString("Isha")),
+                terbit = normalize(timings.optString("Sunrise"))
             )
             if (
                 times.subuh.isBlank() ||

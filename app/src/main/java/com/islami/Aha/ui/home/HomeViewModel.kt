@@ -91,6 +91,9 @@ class HomeViewModel @Inject constructor(
         private const val DEFAULT_OFFLINE_NOTICE =
             "Mode offline aktif. Data cloud akan disinkronkan saat koneksi stabil."
         private val HHMM_REGEX = Regex("^\\d{2}:\\d{2}$")
+        /** Imsak & Terbit terakhir dari API jadwal (sinkron lokasi). */
+        private const val KEY_JADWAL_IMSAK = "jadwal_imsak"
+        private const val KEY_JADWAL_TERBIT = "jadwal_terbit"
     }
 
     private var hasFetchedInitialCloudData = false
@@ -248,6 +251,12 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun restorePrayerTimeSyncState() {
+        _uiState.update {
+            it.copy(
+                jadwalImsak = sharedPreferences.getString(KEY_JADWAL_IMSAK, null).orEmpty(),
+                jadwalTerbit = sharedPreferences.getString(KEY_JADWAL_TERBIT, null).orEmpty()
+            )
+        }
         val source = sharedPreferences.getString(
             KEY_PRAYER_TIME_SOURCE,
             PRAYER_TIME_SOURCE_DEFAULT
@@ -530,6 +539,7 @@ class HomeViewModel @Inject constructor(
     private fun updateCurrentTimeAndPrayerInfo() {
         val now = Calendar.getInstance()
         val prayerInfo = calculateNextPrayerInfo(now, _uiState.value.allHabits)
+        val berikutnya = sholatBerikutnya(now, _uiState.value.allHabits)
         val newCurrentTime = getCurrentTimeFormatted()
         _uiState.update { current ->
             val nextRamadanStatus = resolveRamadanStatusText(
@@ -544,6 +554,8 @@ class HomeViewModel @Inject constructor(
                 current.nextPrayerName == prayerInfo.first &&
                 current.nextPrayerTimeRemaining == prayerInfo.second &&
                 current.nextPrayerProgress == prayerInfo.third &&
+                current.nextPrayerMenit == (berikutnya?.third ?: -1) &&
+                current.nextPrayerJam == berikutnya?.second.orEmpty() &&
                 current.ramadanStatusText == nextRamadanStatus
             ) {
                 current
@@ -553,6 +565,8 @@ class HomeViewModel @Inject constructor(
                     nextPrayerName = prayerInfo.first,
                     nextPrayerTimeRemaining = prayerInfo.second,
                     nextPrayerProgress = prayerInfo.third,
+                    nextPrayerJam = berikutnya?.second.orEmpty(),
+                    nextPrayerMenit = berikutnya?.third ?: -1,
                     ramadanStatusText = nextRamadanStatus
                 )
             }
@@ -674,6 +688,7 @@ class HomeViewModel @Inject constructor(
                         slug = h.slug,
                         nama = h.namaDetailAsli?.takeIf { it.isNotBlank() } ?: katalog[h.slug]?.nama ?: h.slug,
                         waktuLabel = dzikirWaktuLabel(h.waktuDzikir),
+                        waktu = h.waktuDzikir,
                         targetHitungan = h.targetHitungan,
                         sesiHariIni = sesi.size,
                         jamTerakhir = sesi.mapNotNull { it.jamPencatatan }.maxOrNull()
@@ -1150,11 +1165,17 @@ class HomeViewModel @Inject constructor(
         }
 
         markPrayerTimeSyncedFromApi()
+        sharedPreferences.edit()
+            .putString(KEY_JADWAL_IMSAK, times.imsak.takeIf { HHMM_REGEX.matches(it) })
+            .putString(KEY_JADWAL_TERBIT, times.terbit.takeIf { HHMM_REGEX.matches(it) })
+            .apply()
 
         _uiState.update {
             it.copy(
                 ramadanImsakTime = times.imsak,
-                ramadanIftarTime = times.maghrib
+                ramadanIftarTime = times.maghrib,
+                jadwalImsak = times.imsak.takeIf { t -> HHMM_REGEX.matches(t) }.orEmpty(),
+                jadwalTerbit = times.terbit.takeIf { t -> HHMM_REGEX.matches(t) }.orEmpty()
             )
         }
         updateCurrentTimeAndPrayerInfo()
