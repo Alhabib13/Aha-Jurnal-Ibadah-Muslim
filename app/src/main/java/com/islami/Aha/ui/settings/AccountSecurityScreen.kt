@@ -200,19 +200,8 @@ fun AccountSecurityScreen(
                         ) { viewModel.sendForgotPasswordFromSecurity() }
                     }
                 }
+                // Keluar akun ada di halaman utama Pengaturan; zona ini hanya untuk hapus akun.
                 Kelompok("Zona berbahaya") {
-                    Text(
-                        "Keluar dari akun",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.logout { onNavigateToLogin(context.getString(R.string.auth_logout_success_snackbar)) }
-                            }
-                            .padding(horizontal = 18.dp, vertical = 16.dp)
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Column(
                         verticalArrangement = Arrangement.spacedBy(3.dp),
                         modifier = Modifier

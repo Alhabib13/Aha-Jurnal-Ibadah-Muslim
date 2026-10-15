@@ -145,13 +145,6 @@ fun SettingsScreen(
         onShowResetConfirmation = viewModel::showResetConfirmation,
         onHideResetConfirmation = viewModel::hideResetConfirmation,
         onConfirmReset = viewModel::confirmResetData,
-        onPrivacyPolicyClick = {
-            context.startActivity(
-                Intent(context, LegalDocumentActivity::class.java).apply {
-                    putExtra(LegalDocumentActivity.EXTRA_DOCUMENT_TYPE, LegalDocumentActivity.DOC_PRIVACY)
-                }
-            )
-        },
         onTermsClick = {
             context.startActivity(
                 Intent(context, LegalDocumentActivity::class.java).apply {
@@ -232,7 +225,6 @@ fun SettingsScreenContent(
     onShowResetConfirmation: () -> Unit,
     onHideResetConfirmation: () -> Unit,
     onConfirmReset: () -> Unit,
-    onPrivacyPolicyClick: () -> Unit,
     onTermsClick: () -> Unit,
     onLoginClick: () -> Unit,
     onLogoutClick: () -> Unit,
@@ -457,18 +449,7 @@ fun SettingsScreenContent(
                 )
             }
 
-            // Kebijakan Privasi
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.Outlined.PrivacyTip,
-                    iconBackground = CategoryDzikirStart.copy(alpha = 0.1f),
-                    iconTint = CategoryDzikirStart,
-                    title = stringResource(R.string.settings_privacy_title),
-                    subtitle = stringResource(R.string.settings_privacy_subtitle),
-                    onClick = onPrivacyPolicyClick
-                )
-            }
+            // Kebijakan privasi ada di Privasi & Data (dekat persetujuan penelitian), tidak diulang di sini.
 
             // Syarat & Ketentuan
             item {
@@ -753,7 +734,6 @@ fun SettingsScreenPreview() {
             onShowResetConfirmation = {},
             onHideResetConfirmation = {},
             onConfirmReset = {},
-            onPrivacyPolicyClick = {},
             onTermsClick = {},
             onLoginClick = {},
             onLogoutClick = {}
