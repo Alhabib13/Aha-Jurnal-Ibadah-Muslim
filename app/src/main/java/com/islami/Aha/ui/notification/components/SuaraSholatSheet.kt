@@ -211,13 +211,6 @@ fun SuaraSholatSheet(
             )
 
             Text(
-                "Suara mengikuti volume notifikasi dan mode senyap HP. " +
-                    "File milikmu hanya dipakai di HP ini dan tidak diunggah.",
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
                 SuaraSholat.Rekaman.untukWaktu(slug).joinToString("\n") { it.atribusi },
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
