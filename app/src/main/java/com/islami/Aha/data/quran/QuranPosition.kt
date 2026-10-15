@@ -65,6 +65,13 @@ object QuranCalculator {
         return AyatPosition.fromAbsolute(nextStart - 1)
     }
 
+    /** Ayat terakhir di halaman mushaf [halaman] (1..604). */
+    fun akhirHalaman(halaman: Int): AyatPosition {
+        require(halaman in 1..QuranData.TOTAL_HALAMAN)
+        val nextStart = if (halaman == QuranData.TOTAL_HALAMAN) QuranData.TOTAL_AYAT else QuranData.AWAL_HALAMAN[halaman]
+        return AyatPosition.fromAbsolute(nextStart - 1)
+    }
+
     /** Surah yang (sebagian) masuk ke dalam juz ini, untuk pemilih "pilih juz dulu". */
     fun surahDalamJuz(juz: Int): IntRange = awalJuz(juz).surah..akhirJuz(juz).surah
 
