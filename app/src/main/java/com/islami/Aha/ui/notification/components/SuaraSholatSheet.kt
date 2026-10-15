@@ -209,13 +209,7 @@ fun SuaraSholatSheet(
                 dipilih = setelan.pilihan == SuaraSholat.Pilihan.SENYAP,
                 onClick = { simpan(SuaraSholat.Pilihan.SENYAP) }
             )
-
-            Text(
-                SuaraSholat.Rekaman.untukWaktu(slug).joinToString("\n") { it.atribusi },
-                fontSize = 11.sp,
-                lineHeight = 15.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Atribusi rekaman (wajib lisensi CC BY/BY-SA) ada di Kebijakan Privasi, bagian "Atribusi Data".
         }
     }
 }
