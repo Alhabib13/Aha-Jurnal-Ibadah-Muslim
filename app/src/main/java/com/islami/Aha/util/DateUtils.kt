@@ -15,6 +15,13 @@ object DateUtils {
         "Ramadhan", "Syawal", "Dzulqa'dah", "Dzulhijjah"
     )
 
+    /** "3 Jumadil Awal 1448 H" untuk tanggal Masehi tertentu; "" di luar kalender Hijriah. */
+    fun hijriFormatted(tanggal: LocalDate): String = runCatching {
+        val h = HijrahDate.from(tanggal)
+        val bulan = hijriMonthNames[h.get(java.time.temporal.ChronoField.MONTH_OF_YEAR) - 1]
+        "${h.get(java.time.temporal.ChronoField.DAY_OF_MONTH)} $bulan ${h.get(java.time.temporal.ChronoField.YEAR)} H"
+    }.getOrDefault("")
+
     fun getHijriDateFormatted(): String {
         val hijriDate: HijrahDate = HijrahChronology.INSTANCE.dateNow()
         val day = hijriDate.get(java.time.temporal.ChronoField.DAY_OF_MONTH)

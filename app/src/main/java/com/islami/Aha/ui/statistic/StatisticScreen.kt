@@ -102,6 +102,7 @@ fun StatisticScreen(
             PastDayHabitsList(
                 dateKey = selectedPastDate!!,
                 habits = pastDayHabits,
+                cuti = uiState.tanggalDipilihCuti,
                 onToggle = viewModel::togglePastDayHabitCompletion,
                 onDismiss = viewModel::dismissPastDayPopup
             )
@@ -346,10 +347,18 @@ private fun SelTanggal(h: HariKalender, dipilih: Boolean, onClick: () -> Unit) {
     ) {
         Text(
             "${h.hari}",
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             fontWeight = if (h.hariIni || h.intensitas == Intensitas.BANYAK) FontWeight.ExtraBold else FontWeight.SemiBold,
             color = warnaTeks
         )
+        if (h.hijri.isNotEmpty()) {
+            Text(
+                h.hijri,
+                fontSize = 9.sp,
+                color = warnaTeks.copy(alpha = 0.75f),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 5.dp)
+            )
+        }
     }
 }
 

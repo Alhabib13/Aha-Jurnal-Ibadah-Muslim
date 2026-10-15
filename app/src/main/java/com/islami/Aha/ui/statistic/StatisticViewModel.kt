@@ -300,8 +300,8 @@ class StatisticViewModel @Inject constructor(
                     isSunnah = true
                 ))
             }
-            // Sort items logically if needed (e.g. by category)
-            _pastDayHabits.value = items.sortedBy { it.category }
+            // Urutan habit dipertahankan (Subuh..Isya, lalu sunnah); fardhu didahulukan.
+            _pastDayHabits.value = items.sortedBy { if (it.category == "Sholat Fardhu") 0 else 1 }
         }
     }
 

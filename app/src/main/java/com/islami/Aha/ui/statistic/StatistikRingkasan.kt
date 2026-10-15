@@ -19,8 +19,18 @@ data class HariKalender(
     val cuti: Boolean,
     val hariIni: Boolean,
     /** Tanggal sesudah hari ini: tidak bisa diketuk. */
-    val nanti: Boolean
+    val nanti: Boolean,
+    /** Hari Hijriah dalam angka Arab (mis. "٤"); kosong bila di luar kalender Hijriah. */
+    val hijri: String = ""
 )
+
+/** 15 -> "١٥" (angka Arab-Indik). */
+fun angkaArab(n: Int): String = n.toString().map { c -> (c - '0' + 0x0660).toChar() }.joinToString("")
+
+/** Hari Hijriah (Umm al-Qura, sama dengan tanggal Hijriah di Beranda); null di luar rentang. */
+fun hariHijri(tanggal: LocalDate): Int? = runCatching {
+    java.time.chrono.HijrahDate.from(tanggal).get(java.time.temporal.ChronoField.DAY_OF_MONTH)
+}.getOrNull()
 
 enum class JenisChip { SHOLAT, SUNNAH_PUASA, DZIKIR, TILAWAH, IQRO }
 
@@ -66,7 +76,8 @@ fun susunBulan(
             intensitas = intensitas(jumlah, targetHarian),
             cuti = key in tanggalCuti,
             hariIni = tgl == hariIni,
-            nanti = tgl.isAfter(hariIni)
+            nanti = tgl.isAfter(hariIni),
+            hijri = hariHijri(tgl)?.let(::angkaArab).orEmpty()
         )
     }
     return List(kosong) { null } + hari
