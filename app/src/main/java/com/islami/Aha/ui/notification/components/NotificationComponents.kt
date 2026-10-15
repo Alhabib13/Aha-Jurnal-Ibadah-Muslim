@@ -14,6 +14,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.rounded.Mosque
 import androidx.compose.material.icons.outlined.Settings
@@ -214,6 +215,51 @@ fun NotificationPermissionBanner(onRequestPermission: () -> Unit) {
             TextButton(onClick = onRequestPermission) {
                 Text(
                     text = stringResource(R.string.notification_permission_action),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+/** Ajakan menyalakan izin "Alarm & pengingat" supaya pengingat sholat tidak telat. */
+@Composable
+fun ExactAlarmBanner(onAllow: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = GoldLight)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Alarm,
+                contentDescription = null,
+                tint = Gold,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Pengingat bisa terlambat",
+                    color = Gray700,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Izinkan \"Alarm & pengingat\" supaya pengingat sholat muncul tepat waktu.",
+                    color = Gray700,
+                    fontSize = 12.sp
+                )
+            }
+            TextButton(onClick = onAllow) {
+                Text(
+                    text = "Izinkan",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
                 )

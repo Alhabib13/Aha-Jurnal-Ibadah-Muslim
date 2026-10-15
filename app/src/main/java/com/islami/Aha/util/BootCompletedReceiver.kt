@@ -25,12 +25,18 @@ class BootCompletedReceiver : BroadcastReceiver() {
 
     companion object {
         private const val ACTION_QUICKBOOT = "android.intent.action.QUICKBOOT_POWERON"
+        /** AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED (API 31). */
+        private const val ACTION_EXACT_ALARM_PERMISSION_CHANGED =
+            "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != ACTION_QUICKBOOT) return
+        val izinAlarmBerubah = intent.action == ACTION_EXACT_ALARM_PERMISSION_CHANGED
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != ACTION_QUICKBOOT && !izinAlarmBerubah) return
+        // Izin "Alarm & pengingat" baru diberikan: alarm lama masih longgar, jadwalkan ulang.
+        if (izinAlarmBerubah && !NotificationScheduler.canScheduleExactAlarms(context)) return
 
-        Log.d("BootCompletedReceiver", "Device reboot detected, restoring alarms")
+        Log.d("BootCompletedReceiver", "Restoring alarms (${intent.action})")
         NotificationScheduler.createNotificationChannel(context)
 
         val pendingResult = goAsync()

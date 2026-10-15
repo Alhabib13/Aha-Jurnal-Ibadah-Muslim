@@ -47,6 +47,7 @@ import com.islami.Aha.util.rememberNotificationPermissionState
 
 import com.islami.Aha.ui.notification.components.NotificationHeader
 import com.islami.Aha.ui.notification.components.NotificationPermissionBanner
+import com.islami.Aha.ui.notification.components.ExactAlarmBanner
 import com.islami.Aha.ui.notification.components.CategorySectionHeader
 import com.islami.Aha.ui.notification.components.HabitReminderCard
 import com.islami.Aha.ui.notification.components.SunnahHabitReminderCard
@@ -185,6 +186,18 @@ fun NotificationScreenContent(
         SuaraSholat.WAKTU.keys.associateWith { SuaraSholat.ringkasan(context, it) }
     }
     var pengaturanDibuka by remember { mutableStateOf(false) }
+    // Dicek ulang setiap layar kembali tampil (mis. setelah pengguna mengizinkan di pengaturan HP).
+    var alarmTepatDiizinkan by remember { mutableStateOf(NotificationScheduler.canScheduleExactAlarms(context)) }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                alarmTepatDiizinkan = NotificationScheduler.canScheduleExactAlarms(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var suaraLainnyaDibuka by remember { mutableStateOf(false) }
     slugSuaraDibuka?.let { slug ->
         SuaraSholatSheet(
@@ -287,6 +300,19 @@ fun NotificationScreenContent(
                             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                 NotificationPermissionBanner(
                                     onRequestPermission = onRequestNotificationPermission
+                                )
+                            }
+                        }
+                    }
+                    if (notificationPermissionGranted && uiState.globalNotificationEnabled && !alarmTepatDiizinkan) {
+                        item {
+                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                ExactAlarmBanner(
+                                    onAllow = {
+                                        NotificationScheduler.exactAlarmSettingsIntent(context)?.let {
+                                            runCatching { context.startActivity(it) }
+                                        }
+                                    }
                                 )
                             }
                         }

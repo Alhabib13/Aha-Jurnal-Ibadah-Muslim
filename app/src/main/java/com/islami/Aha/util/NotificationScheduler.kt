@@ -184,6 +184,23 @@ object NotificationScheduler {
         }.getOrDefault(true)
     }
 
+    /**
+     * Android 12+: tanpa izin "Alarm & pengingat", pengingat dijadwalkan longgar dan bisa telat
+     * sampai ~1 jam. Sejak Android 14 izin ini mati secara bawaan untuk pemasangan baru.
+     */
+    fun canScheduleExactAlarms(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        return runCatching { alarmManager.canScheduleExactAlarms() }.getOrDefault(true)
+    }
+
+    /** Halaman sistem untuk mengizinkan "Alarm & pengingat" bagi aplikasi ini. */
+    fun exactAlarmSettingsIntent(context: Context): Intent? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+        return Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+            .setData(android.net.Uri.parse("package:${context.packageName}"))
+    }
+
     fun getNotificationCapability(context: Context): NotificationCapability {
         return runCatching {
             if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
