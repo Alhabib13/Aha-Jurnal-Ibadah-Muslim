@@ -4,6 +4,9 @@ import androidx.compose.material3.MaterialTheme
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,249 +55,201 @@ import com.islami.Aha.ui.theme.*
 import com.islami.Aha.util.rememberNotificationPermissionState
 
 import com.islami.Aha.ui.notification.NotificationUiState
+private val HijauTua = Color(0xFF0B6B52)
+private val HijauTengah = Color(0xFF0D7C5F)
+private val HijauMuda = Color(0xFF17A27B)
+private val HijauAksen = Color(0xFF2ECC9B)
+private val TeksDiHijau = Color(0xFF062B1F)
+private val EmasAksen = Color(0xFFF2C66D)
+private val UnguAksen = Color(0xFFA48BF0)
+
+private fun jamTitik(jam: String?) = jam?.takeIf { it.isNotBlank() }?.replace(":", ".")
+
+@Composable
+private fun warnaSaklar() = SwitchDefaults.colors(
+    checkedThumbColor = Color.White,
+    checkedTrackColor = HijauAksen,
+    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+    uncheckedBorderColor = MaterialTheme.colorScheme.outline
+)
+
 @Composable
 fun NotificationHeader(
     isEnabled: Boolean,
     onToggle: () -> Unit,
-    onSettingsClick: (() -> Unit)? = null
+    onSettingsClick: (() -> Unit)? = null,
+    aktif: Int = 0,
+    total: Int = 0
 ) {
     val globalSwitchDescription = if (isEnabled) {
         stringResource(R.string.notification_switch_global_on)
     } else {
         stringResource(R.string.notification_switch_global_off)
     }
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                brush = Brush.verticalGradient(colors = listOf(EmeraldDark, MaterialTheme.colorScheme.primary)),
-                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
-            )
+            .statusBarsPadding()
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Column(
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    stringResource(R.string.notification_screen_title),
+                    fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onBackground
+                )
+                Text("Atur pengingat dan suara adzan", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (onSettingsClick != null) {
+                IconButton(
+                    onClick = onSettingsClick,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                ) { Icon(Icons.Outlined.Settings, contentDescription = "Pengaturan notifikasi") }
+            }
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 18.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(
+                    if (isEnabled) Brush.linearGradient(listOf(HijauTua, HijauTengah, HijauMuda))
+                    else Brush.linearGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface))
+                )
+                .padding(16.dp)
         ) {
             Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(if (isEnabled) Color.White.copy(alpha = 0.16f) else MaterialTheme.colorScheme.background)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.NotificationsActive,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.notification_screen_title),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-                if (onSettingsClick != null) {
-                    IconButton(
-                        onClick = onSettingsClick,
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Settings,
-                            contentDescription = "Pengaturan notifikasi",
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                }
+                Icon(
+                    if (isEnabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
+                    contentDescription = null,
+                    tint = if (isEnabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-
-            Text(
-                text = stringResource(R.string.notification_header_subtitle),
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.16f)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isEnabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Column {
-                            Text(
-                                text = stringResource(R.string.notification_enabled_title),
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = if (isEnabled) {
-                                    stringResource(R.string.notification_enabled_desc)
-                                } else {
-                                    stringResource(R.string.notification_disabled_desc)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
-                            )
-                        }
-                    }
-                    Switch(
-                        modifier = Modifier.semantics {
-                            contentDescription = globalSwitchDescription
-                        },
-                        checked = isEnabled,
-                        onCheckedChange = { onToggle() },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                            checkedTrackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f),
-                            uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                            uncheckedTrackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
-                        )
-                    )
-                }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (isEnabled) "PENGINGAT MENYALA" else "PENGINGAT MATI",
+                    fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp,
+                    color = if (isEnabled) Color(0xFFBFEBDB) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    when {
+                        !isEnabled -> "Semua pengingat dijeda"
+                        total == 0 -> "Belum ada pengingat"
+                        else -> "$aktif dari $total aktif"
+                    },
+                    fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
+                    color = if (isEnabled) Color.White else MaterialTheme.colorScheme.onSurface
+                )
             }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = stringResource(R.string.notification_header_summary),
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                modifier = Modifier.padding(top = 6.dp)
+            Switch(
+                modifier = Modifier.semantics { contentDescription = globalSwitchDescription },
+                checked = isEnabled,
+                onCheckedChange = { onToggle() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = HijauTengah,
+                    checkedTrackColor = Color.White,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.background
+                )
             )
         }
+    }
+}
+
+@Composable
+private fun BannerEmas(ikon: androidx.compose.ui.graphics.vector.ImageVector, judul: String?, isi: String, aksi: String, onAksi: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(EmasAksen.copy(alpha = 0.12f))
+            .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp)
+    ) {
+        Icon(ikon, contentDescription = null, tint = EmasAksen, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            if (judul != null) Text(judul, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = EmasAksen)
+            Text(isi, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+        }
+        TextButton(onClick = onAksi) { Text(aksi, color = EmasAksen, fontWeight = FontWeight.Bold) }
     }
 }
 
 @Composable
 fun NotificationPermissionBanner(onRequestPermission: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = GoldLight)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.NotificationsOff,
-                contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.notification_permission_banner_text),
-                color = Gray700,
-                fontSize = 12.sp,
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(onClick = onRequestPermission) {
-                Text(
-                    text = stringResource(R.string.notification_permission_action),
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-    }
+    BannerEmas(
+        Icons.Outlined.NotificationsOff, null,
+        stringResource(R.string.notification_permission_banner_text),
+        stringResource(R.string.notification_permission_action),
+        onRequestPermission
+    )
 }
 
 /** Ajakan menyalakan izin "Alarm & pengingat" supaya pengingat sholat tidak telat. */
 @Composable
 fun ExactAlarmBanner(onAllow: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = GoldLight)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Alarm,
-                contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Pengingat bisa terlambat",
-                    color = Gray700,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Izinkan \"Alarm & pengingat\" supaya pengingat sholat muncul tepat waktu.",
-                    color = Gray700,
-                    fontSize = 12.sp
-                )
-            }
-            TextButton(onClick = onAllow) {
-                Text(
-                    text = "Izinkan",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-    }
+    BannerEmas(
+        Icons.Outlined.Alarm, "Pengingat bisa terlambat",
+        "Izinkan \"Alarm & pengingat\" supaya pengingat sholat muncul tepat waktu.",
+        "Izinkan", onAllow
+    )
 }
 
 @Composable
-fun CategorySectionHeader(title: String, count: Int) {
+fun CategorySectionHeader(title: String, count: Int, warna: Color = HijauAksen) {
     Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, color = warna, modifier = Modifier.weight(1f))
+        Text(
+            pluralStringResource(R.plurals.notification_count_ibadah_format, count, count),
+            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** Kerangka baris pengingat: jam besar di kiri, isi di tengah, aksi di kanan. */
+@Composable
+private fun BarisPengingat(
+    jam: String?,
+    menyala: Boolean,
+    redup: Boolean,
+    warnaJam: Color,
+    tengah: @Composable ColumnScope.() -> Unit,
+    kanan: @Composable RowScope.() -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .alpha(if (redup) 0.55f else 1f)
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(start = 14.dp, end = 10.dp, top = 12.dp, bottom = 12.dp)
     ) {
-        Text(
-            text = title,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
+        Column(Modifier.width(62.dp)) {
             Text(
-                text = pluralStringResource(R.plurals.notification_count_ibadah_format, count, count),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = if ((MaterialTheme.colorScheme.surface == SurfaceDark)) Color.White else MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                jamTitik(jam) ?: "--.--",
+                fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
+                color = if (menyala && jam != null) warnaJam else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { tengah() }
+        kanan()
     }
 }
 
@@ -306,134 +261,51 @@ fun HabitReminderCard(
     suara: String? = null,
     onSuaraClick: (() -> Unit)? = null
 ) {
-    val isEffectivelyEnabled = globalEnabled && habit.isReminderEnabled
-    val cardAlpha by animateFloatAsState(targetValue = if (globalEnabled) 1f else 0.6f, label = "")
+    val menyala = globalEnabled && habit.isReminderEnabled
     val reminderSwitchDescription = if (habit.isReminderEnabled) {
         stringResource(R.string.notification_switch_habit_on_format, habit.name)
     } else {
         stringResource(R.string.notification_switch_habit_off_format, habit.name)
     }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(cardAlpha),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Mosque icon in circle
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .then(
-                        if ((MaterialTheme.colorScheme.surface == SurfaceDark)) Modifier.background(Brush.horizontalGradient(listOf(EmeraldDark, Emerald)))
-                        else Modifier.background(EmeraldLight)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Mosque,
-                    contentDescription = stringResource(R.string.notification_mosque_cd),
-                    tint = if ((MaterialTheme.colorScheme.surface == SurfaceDark)) Color.White else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = habit.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isEffectivelyEnabled) MaterialTheme.colorScheme.onSurface else Gray500,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+    BarisPengingat(
+        jam = habit.time,
+        menyala = menyala,
+        redup = !globalEnabled,
+        warnaJam = EmasAksen,
+        tengah = {
+            Text(
+                habit.name.removePrefix("Sholat ").ifBlank { habit.name },
+                fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                color = if (menyala) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            if (suara != null && onSuaraClick != null) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(HijauAksen.copy(alpha = 0.12f))
+                        .clickable(role = Role.Button, onClick = onSuaraClick)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
-                    // Time badge
-                    if (habit.time.isNotEmpty()) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                text = habit.time,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if ((MaterialTheme.colorScheme.surface == SurfaceDark)) Color.White else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    // Frequency
-                    Text(
-                        text = stringResource(R.string.notification_frequency_daily),
-                        fontSize = 12.sp,
-                        color = Gray500
-                    )
+                    Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = null, tint = HijauAksen, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(suara, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = HijauAksen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (suara != null && onSuaraClick != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Surface(
-                        onClick = onSuaraClick,
-                        shape = RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Suara: $suara",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
+            } else {
+                Text(stringResource(R.string.notification_frequency_daily), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
+        },
+        kanan = {
             Switch(
-                modifier = Modifier.semantics {
-                    contentDescription = reminderSwitchDescription
-                },
+                modifier = Modifier.semantics { contentDescription = reminderSwitchDescription },
                 checked = habit.isReminderEnabled,
                 onCheckedChange = { onToggle() },
                 enabled = globalEnabled,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    uncheckedTrackColor = Gray300
-                )
+                colors = warnaSaklar()
             )
         }
-    }
+    )
 }
 
 @Composable
@@ -445,156 +317,78 @@ fun SunnahHabitReminderCard(
     onEdit: () -> Unit,
     isHaidhMode: Boolean = false
 ) {
-    val isEffectivelyEnabled = globalEnabled && sunnahHabit.reminderEnabled
-    val cardAlpha by animateFloatAsState(targetValue = if (globalEnabled) 1f else 0.6f, label = "")
+    val menyala = globalEnabled && sunnahHabit.reminderEnabled
+    val warna = if (sunnahHabit.category == SunnahCategoryType.PUASA) UnguAksen else HijauAksen
+    var menu by remember { mutableStateOf(false) }
     val reminderSwitchDescription = if (sunnahHabit.reminderEnabled) {
         stringResource(R.string.notification_switch_habit_on_format, sunnahHabit.name)
     } else {
         stringResource(R.string.notification_switch_habit_off_format, sunnahHabit.name)
     }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(cardAlpha),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icon in circle
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .then(
-                        if ((MaterialTheme.colorScheme.surface == SurfaceDark)) Modifier.background(Brush.horizontalGradient(listOf(EmeraldDark, Emerald)))
-                        else Modifier.background(EmeraldLight)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Mosque,
-                    contentDescription = stringResource(R.string.notification_mosque_cd),
-                    tint = if ((MaterialTheme.colorScheme.surface == SurfaceDark)) Color.White else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = sunnahHabit.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isEffectivelyEnabled) MaterialTheme.colorScheme.onSurface else Gray500,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (sunnahHabit.reminderTime != null) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                text = sunnahHabit.reminderTime,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if ((MaterialTheme.colorScheme.surface == SurfaceDark)) Color.White else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = sunnahHabit.frequencyLabel.ifEmpty {
-                            stringResource(R.string.notification_frequency_daily)
-                        },
-                        fontSize = 12.sp,
-                        color = Gray500
-                    )
-                }
-                sunnahHabit.rakaat?.let { rakaat ->
-                    Text(
-                        text = pluralStringResource(R.plurals.notification_rakaat_format, rakaat, rakaat),
-                        fontSize = 12.sp,
-                        color = Gray500
-                    )
-                }
-            }
-
-            IconButton(
-                onClick = onEdit,
-                enabled = globalEnabled,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Edit,
-                    contentDescription = stringResource(R.string.notification_edit_cd),
-                    tint = if (globalEnabled) Gray500 else Gray300,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            // Delete button
-            IconButton(
-                onClick = onDelete,
-                enabled = globalEnabled,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Delete,
-                    contentDescription = stringResource(R.string.notification_delete_cd),
-                    tint = if (globalEnabled) ErrorRed.copy(alpha = 0.7f) else Gray300,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            // Bell switch
+    BarisPengingat(
+        jam = sunnahHabit.reminderTime,
+        menyala = menyala,
+        redup = !globalEnabled,
+        warnaJam = warna,
+        tengah = {
+            Text(
+                sunnahHabit.name, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                color = if (menyala) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            val keterangan = listOfNotNull(
+                sunnahHabit.frequencyLabel.ifEmpty { stringResource(R.string.notification_frequency_daily) },
+                sunnahHabit.rakaat?.let { pluralStringResource(R.plurals.notification_rakaat_format, it, it) }
+            ).joinToString(" · ")
+            Text(keterangan, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
+        kanan = {
             Switch(
-                modifier = Modifier.semantics {
-                    contentDescription = reminderSwitchDescription
-                },
+                modifier = Modifier.semantics { contentDescription = reminderSwitchDescription },
                 checked = sunnahHabit.reminderEnabled,
                 onCheckedChange = { onToggleReminder() },
                 enabled = globalEnabled,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    uncheckedTrackColor = Gray300
-                )
+                colors = warnaSaklar()
             )
+            Box {
+                IconButton(onClick = { menu = true }, enabled = globalEnabled) {
+                    Icon(Icons.Rounded.MoreVert, contentDescription = "Pilihan lain untuk ${sunnahHabit.name}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Ubah pengingat") },
+                        leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                        onClick = { menu = false; onEdit() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Hapus", color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                        onClick = { menu = false; onDelete() }
+                    )
+                }
+            }
         }
-    }
+    )
 }
 
 @Composable
 fun EmptyNotificationState(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Outlined.NotificationsOff, null, modifier = Modifier.size(48.dp), tint = Gray400)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(stringResource(R.string.notification_empty_title), style = MaterialTheme.typography.titleMedium)
+        Icon(Icons.Outlined.NotificationsOff, null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(stringResource(R.string.notification_empty_title), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Text(
             text = stringResource(R.string.notification_empty_desc),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Gray500,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
     }

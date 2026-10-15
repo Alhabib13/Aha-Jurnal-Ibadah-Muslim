@@ -32,7 +32,9 @@ import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -87,6 +89,7 @@ fun EditProfileDialog(
     onDismiss: () -> Unit
 ) {
     var nameInput by remember(userInfo.name) { mutableStateOf(userInfo.name) }
+    var konfirmasiHapus by remember { mutableStateOf(false) }
     val hasAvatarChange = pendingAvatarUri != null
     val hasNameChange = nameInput.trim().isNotBlank() && nameInput.trim() != userInfo.name && canChangeUsername
     val canSave = (hasAvatarChange || hasNameChange) && !isSaving
@@ -162,7 +165,7 @@ fun EditProfileDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.CenterHorizontally)) {
                 TombolPil(Icons.Rounded.PhotoLibrary, if (punyaFoto) "Ganti foto" else "Pilih foto", HijauAksen, enabled = !isSaving, onClick = onPickPhoto)
                 if (punyaFoto) {
-                    TombolPil(Icons.Rounded.DeleteOutline, stringResource(R.string.profile_remove_photo_action), MaterialTheme.colorScheme.error, enabled = !isSaving, onClick = onRemovePhoto)
+                    TombolPil(Icons.Rounded.DeleteOutline, stringResource(R.string.profile_remove_photo_action), MaterialTheme.colorScheme.error, enabled = !isSaving, onClick = { konfirmasiHapus = true })
                 }
             }
 
@@ -253,6 +256,36 @@ fun EditProfileDialog(
             }
         }
     }
+
+    if (konfirmasiHapus) {
+        DialogHapusFoto(
+            adaFotoBaru = hasAvatarChange,
+            onHapus = { konfirmasiHapus = false; onRemovePhoto() },
+            onBatal = { konfirmasiHapus = false }
+        )
+    }
+}
+
+@Composable
+private fun DialogHapusFoto(adaFotoBaru: Boolean, onHapus: () -> Unit, onBatal: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onBatal,
+        icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+        title = { Text("Hapus foto profil?", fontWeight = FontWeight.Bold) },
+        text = {
+            Text(
+                if (adaFotoBaru) "Foto yang baru dipilih juga dibatalkan. Profilmu akan menampilkan inisial nama."
+                else "Profilmu akan menampilkan inisial nama. Kamu bisa memilih foto lagi kapan saja.",
+                fontSize = 14.sp
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onHapus) { Text("Hapus", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onBatal) { Text(stringResource(R.string.cancel)) } },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(24.dp)
+    )
 }
 
 @Composable
