@@ -615,10 +615,7 @@ fun HomeScreenContent(
                 }
             } else if (!uiState.isRamadanMonth && uiState.selectedMainCategory == CATEGORY_PUASA && selectedSubCategory == CATEGORY_PUASA_WAJIB) {
                 item {
-                    ComingSoonState(
-                        categoryName = "Ramadan (Puasa Wajib)",
-                        customMessage = "Fitur pelacakan puasa ini akan otomatis hadir di bulan Ramadan. Mari maksimalkan ibadah dengan Puasa Sunnah dulu ya!"
-                    )
+                    MenungguRamadan()
                 }
             } else if (uiState.showRamadanUnifiedCard) {
                 item {
@@ -648,7 +645,7 @@ fun HomeScreenContent(
                     if (uiState.isHaidhMode && (uiState.selectedMainCategory == "Sholat" || uiState.selectedMainCategory == "Puasa")) {
                         HaidhEmptyState()
                     } else if (!uiState.isHaidhMode) {
-                        EmptyHabitState(onAddHabitClick = onNavigateToAddHabit)
+                        TabKosong(kategori = uiState.selectedMainCategory, onTambah = onNavigateToAddHabit)
                     }
                 }
             } else {

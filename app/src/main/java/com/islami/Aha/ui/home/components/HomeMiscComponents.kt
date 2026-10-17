@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.rounded.Mosque
+import androidx.compose.material.icons.rounded.NightlightRound
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,6 +27,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.islami.Aha.R
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import com.islami.Aha.ui.theme.teks
 import com.islami.Aha.ui.theme.Emerald
 
 @Composable
@@ -213,4 +218,110 @@ fun IslamicMotivationCard(quote: String, source: String) {
             )
         }
     }
+}
+
+/**
+ * Kartu ajakan saat sebuah tab masih kosong: ikon berwarna kategori, judul, penjelasan singkat,
+ * dan (bila ada) satu tombol aksi. Tanpa angka progres.
+ */
+@Composable
+fun AjakanKosong(
+    ikon: androidx.compose.ui.graphics.vector.ImageVector,
+    warna: Color,
+    judul: String,
+    isi: String,
+    catatan: String? = null,
+    tombol: String? = null,
+    onTombol: () -> Unit = {}
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(warna.copy(alpha = 0.16f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) { Icon(ikon, contentDescription = null, tint = warna.teks(), modifier = Modifier.size(28.dp)) }
+            Spacer(Modifier.height(14.dp))
+            Text(judul, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                isi,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            if (catatan != null) {
+                Spacer(Modifier.height(10.dp))
+                Text(catatan, fontSize = 12.sp, color = warna.teks(), fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            }
+            if (tombol != null) {
+                Spacer(Modifier.height(18.dp))
+                Button(
+                    onClick = onTombol,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = warna, contentColor = Color(0xFF0B1F18)),
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text(tombol, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+/** Tab Sholat sunnah / Puasa sunnah yang belum berisi ibadah. */
+@Composable
+fun TabKosong(kategori: String, onTambah: () -> Unit) {
+    when (kategori) {
+        "Sholat" -> AjakanKosong(
+            ikon = Icons.Rounded.Mosque,
+            warna = Color(0xFF2ECC9B),
+            judul = "Belum ada sholat sunnah",
+            isi = "Tambahkan sholat sunnah yang ingin kamu jaga, seperti Dhuha, Rawatib, atau Tahajud. Setelah itu cukup centang setiap kali selesai.",
+            tombol = "Tambah sholat sunnah",
+            onTombol = onTambah
+        )
+        "Puasa" -> AjakanKosong(
+            ikon = Icons.Rounded.NightlightRound,
+            warna = Color(0xFFA48BF0),
+            judul = "Belum ada puasa sunnah",
+            isi = "Tambahkan puasa sunnah yang ingin kamu jaga, seperti Senin–Kamis atau Ayyamul Bidh, lalu catat setiap kali kamu berpuasa.",
+            tombol = "Tambah puasa sunnah",
+            onTombol = onTambah
+        )
+        else -> EmptyHabitState(onAddHabitClick = onTambah)
+    }
+}
+
+/** Tab Puasa Wajib di luar bulan Ramadhan: kapan kartu puasa Ramadan akan muncul. */
+@Composable
+fun MenungguRamadan() {
+    val awal = androidx.compose.runtime.remember { com.islami.Aha.util.DateUtils.awalRamadanBerikutnya() }
+    val catatan = awal?.let { (tanggal, tahun) ->
+        val hari = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), tanggal)
+        val tgl = tanggal.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("id", "ID")))
+        "1 Ramadhan $tahun H ≈ $tgl · $hari hari lagi"
+    }
+    AjakanKosong(
+        ikon = Icons.Rounded.NightlightRound,
+        warna = Color(0xFFA48BF0),
+        judul = "Puasa Ramadan",
+        isi = "Pencatatan puasa Ramadan akan muncul dengan sendirinya saat bulan Ramadhan tiba. Sambil menunggu, puasa sunnah bisa kamu catat di tab Sunnah.",
+        catatan = catatan?.let { "$it\nPerkiraan; mengikuti penetapan awal Ramadhan." }
+    )
 }

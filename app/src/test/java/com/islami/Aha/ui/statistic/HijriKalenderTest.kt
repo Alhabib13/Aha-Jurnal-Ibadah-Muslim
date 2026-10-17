@@ -21,4 +21,14 @@ class HijriKalenderTest {
         assertEquals("٣٠", k[11]!!.hijri)
         assertEquals("١", k[12]!!.hijri)
     }
+
+    @Test
+    fun awalRamadanBerikutnya_tahunIniAtauTahunDepan() {
+        val sebelum = com.islami.Aha.util.DateUtils.awalRamadanBerikutnya(LocalDate.of(2026, 10, 17))!!
+        assertEquals(1448, sebelum.second)
+        assertEquals(LocalDate.of(2027, 2, 8), sebelum.first)
+        // Sudah lewat 1 Ramadhan 1448 (masih Ramadhan): yang berikutnya 1449.
+        val sesudah = com.islami.Aha.util.DateUtils.awalRamadanBerikutnya(LocalDate.of(2027, 2, 20))!!
+        assertEquals(1449, sesudah.second)
+    }
 }

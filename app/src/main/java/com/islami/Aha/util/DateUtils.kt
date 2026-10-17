@@ -44,6 +44,18 @@ object DateUtils {
         }
     }.getOrDefault("")
 
+    /**
+     * Tanggal Masehi 1 Ramadhan berikutnya (Umm al-Qura) beserta tahun Hijriahnya, atau null
+     * di luar jangkauan kalender. Hanya perkiraan: penetapan di Indonesia bisa selisih sehari.
+     */
+    fun awalRamadanBerikutnya(dari: LocalDate = LocalDate.now()): Pair<LocalDate, Int>? = runCatching {
+        val h = HijrahDate.from(dari)
+        val tahun = h.get(java.time.temporal.ChronoField.YEAR)
+        val bulan = h.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)
+        val tahunRamadan = if (bulan < 9) tahun else tahun + 1
+        LocalDate.from(HijrahChronology.INSTANCE.date(tahunRamadan, 9, 1)) to tahunRamadan
+    }.getOrNull()
+
     fun getTodayKey(): String {
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ROOT)
         return LocalDate.now().format(formatter)
