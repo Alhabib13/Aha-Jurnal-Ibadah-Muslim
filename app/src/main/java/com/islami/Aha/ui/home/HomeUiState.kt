@@ -319,30 +319,32 @@ data class HomeUiState(
             }
             // Sholat & puasa tidak dihitung selama Mode Cuti: angka apa pun di sini salah.
             isHaidhMode && (selectedMainCategory == "Sholat" || selectedMainCategory == "Puasa") -> MODE_CUTI_AKTIF
+            // Judulnya "Sholat/Puasa hari ini": hitung seluruh kategori, bukan hanya sub-tab yang dibuka.
+            selectedMainCategory == "Sholat" || selectedMainCategory == "Puasa" ->
+                hitunganKategori(selectedMainCategory).let { (selesai, total) ->
+                    if (total == 0) BELUM_ADA else "$selesai/$total selesai"
+                }
             totalHabitsCount == 0 -> BELUM_ADA
             else -> null
         }
 
+    /** (selesai, total) hari ini untuk "Sholat" atau "Puasa", fardhu/wajib + sunnah. */
+    private fun hitunganKategori(mainCategory: String): Pair<Int, Int> {
+        val habits = allHabits.filter {
+            it.category.startsWith(mainCategory) &&
+                !(it.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled)) &&
+                !(it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled))
+        }
+        val jenisSunnah = if (mainCategory == "Sholat") SunnahCategoryType.SHOLAT else SunnahCategoryType.PUASA
+        val sunnah = sunnahHabits.filter { it.category == jenisSunnah }
+        return (habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }) to (habits.size + sunnah.size)
+    }
+
     fun getCategoryBadge(mainCategory: String): String {
         return when (mainCategory) {
-            "Sholat" -> {
+            "Sholat", "Puasa" -> {
                 if (isHaidhMode) return "Cuti"
-                val habits = allHabits.filter { it.category.startsWith("Sholat") }
-                    .filterNot { it.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled) }
-                val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
-                val completed = habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }
-                val total = habits.size + sunnah.size
-                if (total == 0) BELUM_ADA else "$completed/$total"
-            }
-            "Puasa" -> {
-                if (isHaidhMode) return "Cuti"
-                val habits = allHabits.filter {
-                    it.category.startsWith("Puasa") &&
-                        !(it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled))
-                }
-                val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
-                val completed = habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }
-                val total = habits.size + sunnah.size
+                val (completed, total) = hitunganKategori(mainCategory)
                 // Di luar Ramadan tanpa puasa sunnah: "tidak ada", bukan hitungan 0/0.
                 if (total == 0) BELUM_ADA else "$completed/$total"
             }

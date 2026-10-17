@@ -1,6 +1,13 @@
 package com.islami.Aha.ui.theme
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
@@ -46,4 +53,22 @@ fun IkonStatusBarTerang(aktif: Boolean) {
     androidx.compose.runtime.DisposableEffect(controller) {
         onDispose { controller.isAppearanceLightStatusBars = !gelap }
     }
+}
+
+/**
+ * Lapisan di belakang status bar saat daftar di-scroll, supaya teks halaman tidak bertumpuk
+ * dengan jam/ikon sistem. Selama kepala hijau masih terlihat warnanya [warnaKepala], setelah
+ * itu warna latar. Letakkan setelah daftar di dalam Box yang sama.
+ */
+@Composable
+fun ScrimStatusBar(daftar: androidx.compose.foundation.lazy.LazyListState, warnaKepala: Color) {
+    val terscroll = daftar.firstVisibleItemIndex > 0 || daftar.firstVisibleItemScrollOffset > 0
+    if (!terscroll) return
+    val warna = if (daftar.firstVisibleItemIndex == 0) warnaKepala else MaterialTheme.colorScheme.background
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .windowInsetsTopHeight(WindowInsets.statusBars)
+            .background(warna)
+    )
 }

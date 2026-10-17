@@ -681,6 +681,7 @@ fun HomeScreenContent(
                     )
             }
         }
+        com.islami.Aha.ui.theme.ScrimStatusBar(daftarState, warnaKepala = androidx.compose.ui.graphics.Color(0xFF0B6B52))
     }
 }
 

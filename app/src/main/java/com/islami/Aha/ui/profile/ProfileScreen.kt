@@ -178,37 +178,40 @@ fun ProfileScreenContent(
             } else {
                 val daftarState = androidx.compose.foundation.lazy.rememberLazyListState()
                 com.islami.Aha.ui.theme.IkonStatusBarTerang(aktif = daftarState.firstVisibleItemIndex == 0)
-                LazyColumn(
-                    state = daftarState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
-                ) {
-                    item {
-                        ProfileHeader(
-                            userInfo = uiState.userInfo,
-                            totalHabits = uiState.totalHabits,
-                            totalCompleted = uiState.totalCompleted,
-                            currentStreak = uiState.currentStreak,
-                            isSavingAvatar = uiState.isSavingAvatar,
-                            onSettingsClick = onNavigateToSettings,
-                            onLoginClick = onNavigateToLogin,
-                            onEditProfileClick = onEditProfileClick
-                        )
-                    }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = daftarState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
+                    ) {
+                        item {
+                            ProfileHeader(
+                                userInfo = uiState.userInfo,
+                                totalHabits = uiState.totalHabits,
+                                totalCompleted = uiState.totalCompleted,
+                                currentStreak = uiState.currentStreak,
+                                isSavingAvatar = uiState.isSavingAvatar,
+                                onSettingsClick = onNavigateToSettings,
+                                onLoginClick = onNavigateToLogin,
+                                onEditProfileClick = onEditProfileClick
+                            )
+                        }
 
-                    item { Spacer(modifier = Modifier.height(16.dp)) }
-                    item { JejakIbadahSection(jejak = uiState.jejak, onLihatSemua = { lihatSemuaJejak = true }) }
-                    item { Spacer(modifier = Modifier.height(18.dp)) }
-                    item {
-                        KebiasaanmuSection(
-                            sholatSunnah = uiState.sholatCount,
-                            puasaSunnah = uiState.puasaCount,
-                            dzikir = uiState.dzikirCount,
-                            pengingat = uiState.reminderCount
-                        )
+                        item { Spacer(modifier = Modifier.height(16.dp)) }
+                        item { JejakIbadahSection(jejak = uiState.jejak, onLihatSemua = { lihatSemuaJejak = true }) }
+                        item { Spacer(modifier = Modifier.height(18.dp)) }
+                        item {
+                            KebiasaanmuSection(
+                                sholatSunnah = uiState.sholatCount,
+                                puasaSunnah = uiState.puasaCount,
+                                dzikir = uiState.dzikirCount,
+                                pengingat = uiState.reminderCount
+                            )
+                        }
                     }
+                    com.islami.Aha.ui.theme.ScrimStatusBar(daftarState, warnaKepala = androidx.compose.ui.graphics.Color(0xFF0B6B52))
                 }
             }
         }

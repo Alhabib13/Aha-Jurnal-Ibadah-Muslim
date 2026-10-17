@@ -326,7 +326,8 @@ private fun SelTanggal(h: HariKalender, dipilih: Boolean, onClick: () -> Unit) {
     val warnaTeks = when {
         h.nanti -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
         h.hariIni && h.intensitas == Intensitas.KOSONG -> Emas.teks()
-        h.hariIni -> Emas
+        // Tema terang: emas tidak terbaca di atas hijau, jadi angka ikut warna isian; bingkai emas tetap penanda hari ini.
+        h.hariIni && temaGelap() -> Emas
         h.intensitas == Intensitas.BANYAK -> Color.White
         h.intensitas == Intensitas.SEDIKIT -> if (temaGelap()) Color.White else Color(0xFF0B5A44)
         h.cuti -> MerahMuda.teks()

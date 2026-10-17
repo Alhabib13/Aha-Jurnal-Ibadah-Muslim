@@ -287,7 +287,16 @@ class HomeViewModelTest {
         val kosong = HomeUiState(selectedMainCategory = "Sholat", selectedSubTabIndex = 1)
         assertEquals("Belum ada", kosong.habitHeaderLabel)
         val isi = HomeUiState(selectedMainCategory = "Sholat", selectedSubTabIndex = 0, allHabits = sampleHabits)
-        assertNull(isi.habitHeaderLabel)
+        assertEquals(isi.getCategoryBadge("Sholat") + " selesai", isi.habitHeaderLabel)
+    }
+
+    @Test
+    fun `sholat header counts the whole category on every sub-tab`() {
+        val fardhu = HomeUiState(selectedMainCategory = "Sholat", selectedSubTabIndex = 0, allHabits = sampleHabits)
+        val sunnah = fardhu.copy(selectedSubTabIndex = 1)
+        // Sub-tab berbeda menghitung isi berbeda, tetapi label kepala tetap seluruh kategori.
+        org.junit.Assert.assertNotEquals(fardhu.totalHabitsCount, sunnah.totalHabitsCount)
+        assertEquals(fardhu.habitHeaderLabel, sunnah.habitHeaderLabel)
     }
 
     @Test
