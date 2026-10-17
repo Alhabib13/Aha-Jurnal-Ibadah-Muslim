@@ -188,7 +188,10 @@ class NotificationReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .addAction(0, "Sudah", ReminderActionReceiver.pendingIntent(context, ReminderActionReceiver.ACTION_SUDAH, payload))
-            .addAction(0, "Nanti ${ReminderActionReceiver.SNOOZE_MINUTES} mnt", ReminderActionReceiver.pendingIntent(context, ReminderActionReceiver.ACTION_NANTI, payload))
+        // Penundaan cukup sekali: pengingat ulang hanya menawarkan Sudah / Tertinggal.
+        if (!isSnooze) {
+            builder.addAction(0, "Nanti ${ReminderActionReceiver.SNOOZE_MINUTES} mnt", ReminderActionReceiver.pendingIntent(context, ReminderActionReceiver.ACTION_NANTI, payload))
+        }
         if (isFardhu) {
             builder.addAction(0, "Tertinggal", ReminderActionReceiver.pendingIntent(context, ReminderActionReceiver.ACTION_TERTINGGAL, payload))
         }
