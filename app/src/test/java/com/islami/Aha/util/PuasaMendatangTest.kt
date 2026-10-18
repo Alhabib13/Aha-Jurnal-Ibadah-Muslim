@@ -56,6 +56,21 @@ class PuasaMendatangTest {
     }
 
     @Test
+    fun `penanda kalender puasa sunnah`() {
+        val tahun = HijrahDate.from(minggu).get(ChronoField.YEAR)
+        fun hijri(t: Int, b: Int, h: Int) = LocalDate.from(HijrahChronology.INSTANCE.date(t, b, h))
+        assertEquals("Senin Kamis", PuasaMendatang.puasaSunnahPada(LocalDate.of(2026, 10, 19)))
+        assertEquals(null, PuasaMendatang.puasaSunnahPada(minggu))
+        assertEquals("Ayyamul Bidh", PuasaMendatang.puasaSunnahPada(LocalDate.of(2026, 10, 24)))
+        assertEquals("Puasa Arafah", PuasaMendatang.puasaSunnahPada(hijri(tahun, 12, 9)))
+        // Hari raya, tasyrik, dan Ramadhan tidak ditandai.
+        assertEquals(null, PuasaMendatang.puasaSunnahPada(hijri(tahun, 12, 10)))
+        assertEquals(null, PuasaMendatang.puasaSunnahPada(hijri(tahun, 12, 13)))
+        assertEquals(null, PuasaMendatang.puasaSunnahPada(hijri(tahun + 1, 10, 1)))
+        assertEquals(null, PuasaMendatang.puasaSunnahPada(hijri(tahun + 1, 9, 14)))
+    }
+
+    @Test
     fun `yang punya preset add habit bisa dijadikan habit`() {
         val d = PuasaMendatang.hitung(minggu)
         assertEquals(setOf("Senin Kamis", "Ayyamul Bidh", "Puasa Syawal"), d.mapNotNull { it.namaHabit }.toSet())

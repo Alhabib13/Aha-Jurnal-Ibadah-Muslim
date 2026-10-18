@@ -44,6 +44,26 @@ object PuasaMendatang {
         return daftar.sortedBy { it.tanggal }
     }
 
+    /**
+     * Nama puasa sunnah pada [tanggal] untuk penanda kalender, atau null. Ramadhan (wajib),
+     * 1 Syawal, dan 10–13 Dzulhijjah (hari raya & tasyrik) tidak pernah ditandai.
+     */
+    fun puasaSunnahPada(tanggal: LocalDate): String? {
+        val h = runCatching { HijrahDate.from(tanggal) }.getOrNull()
+        val bulan = h?.get(ChronoField.MONTH_OF_YEAR)
+        val hari = h?.get(ChronoField.DAY_OF_MONTH)
+        if (bulan == RAMADHAN) return null
+        if (bulan == 10 && hari == 1) return null
+        if (bulan == DZULHIJJAH && hari != null && hari in 10..13) return null
+        return when {
+            bulan == DZULHIJJAH && hari == 9 -> "Puasa Arafah"
+            bulan == 1 && hari == 10 -> "Puasa Asyura"
+            hari != null && hari in 13..15 -> "Ayyamul Bidh"
+            tanggal.dayOfWeek == DayOfWeek.MONDAY || tanggal.dayOfWeek == DayOfWeek.THURSDAY -> "Senin Kamis"
+            else -> null
+        }
+    }
+
     private fun seninKamis(hariIni: LocalDate): Entri? {
         val tgl = (0L..6L).map { hariIni.plusDays(it) }
             .firstOrNull { it.dayOfWeek == DayOfWeek.MONDAY || it.dayOfWeek == DayOfWeek.THURSDAY } ?: return null

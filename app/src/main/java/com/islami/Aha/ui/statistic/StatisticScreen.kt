@@ -67,6 +67,7 @@ private val HijauTua = Color(0xFF0B6B52)
 private val HijauTengah = Color(0xFF0D7C5F)
 private val HijauMuda = Color(0xFF17A27B)
 private val HijauAksen = Color(0xFF2ECC9B)
+private val UnguPuasa = Color(0xFFA48BF0)
 private val HijauSedikit = Color(0xFF0F4D3D)
 private val HijauBanyak = Color(0xFF14A87D)
 private val Emas = Color(0xFFF2C66D)
@@ -284,6 +285,11 @@ private fun KartuKalender(
             Legenda(warnaSedikit(), "Sedikit")
             Legenda(HijauBanyak, "Banyak")
             Legenda(null, "Mode Cuti")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(UnguPuasa.teks()))
+                Spacer(Modifier.width(6.dp))
+                Text("Puasa sunnah", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text("Ketuk tanggal untuk melihat", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -339,6 +345,7 @@ private fun SelTanggal(h: HariKalender, dipilih: Boolean, onClick: () -> Unit) {
         append("Tanggal ${h.hari}")
         if (h.jumlah > 0) append(", ${h.jumlah} catatan") else if (!h.nanti) append(", belum ada catatan")
         if (h.cuti) append(", Mode Cuti")
+        h.puasaSunnah?.let { append(", hari $it") }
         if (h.hariIni) append(", hari ini")
     }
     Box(
@@ -364,6 +371,16 @@ private fun SelTanggal(h: HariKalender, dipilih: Boolean, onClick: () -> Unit) {
             fontWeight = if (h.hariIni || h.intensitas == Intensitas.BANYAK) FontWeight.ExtraBold else FontWeight.SemiBold,
             color = warnaTeks
         )
+        if (h.puasaSunnah != null) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 3.dp)
+                    .size(4.dp)
+                    .clip(CircleShape)
+                    .background(if (h.intensitas == Intensitas.BANYAK) Color.White else UnguPuasa.teks())
+            )
+        }
         if (h.hijri.isNotEmpty()) {
             Text(
                 h.hijri,
@@ -393,6 +410,9 @@ private fun KartuDetailHari(s: StatisticUiState, onUbahCatatan: () -> Unit) {
                 },
                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+        s.tanggalDipilihPuasa?.let { puasa ->
+            Text("Hari $puasa", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = UnguPuasa.teks())
         }
         if (s.chipsDipilih.isNotEmpty()) {
             FlowRow(

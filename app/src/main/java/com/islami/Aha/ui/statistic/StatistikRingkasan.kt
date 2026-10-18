@@ -21,7 +21,9 @@ data class HariKalender(
     /** Tanggal sesudah hari ini: tidak bisa diketuk. */
     val nanti: Boolean,
     /** Hari Hijriah dalam angka Arab (mis. "٤"); kosong bila di luar kalender Hijriah. */
-    val hijri: String = ""
+    val hijri: String = "",
+    /** Nama puasa sunnah pada tanggal ini (penanda kalender), null bila tidak ada. */
+    val puasaSunnah: String? = null
 )
 
 /** 15 -> "١٥" (angka Arab-Indik). */
@@ -77,7 +79,8 @@ fun susunBulan(
             cuti = key in tanggalCuti,
             hariIni = tgl == hariIni,
             nanti = tgl.isAfter(hariIni),
-            hijri = hariHijri(tgl)?.let(::angkaArab).orEmpty()
+            hijri = hariHijri(tgl)?.let(::angkaArab).orEmpty(),
+            puasaSunnah = com.islami.Aha.util.PuasaMendatang.puasaSunnahPada(tgl)
         )
     }
     return List(kosong) { null } + hari
