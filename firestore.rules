@@ -219,7 +219,8 @@ service cloud.firestore {
   }
 
   // Jam & sumber hanya ada untuk tindakan nyata pengguna.
-  // - dikerjakan: keduanya wajib.
+  // - dikerjakan: keduanya wajib. dari_notifikasi = tombol di notifikasi; dari_notifikasi_dibuka =
+  //   badan notifikasi diketuk lalu ibadah itu dicatat di aplikasi; buka_aplikasi = inisiatif sendiri.
   // - "tidak" dari tombol "Tertinggal" di notifikasi (sholat wajib saja): jam = saat menekan,
   //   sumber = dari_notifikasi. Pengakuan langsung pengguna, beda dari "tidak" hasil penyimpulan.
   // - "tidak"/"udzur" hasil penyimpulan aplikasi: keduanya null.
@@ -228,7 +229,8 @@ service cloud.firestore {
   function validJamDanSumber(data) {
     return data.status == "dikerjakan"
         ? (data.jam_pencatatan is timestamp
-           && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi", "tidak_diketahui"])
+           && data.sumber_pencatatan in ["dari_notifikasi", "dari_notifikasi_dibuka", "buka_aplikasi",
+                                         "tidak_diketahui"])
         : (data.jam_pencatatan == null && data.sumber_pencatatan == null)
           || (data.status == "tidak" && data.jenis_ibadah == "sholat_wajib"
               && data.jam_pencatatan is timestamp

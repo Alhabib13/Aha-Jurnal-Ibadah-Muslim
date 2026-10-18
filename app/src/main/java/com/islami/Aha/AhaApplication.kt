@@ -47,6 +47,7 @@ class AhaApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.islami.Aha.util.NotifikasiSesi.pasang(this)
         val appCheckMode = resolveAppCheckMode()
         Log.i(
             TAG,

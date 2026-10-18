@@ -154,9 +154,12 @@ object ResearchSchema {
         /** Tombol "Sudah"/"Tertinggal" langsung di notifikasi pengingat. */
         const val DARI_NOTIFIKASI = "dari_notifikasi"
         /**
-         * Semua pencatatan dari dalam aplikasi (Beranda, Statistik, dzikir/tilawah/Iqro),
-         * termasuk bila aplikasi dibuka dengan mengetuk badan notifikasi (keputusan 2026-10-18).
+         * Pengguna mengetuk BADAN notifikasi pengingat, aplikasi terbuka, lalu ibadah yang
+         * diingatkan itu dicatat (pencatatan pertama dalam sesi itu, maks. 30 menit).
+         * Lihat util/NotifikasiSesi.
          */
+        const val DARI_NOTIFIKASI_DIBUKA = "dari_notifikasi_dibuka"
+        /** Pengguna membuka aplikasi sendiri lalu mencatat (Beranda, Statistik, dzikir/tilawah/Iqro). */
         const val BUKA_APLIKASI = "buka_aplikasi"
         /**
          * Hanya dari versi sebelum v1.2.0 (sebelum notifikasi bisa dibedakan). Tidak lagi

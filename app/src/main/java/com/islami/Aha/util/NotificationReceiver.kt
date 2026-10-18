@@ -191,7 +191,7 @@ class NotificationReceiver : BroadcastReceiver() {
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setContentIntent(openAppIntent(context, notificationId))
+            .setContentIntent(openAppIntent(context, notificationId, habitId, tanggal))
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .addAction(0, "Sudah", ReminderActionReceiver.pendingIntent(context, ReminderActionReceiver.ACTION_SUDAH, payload))
@@ -227,9 +227,17 @@ class NotificationReceiver : BroadcastReceiver() {
         return nama.removePrefix("Sholat ").ifBlank { nama }
     }
 
-    private fun openAppIntent(context: Context, requestCode: Int): PendingIntent {
+    /**
+     * Mengetuk badan notifikasi membuka aplikasi dengan penanda habit + tanggal pengingat,
+     * supaya pencatatan berikutnya untuk habit itu berstatus "dari_notifikasi_dibuka".
+     */
+    private fun openAppIntent(context: Context, requestCode: Int, habitId: String?, tanggal: String): PendingIntent {
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (habitId != null) {
+                putExtra(NotifikasiSesi.EXTRA_HABIT_ID, habitId)
+                putExtra(NotifikasiSesi.EXTRA_TANGGAL, tanggal)
+            }
         }
         return PendingIntent.getActivity(
             context,
@@ -245,7 +253,12 @@ class NotificationReceiver : BroadcastReceiver() {
         habitName: String,
         prefs: android.content.SharedPreferences
     ) {
-        val contentPendingIntent = openAppIntent(context, NotificationScheduler.notificationId(habitId))
+        val contentPendingIntent = openAppIntent(
+            context,
+            NotificationScheduler.notificationId(habitId),
+            habitId.takeIf { it != "haidh_reminder" },
+            DateUtils.getTodayKey()
+        )
         val channelSettings = NotificationScheduler.getChannelSettings(context)
         val channelId = NotificationScheduler.channelId(context)
 

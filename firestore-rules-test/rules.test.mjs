@@ -251,6 +251,13 @@ describe("logs: status tiga nilai", () => {
     await assertFails(tulisLog({ sumber_pencatatan: "widget" }));
   });
 
+  test("dari_notifikasi_dibuka sah untuk dikerjakan, tidak untuk baris tidak/udzur", async () => {
+    await assertSucceeds(tulisLog({ sumber_pencatatan: "dari_notifikasi_dibuka" }));
+    await assertFails(tulisLog({ status: "tidak", sumber_pencatatan: "dari_notifikasi_dibuka" }));
+    await assertFails(tulisLog({ status: "udzur", jam_pencatatan: null, sumber_pencatatan: "dari_notifikasi_dibuka" }));
+    await assertFails(tulisLog({ sumber_pencatatan: "dari_notifikasi_buka" }));
+  });
+
   test("tidak_diketahui hanya untuk dikerjakan, bukan pengganti null", async () => {
     await assertFails(tulisLog({ status: "tidak", jam_pencatatan: null, sumber_pencatatan: "tidak_diketahui" }));
     await assertFails(tulisLog({ status: "udzur", jam_pencatatan: null, sumber_pencatatan: "tidak_diketahui" }));

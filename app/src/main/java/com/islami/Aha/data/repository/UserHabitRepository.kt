@@ -93,7 +93,10 @@ class UserHabitRepository @Inject constructor(
                 habitCompletionDao.deleteByHabitAndDate(habitKey, todayKey)
                 researchLogRepository.remove(researchSlot, todayKey)
             } else {
-                researchLogRepository.recordDikerjakan(researchSlot, todayKey)
+                researchLogRepository.recordDikerjakan(
+                    researchSlot, todayKey,
+                    sumber = com.islami.Aha.util.NotifikasiSesi.sumberUntuk(current.id, todayKey)
+                )
                 habitCompletionDao.insert(
                     HabitCompletionRecord(
                         habitKey = habitKey,

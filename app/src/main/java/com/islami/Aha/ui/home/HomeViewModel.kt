@@ -674,7 +674,14 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             val willComplete = !habit.isCompleted
             // Jalur yang sama dengan tombol "Sudah" di notifikasi (DefaultHabitCompletionRepository).
-            val hasil = defaultHabitCompletion.setCompleted(habit.id, willComplete) ?: return@launch
+            val sumber = if (willComplete) {
+                com.islami.Aha.util.NotifikasiSesi.sumberUntuk(
+                    com.islami.Aha.data.repository.DefaultHabitCompletionRepository.habitKey(habit.id), DateUtils.getTodayKey()
+                )
+            } else {
+                com.islami.Aha.data.research.ResearchSchema.Sumber.BUKA_APLIKASI
+            }
+            val hasil = defaultHabitCompletion.setCompleted(habit.id, willComplete, sumber) ?: return@launch
             val syncStatus = hasil.syncStatus
             if (syncStatus.hasIssue) {
                 showSyncNotice(syncStatus.userMessage ?: DEFAULT_OFFLINE_NOTICE)

@@ -75,6 +75,14 @@ class DefaultHabitCompletionTest {
     }
 
     @Test
+    fun centangSetelahBadanNotifikasiDiketuk_sumberDariNotifikasiDibuka() = runBlocking {
+        val key = DefaultHabitCompletionRepository.habitKey(isyaId)
+        com.islami.Aha.util.NotifikasiSesi.tandai(key, hariIni)
+        repo.setCompleted(isyaId, true, com.islami.Aha.util.NotifikasiSesi.sumberUntuk(key, hariIni))
+        assertEquals(ResearchSchema.Sumber.DARI_NOTIFIKASI_DIBUKA, db.researchLogDao().getAll().single().sumberPencatatan)
+    }
+
+    @Test
     fun centangDariAplikasi_sumberBukaAplikasi() = runBlocking {
         repo.setCompleted(isyaId, true)
         assertEquals(ResearchSchema.Sumber.BUKA_APLIKASI, db.researchLogDao().getAll().single().sumberPencatatan)

@@ -325,7 +325,12 @@ class StatisticViewModel @Inject constructor(
             }
             if (willComplete) {
                 habitCompletionDao.insert(record)
-                researchLogRepository.recordDikerjakan(researchSlot, dateKey)
+                // Id notifikasi: "default_N" untuk habit bawaan, id habit untuk sunnah.
+                val idNotifikasi = if (item.isSunnah) item.habitKey.removePrefix("sunnah_") else item.habitKey
+                researchLogRepository.recordDikerjakan(
+                    researchSlot, dateKey,
+                    sumber = com.islami.Aha.util.NotifikasiSesi.sumberUntuk(idNotifikasi, dateKey)
+                )
                 researchLogRepository.scheduleUpload()
                 // Sync to Cloud
                 launch { 
