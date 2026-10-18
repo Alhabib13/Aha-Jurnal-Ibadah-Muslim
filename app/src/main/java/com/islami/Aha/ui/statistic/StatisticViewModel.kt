@@ -67,7 +67,8 @@ data class StatisticUiState(
     val punyaSunnah: Boolean = false,
     /** Juz posisi bacaan harian; null = belum ada sesi. */
     val khatamJuz: Int? = null,
-    val khatamKeterangan: String = ""
+    val khatamKeterangan: String = "",
+    val sholatBulan: RingkasanSholatBulan = RingkasanSholatBulan()
 ) {
     val tanggalDipilihHariIni: Boolean get() = tanggalDipilih == DateUtils.getTodayKey()
 }
@@ -173,6 +174,16 @@ class StatisticViewModel @Inject constructor(
         val akhirBulan = bulan.atEndOfMonth().toString()
         val jumlahPerTanggal = activityStats.getDailyCountsBetween(awalBulan, akhirBulan).associate { it.dateKey to it.count }
         val kalender = susunBulan(bulan, jumlahPerTanggal, haidhDates, LocalDate.now(), todayTotal)
+        val completionDates = activityStats.getDistinctCompletionDatesDesc()
+        val sholatBulan = susunRingkasanSholatBulan(
+            bulan = bulan,
+            hariIni = LocalDate.now(),
+            records = activityStats.getCompletionRecordsBetween(awalBulan, akhirBulan),
+            logSholat = activityStats.getSholatWajibBetween(awalBulan, akhirBulan),
+            tanggalCuti = haidhDates,
+            jumlahFardhu = habits.count { it.category == "Sholat Fardhu" },
+            mulaiMencatat = completionDates.lastOrNull()?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        )
 
         // Detail tanggal terpilih.
         val chips = susunCatatanHari(
@@ -198,7 +209,6 @@ class StatisticViewModel @Inject constructor(
                 "halaman ${QuranCalculator.halamanOf(it)} dari ${QuranData.TOTAL_HALAMAN}"
         } ?: "Belum ada sesi bacaan harian. Catat di Beranda, tab Tilawah."
 
-        val completionDates = activityStats.getDistinctCompletionDatesDesc()
         val tglDipilih = runCatching { LocalDate.parse(tanggal) }.getOrNull()
 
         _uiState.update {
@@ -223,7 +233,8 @@ class StatisticViewModel @Inject constructor(
                 punyaDzikir = activityStats.hasDzikirHabits(),
                 punyaSunnah = sunnahHabits.isNotEmpty(),
                 khatamJuz = khatamJuz,
-                khatamKeterangan = khatamKeterangan
+                khatamKeterangan = khatamKeterangan,
+                sholatBulan = sholatBulan
             )
         }
     }

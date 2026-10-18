@@ -150,3 +150,64 @@ internal fun <T> terseringUnik(nilai: List<T>): T? {
     val puncak = hitung.filterValues { it == maks }.keys
     return puncak.singleOrNull()
 }
+
+/** [sebelumMulai] = sebelum hari pertama pengguna mencatat apa pun (tidak ikut target). */
+data class HarianSholat(
+    val hari: Int,
+    val jumlah: Int,
+    val cuti: Boolean,
+    val nanti: Boolean,
+    val sebelumMulai: Boolean = false
+)
+
+/**
+ * Ringkasan sholat fardhu satu bulan. [target] tidak menghitung hari Mode Cuti, hari yang
+ * belum tiba, dan hari sebelum pengguna mulai mencatat (hari Mode Cuti bukan "belum tercatat"). [medianMenitAdzan] = median
+ * selisih_menit_dari_adzan dari pencatatan tepat hari (bukan diakui sendiri); null bila kosong.
+ */
+data class RingkasanSholatBulan(
+    val tercatat: Int = 0,
+    val target: Int = 0,
+    val hariCuti: Int = 0,
+    val ditandaiTertinggal: Int = 0,
+    val medianMenitAdzan: Int? = null,
+    val harian: List<HarianSholat> = emptyList()
+)
+
+fun susunRingkasanSholatBulan(
+    bulan: YearMonth,
+    hariIni: LocalDate,
+    records: List<HabitCompletionRecord>,
+    logSholat: List<ResearchLogEntity>,
+    tanggalCuti: Set<String>,
+    jumlahFardhu: Int,
+    mulaiMencatat: LocalDate? = null
+): RingkasanSholatBulan {
+    val perTanggal = records.filter { it.category == "Sholat Fardhu" }
+        .distinctBy { it.habitKey to it.dateKey }
+        .groupingBy { it.dateKey }.eachCount()
+    val harian = (1..bulan.lengthOfMonth()).map { d ->
+        val tgl = bulan.atDay(d)
+        val key = tgl.toString()
+        HarianSholat(
+            hari = d,
+            jumlah = (perTanggal[key] ?: 0).coerceAtMost(jumlahFardhu.coerceAtLeast(0)),
+            cuti = key in tanggalCuti,
+            nanti = tgl.isAfter(hariIni),
+            sebelumMulai = mulaiMencatat != null && tgl.isBefore(mulaiMencatat)
+        )
+    }
+    val berlaku = harian.filter { !it.nanti && !it.sebelumMulai }
+    val selisih = logSholat
+        .filter { it.status == ResearchSchema.Status.DIKERJAKAN }
+        .mapNotNull { it.selisihMenitDariAdzan }
+        .sorted()
+    return RingkasanSholatBulan(
+        tercatat = berlaku.sumOf { it.jumlah },
+        target = berlaku.count { !it.cuti } * jumlahFardhu,
+        hariCuti = berlaku.count { it.cuti },
+        ditandaiTertinggal = logSholat.count { it.status == ResearchSchema.Status.TIDAK },
+        medianMenitAdzan = selisih.takeIf { it.isNotEmpty() }?.let { it[it.size / 2] },
+        harian = harian
+    )
+}

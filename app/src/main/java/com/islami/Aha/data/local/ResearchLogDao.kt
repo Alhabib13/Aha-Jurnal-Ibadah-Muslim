@@ -73,6 +73,13 @@ interface ResearchLogDao {
 
     // ---------- UI dzikir / tilawah / iqro ----------
 
+    /** Statistik bulanan: baris sholat wajib (dikerjakan & tidak) dalam rentang tanggal. */
+    @Query(
+        "SELECT * FROM research_logs WHERE jenisIbadah = 'sholat_wajib' " +
+            "AND tanggal BETWEEN :startDateKey AND :endDateKey ORDER BY tanggal ASC"
+    )
+    suspend fun getSholatWajibBetween(startDateKey: String, endDateKey: String): List<com.islami.Aha.data.model.ResearchLogEntity>
+
     /** Statistik: semua baris "dikerjakan" dalam rentang tanggal (semua jenis). */
     @Query(
         "SELECT * FROM research_logs WHERE status = 'dikerjakan' " +

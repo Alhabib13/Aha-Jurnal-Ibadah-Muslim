@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -144,6 +145,7 @@ fun StatisticScreenContent(
         item { KartuHariIni(uiState) }
         item { KartuKalender(uiState, onPilihTanggal, onBulanSebelumnya, onBulanBerikutnya) }
         item { KartuDetailHari(uiState, onUbahCatatan) }
+        item { KartuSholatBulan(uiState) }
         item {
             Text("Per ibadah, 7 hari terakhir", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
         }
@@ -498,6 +500,99 @@ private fun KotakIbadah(
             }
         }
     }
+}
+
+/**
+ * Sholat fardhu sebulan (mengikuti bulan di kalender): tercatat dari target yang tidak menghitung
+ * hari Mode Cuti, jumlah yang ditandai Tertinggal, jarak biasa dari adzan, dan batang harian 0–5.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun KartuSholatBulan(s: StatisticUiState) {
+    val r = s.sholatBulan
+    Kartu {
+        Text("Sholat fardhu · ${s.labelBulan}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        if (r.target == 0 && r.tercatat == 0) {
+            Text(
+                if (r.hariCuti > 0) "Bulan ini seluruhnya Mode Cuti." else "Belum ada hari yang bisa dihitung di bulan ini.",
+                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            return@Kartu
+        }
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("${r.tercatat}", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = HijauAksen.teks())
+            Text(" dari ${r.target} waktu tercatat", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 5.dp))
+        }
+        if (r.hariCuti > 0) {
+            Text("${r.hariCuti} hari Mode Cuti tidak ikut dihitung.", fontSize = 12.sp, color = MerahMuda.teks())
+        }
+        // Batang harian 0–5.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            val maks = (r.harian.maxOfOrNull { it.jumlah } ?: 0).coerceAtLeast(5)
+            r.harian.forEach { h ->
+                val tinggi = when {
+                    h.nanti || h.sebelumMulai -> 0.06f
+                    h.cuti -> 1f
+                    else -> (h.jumlah.toFloat() / maks).coerceAtLeast(0.06f)
+                }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight(tinggi)
+                        .clip(RoundedCornerShape(3.dp))
+                        .then(
+                            when {
+                                h.cuti -> Modifier.garisPutus(3.dp)
+                                h.nanti || h.sebelumMulai -> Modifier.background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                h.jumlah == 0 -> Modifier.background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                h.jumlah >= 5 -> Modifier.background(HijauBanyak)
+                                else -> Modifier.background(warnaSedikit())
+                            }
+                        )
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            Text("1", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text("${r.harian.size}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            r.medianMenitAdzan?.let { m ->
+                PilRingkas(
+                    when {
+                        m <= 0 -> "Biasanya dicatat saat adzan"
+                        m < 60 -> "Biasanya $m menit setelah adzan"
+                        m % 60 == 0 -> "Biasanya ${m / 60} jam setelah adzan"
+                        else -> "Biasanya ${m / 60} jam ${m % 60} menit setelah adzan"
+                    }
+                )
+            }
+            if (r.ditandaiTertinggal > 0) PilRingkas("${r.ditandaiTertinggal} ditandai tertinggal")
+        }
+        Text(
+            "Jarak dari adzan dihitung otomatis dari jam kamu mencatat dan jadwal sholat di lokasimu.",
+            fontSize = 11.sp, lineHeight = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun PilRingkas(teks: String) {
+    Text(
+        teks,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    )
 }
 
 @Composable

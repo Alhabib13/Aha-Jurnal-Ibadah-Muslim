@@ -38,6 +38,10 @@ class ActivityStatsRepository @Inject constructor(
                 it.jenisIbadah == ResearchSchema.Jenis.IQRO
         }
 
+    /** Sholat wajib di research_logs (untuk "ditandai tertinggal" & jarak dari adzan); hanya dibaca. */
+    suspend fun getSholatWajibBetween(startDateKey: String, endDateKey: String) =
+        researchLogDao.getSholatWajibBetween(startDateKey, endDateKey)
+
     suspend fun hasDzikirHabits(): Boolean = dzikirHabitDao.getAll().isNotEmpty()
 
     suspend fun countDzikirHabits(): Int = dzikirHabitDao.getAll().size
