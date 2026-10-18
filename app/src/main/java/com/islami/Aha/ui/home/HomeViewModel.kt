@@ -811,6 +811,21 @@ class HomeViewModel @Inject constructor(
         hitungLengkapiProfil()
     }
 
+    /**
+     * "+ Jadikan habit" di kartu Puasa sunnah mendatang: sama dengan Add Habit (nama preset,
+     * tanpa pengingat). Diabaikan bila habitnya sudah ada atau sedang Mode Cuti.
+     */
+    fun jadikanHabitPuasa(entri: com.islami.Aha.util.PuasaMendatang.Entri) {
+        val nama = entri.namaHabit ?: return
+        if (_uiState.value.isHaidhMode) return
+        if (_uiState.value.sunnahHabits.any { it.name.equals(nama, ignoreCase = true) }) return
+        sunnahHabitSharedViewModel.addHabit(
+            name = nama,
+            category = com.islami.Aha.ui.addhabit.SunnahCategoryType.PUASA,
+            frequencyLabel = entri.frekuensiHabit
+        )
+    }
+
     /** "Nanti": kartu disembunyikan 7 hari. */
     fun tundaLengkapiProfil() {
         sharedPreferences.edit()

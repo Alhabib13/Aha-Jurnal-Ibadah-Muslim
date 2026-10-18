@@ -264,7 +264,8 @@ fun HomeScreen(
             onSetTilawahPenanda = viewModel::setTilawahPenanda,
             onSetTilawahTarget = viewModel::setTilawahTarget,
             onLengkapiProfil = { lengkapiProfilDibuka = true },
-            onTundaLengkapiProfil = viewModel::tundaLengkapiProfil
+            onTundaLengkapiProfil = viewModel::tundaLengkapiProfil,
+            onJadikanHabitPuasa = viewModel::jadikanHabitPuasa
         )
 
         if (lengkapiProfilDibuka) {
@@ -487,7 +488,8 @@ fun HomeScreenContent(
     onSetTilawahPenanda: (String, com.islami.Aha.data.quran.AyatPosition) -> Unit = { _, _ -> },
     onSetTilawahTarget: (Int?) -> Unit = {},
     onLengkapiProfil: () -> Unit = {},
-    onTundaLengkapiProfil: () -> Unit = {}
+    onTundaLengkapiProfil: () -> Unit = {},
+    onJadikanHabitPuasa: (com.islami.Aha.util.PuasaMendatang.Entri) -> Unit = {}
 ) {
     if (uiState.isLoading) {
         return
@@ -708,6 +710,20 @@ fun HomeScreenContent(
                         onToggleComplete = { onToggleSunnahCompletion(sunnahHabit.id) },
                         onToggleReminder = { onToggleSunnahReminder(sunnahHabit.id) },
                         onDelete = { onDeleteSunnah(sunnahHabit.id) }
+                    )
+                }
+            }
+
+            if (uiState.selectedMainCategory == CATEGORY_PUASA) {
+                item(key = "puasa_mendatang") {
+                    val daftarPuasa = androidx.compose.runtime.remember(uiState.gregorianDate) {
+                        com.islami.Aha.util.PuasaMendatang.hitung()
+                    }
+                    PuasaMendatangCard(
+                        daftar = daftarPuasa,
+                        namaHabitAda = uiState.sunnahHabits.map { it.name.lowercase() }.toSet(),
+                        modeCuti = uiState.isHaidhMode,
+                        onJadikanHabit = onJadikanHabitPuasa
                     )
                 }
             }
