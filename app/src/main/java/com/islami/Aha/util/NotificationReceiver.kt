@@ -41,6 +41,8 @@ class NotificationReceiver : BroadcastReceiver() {
         private const val GROUP_KEY_HABIT_REMINDER = "group_habit_reminder"
         private const val SUMMARY_NOTIFICATION_ID = 777001
         const val EXTRA_IS_SNOOZE = "is_snooze"
+        /** Hari ibadah pengingat ulang (yyyy-MM-dd); Isya yang ditunda lewat tengah malam tetap milik kemarin. */
+        const val EXTRA_TANGGAL = "tanggal"
         private const val DEFAULT_PREFIX = "default_"
     }
 
@@ -57,6 +59,7 @@ class NotificationReceiver : BroadcastReceiver() {
         val hour = intent.getIntExtra("hour", -1)
         val minute = intent.getIntExtra("minute", -1)
         val isSnooze = intent.getBooleanExtra(EXTRA_IS_SNOOZE, false)
+        val tanggal = intent.getStringExtra(EXTRA_TANGGAL) ?: DateUtils.getTodayKey()
 
         debugLog("onReceive: habitId=$habitId, habitName=$habitName, hour=$hour, minute=$minute, snooze=$isSnooze")
 
@@ -109,7 +112,7 @@ class NotificationReceiver : BroadcastReceiver() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     runCatching {
-                        showActionableReminder(context, defaultHabitDbId, habitId, habitName, hour, minute, isSnooze, prefs)
+                        showActionableReminder(context, defaultHabitDbId, habitId, habitName, hour, minute, isSnooze, tanggal, prefs)
                     }.onFailure { e ->
                         Log.e(TAG, "Actionable reminder failed, falling back to plain notification", e)
                         showPlainReminder(context, habitId, habitName, prefs)
@@ -134,6 +137,7 @@ class NotificationReceiver : BroadcastReceiver() {
         hour: Int,
         minute: Int,
         isSnooze: Boolean,
+        tanggal: String,
         prefs: android.content.SharedPreferences
     ) {
         val entryPoint = EntryPointAccessors.fromApplication(context.applicationContext, ReceiverEntryPoint::class.java)
@@ -141,8 +145,8 @@ class NotificationReceiver : BroadcastReceiver() {
             showPlainReminder(context, habitId, habitName, prefs)
             return
         }
-        if (entryPoint.defaultHabitCompletion().isCompletedToday(habitDbId)) {
-            debugLog("'${habit.name}' already recorded today, no reminder needed")
+        if (entryPoint.defaultHabitCompletion().isCompletedOn(habitDbId, tanggal)) {
+            debugLog("'${habit.name}' already recorded for $tanggal, no reminder needed")
             return
         }
 
@@ -158,7 +162,8 @@ class NotificationReceiver : BroadcastReceiver() {
             hour = hour,
             minute = minute,
             notificationId = notificationId,
-            isFardhu = isFardhu
+            isFardhu = isFardhu,
+            tanggal = tanggal
         )
 
         val channelId = if (slug != null) {
@@ -170,6 +175,8 @@ class NotificationReceiver : BroadcastReceiver() {
 
         val jam = if (hour >= 0 && minute >= 0) String.format(Locale.ROOT, "%02d.%02d", hour, minute) else null
         val title = when {
+            isSnooze && tanggal == java.time.LocalDate.now().minusDays(1).toString() -> "Pengingat $namaTampil kemarin"
+            isSnooze && tanggal != DateUtils.getTodayKey() -> "Pengingat $namaTampil ($tanggal)"
             isSnooze -> "Pengingat $namaTampil"
             isFardhu && jam != null -> "Waktunya $namaTampil · $jam"
             else -> context.getString(R.string.notification_trigger_text_format, namaTampil)

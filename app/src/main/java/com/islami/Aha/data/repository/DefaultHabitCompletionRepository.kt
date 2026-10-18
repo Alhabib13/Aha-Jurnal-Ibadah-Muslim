@@ -23,7 +23,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Satu-satunya jalur menandai habit bawaan (tabel `habits`) selesai/batal untuk hari ini.
+ * Satu-satunya jalur menandai habit bawaan (tabel `habits`) selesai/batal, untuk hari ini
+ * atau (dari notifikasi yang tertinggal di laci) hari ibadah sebelumnya.
  * Dipakai Beranda dan tombol di notifikasi, supaya keduanya menulis data yang sama:
  * flag habit, habit_completion_records, research_logs, lalu sinkron ke Firestore.
  */
@@ -55,49 +56,57 @@ class DefaultHabitCompletionRepository @Inject constructor(
         sharedPreferences.edit().putString(KEY_LAST_DAILY_RESET, todayKey).apply()
     }
 
-    suspend fun isCompletedToday(habitId: Int): Boolean =
-        habitCompletionDao.getRecordsForDate(DateUtils.getTodayKey()).any { it.habitKey == habitKey(habitId) }
+    suspend fun isCompletedToday(habitId: Int): Boolean = isCompletedOn(habitId, DateUtils.getTodayKey())
 
-    /** Berapa sholat fardhu yang sudah dicatat hari ini, dan dari berapa. */
-    suspend fun fardhuProgressToday(): Pair<Int, Int> {
+    suspend fun isCompletedOn(habitId: Int, dateKey: String): Boolean =
+        habitCompletionDao.getRecordsForDate(dateKey).any { it.habitKey == habitKey(habitId) }
+
+    /** Berapa sholat fardhu yang sudah dicatat pada [dateKey], dan dari berapa. */
+    suspend fun fardhuProgressOn(dateKey: String): Pair<Int, Int> {
         val fardhu = habitDao.getFardhuHabits()
-        val done = habitCompletionDao.getRecordsForDate(DateUtils.getTodayKey()).map { it.habitKey }.toSet()
+        val done = habitCompletionDao.getRecordsForDate(dateKey).map { it.habitKey }.toSet()
         return fardhu.count { habitKey(it.id) in done } to fardhu.size
     }
 
     /**
-     * Tandai habit [habitId] selesai ([completed] = true) atau batal untuk hari ini.
-     * Mengembalikan null bila habit tidak ada. `berubah` = false bila statusnya sudah sama.
+     * Tandai habit [habitId] selesai ([completed] = true) atau batal pada [dateKey] (default hari ini).
+     * Hari lampau = pencatatan susulan (keputusan F): tanggal tetap hari ibadahnya, jam = sekarang,
+     * dan flag tampilan `isCompleted` (khusus hari ini) tidak disentuh.
+     * Mengembalikan null bila habit tidak ada atau [dateKey] di masa depan.
+     * `berubah` = false bila statusnya sudah sama.
      */
     suspend fun setCompleted(
         habitId: Int,
         completed: Boolean,
-        sumber: String = ResearchSchema.Sumber.TIDAK_DIKETAHUI
+        sumber: String = ResearchSchema.Sumber.BUKA_APLIKASI,
+        dateKey: String = DateUtils.getTodayKey()
     ): Hasil? {
         ensureDailyReset()
         val habit = habitDao.getHabitById(habitId) ?: return null
         val todayKey = DateUtils.getTodayKey()
+        if (dateKey > todayKey) return null
+        val hariIni = dateKey == todayKey
         val key = habitKey(habitId)
-        if (isCompletedToday(habitId) == completed) {
-            // Catatan hari ini sudah sesuai; cukup samakan flag tampilan bila tertinggal.
-            if (habit.isCompleted != completed) habitDao.updateHabit(habit.copy(isCompleted = completed))
-            return Hasil(habit.copy(isCompleted = completed), berubah = false, syncStatus = CloudSyncStatus.success())
+        if (isCompletedOn(habitId, dateKey) == completed) {
+            // Catatan sudah sesuai; cukup samakan flag tampilan hari ini bila tertinggal.
+            if (hariIni && habit.isCompleted != completed) habitDao.updateHabit(habit.copy(isCompleted = completed))
+            return Hasil(habit.copy(isCompleted = if (hariIni) completed else habit.isCompleted), berubah = false, syncStatus = CloudSyncStatus.success())
         }
         val record = HabitCompletionRecord(
             habitKey = key,
-            dateKey = todayKey,
+            dateKey = dateKey,
             category = habit.category,
             source = "DEFAULT"
         )
         val researchSlot = ResearchLogRepository.slotForDefaultHabit(habit.name, habit.category)
         appDatabase.withTransaction {
-            habitDao.updateHabit(habit.copy(isCompleted = completed))
+            if (hariIni) habitDao.updateHabit(habit.copy(isCompleted = completed))
             if (completed) {
                 habitCompletionDao.insert(record)
-                researchLogRepository.recordDikerjakan(researchSlot, todayKey, sumber = sumber)
+                researchLogRepository.recordDikerjakan(researchSlot, dateKey, sumber = sumber)
             } else {
-                habitCompletionDao.deleteByHabitAndDate(key, todayKey)
-                researchLogRepository.remove(researchSlot, todayKey)
+                habitCompletionDao.deleteByHabitAndDate(key, dateKey)
+                researchLogRepository.remove(researchSlot, dateKey)
             }
         }
         researchLogRepository.scheduleUpload()
@@ -106,10 +115,25 @@ class DefaultHabitCompletionRepository @Inject constructor(
         val syncStatus = if (completed) {
             completionSyncRepository.syncAdd(record)
         } else {
-            completionSyncRepository.syncDelete(key, todayKey)
+            completionSyncRepository.syncDelete(key, dateKey)
         }
         scheduleSyncCompletionsWork()
-        return Hasil(habit.copy(isCompleted = completed), berubah = true, syncStatus = syncStatus)
+        return Hasil(habit.copy(isCompleted = if (hariIni) completed else habit.isCompleted), berubah = true, syncStatus = syncStatus)
+    }
+
+    /**
+     * Tombol "Tertinggal" (pilihan B): catat status "tidak" untuk sholat wajib [habitId] pada
+     * [dateKey]. Hanya data penelitian; centang Beranda / habit_completion_records tidak disentuh,
+     * dan centang belakangan menimpa baris ini menjadi "dikerjakan".
+     * false bila habit tidak ada, bukan sholat wajib, tanggal di masa depan, atau sudah dicatat.
+     */
+    suspend fun markTertinggal(habitId: Int, dateKey: String = DateUtils.getTodayKey()): Boolean {
+        val habit = habitDao.getHabitById(habitId) ?: return false
+        if (dateKey > DateUtils.getTodayKey() || isCompletedOn(habitId, dateKey)) return false
+        val slot = ResearchLogRepository.slotForDefaultHabit(habit.name, habit.category)
+        if (!researchLogRepository.recordTidakDariNotifikasi(slot, dateKey)) return false
+        researchLogRepository.scheduleUpload()
+        return true
     }
 
     private fun scheduleSyncCompletionsWork() {

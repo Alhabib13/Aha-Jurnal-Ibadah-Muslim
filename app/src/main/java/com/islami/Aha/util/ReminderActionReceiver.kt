@@ -27,8 +27,8 @@ import java.util.Locale
 
 /**
  * Tombol di notifikasi pengingat: Sudah / Nanti / Tertinggal, dan Batalkan pada
- * konfirmasi "tercatat". Hanya "Sudah" yang menulis catatan ibadah, dengan
- * sumber_pencatatan = dari_notifikasi.
+ * konfirmasi "tercatat". "Sudah" menulis "dikerjakan" dan "Tertinggal" menulis "tidak",
+ * keduanya dengan sumber_pencatatan = dari_notifikasi.
  */
 class ReminderActionReceiver : BroadcastReceiver() {
 
@@ -46,7 +46,9 @@ class ReminderActionReceiver : BroadcastReceiver() {
         val hour: Int,
         val minute: Int,
         val notificationId: Int,
-        val isFardhu: Boolean
+        val isFardhu: Boolean,
+        /** Hari ibadah pengingat ini (yyyy-MM-dd), bukan hari saat tombol ditekan. */
+        val tanggal: String
     )
 
     companion object {
@@ -74,6 +76,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
                 putExtra("minute", p.minute)
                 putExtra("notification_id", p.notificationId)
                 putExtra("is_fardhu", p.isFardhu)
+                putExtra("tanggal", p.tanggal)
             }
             return PendingIntent.getBroadcast(
                 context,
@@ -93,7 +96,9 @@ class ReminderActionReceiver : BroadcastReceiver() {
                 hour = intent.getIntExtra("hour", -1),
                 minute = intent.getIntExtra("minute", -1),
                 notificationId = intent.getIntExtra("notification_id", 0),
-                isFardhu = intent.getBooleanExtra("is_fardhu", false)
+                isFardhu = intent.getBooleanExtra("is_fardhu", false),
+                // Notifikasi dari versi sebelumnya tidak membawa tanggal.
+                tanggal = intent.getStringExtra("tanggal") ?: DateUtils.getTodayKey()
             )
         }
 
@@ -106,6 +111,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
                 putExtra("hour", p.hour)
                 putExtra("minute", p.minute)
                 putExtra(NotificationReceiver.EXTRA_IS_SNOOZE, true)
+                putExtra(NotificationReceiver.EXTRA_TANGGAL, p.tanggal)
             }
             return PendingIntent.getBroadcast(
                 context,
@@ -125,19 +131,21 @@ class ReminderActionReceiver : BroadcastReceiver() {
                 val waktu = jadwalkanUlang(context, p)
                 toast(context, "Diingatkan lagi pukul $waktu")
             }
-            ACTION_TERTINGGAL -> {
+            ACTION_TERTINGGAL -> jalankan(context) { repo ->
                 nm.cancel(p.notificationId)
                 batalkanPengingatUlang(context, p)
-                // Hanya penanda tampilan (widget), TIDAK ditulis ke data penelitian:
-                // baris status "tidak" hanya boleh berasal dari aturan slot harian.
-                TertinggalStore.tandai(context, p.habitDbId)
+                // Pilihan B: status "tidak" untuk hari ibadah pengingat (sumber dari_notifikasi).
+                // Centang belakangan tetap menimpanya menjadi "dikerjakan".
+                repo.markTertinggal(p.habitDbId, p.tanggal)
+                // Penanda widget hanya untuk hari ini.
+                if (p.tanggal == DateUtils.getTodayKey()) TertinggalStore.tandai(context, p.habitDbId)
                 AhaWidgetUpdater.requestUpdate(context)
-                toast(context, "${p.namaTampil} ditandai tertinggal")
+                withContext(Dispatchers.Main) { toast(context, "${p.namaTampil} ditandai tertinggal") }
             }
             ACTION_SUDAH -> jalankan(context) { repo ->
                 batalkanPengingatUlang(context, p)
                 TertinggalStore.hapus(context, p.habitDbId)
-                val hasil = repo.setCompleted(p.habitDbId, true, ResearchSchema.Sumber.DARI_NOTIFIKASI)
+                val hasil = repo.setCompleted(p.habitDbId, true, ResearchSchema.Sumber.DARI_NOTIFIKASI, dateKey = p.tanggal)
                 if (hasil == null) {
                     nm.cancel(p.notificationId)
                     return@jalankan
@@ -154,7 +162,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
                 val sejak = System.currentTimeMillis() - prefs.getLong("undo_${p.habitDbId}", 0L)
                 prefs.edit().remove("undo_${p.habitDbId}").apply()
                 if (sejak in 0..UNDO_GRACE_MS) {
-                    repo.setCompleted(p.habitDbId, false)
+                    repo.setCompleted(p.habitDbId, false, dateKey = p.tanggal)
                     withContext(Dispatchers.Main) { toast(context, "Catatan ${p.namaTampil} dibatalkan") }
                 }
             }
@@ -194,8 +202,13 @@ class ReminderActionReceiver : BroadcastReceiver() {
             )
         }
         val teks = if (p.isFardhu) {
-            val (selesai, total) = repo.fardhuProgressToday()
-            "Alhamdulillah · $selesai dari $total sholat hari ini"
+            val (selesai, total) = repo.fardhuProgressOn(p.tanggal)
+            val hari = when (p.tanggal) {
+                DateUtils.getTodayKey() -> "hari ini"
+                java.time.LocalDate.now().minusDays(1).toString() -> "kemarin"
+                else -> "tanggal ${p.tanggal}"
+            }
+            "Alhamdulillah · $selesai dari $total sholat $hari"
         } else {
             "Alhamdulillah, sudah tercatat"
         }
@@ -245,7 +258,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
 
 /**
  * Penanda lokal "tertinggal" dari tombol notifikasi, hanya untuk tampilan widget hari ini.
- * Tidak dikirim ke mana pun dan bukan bagian data penelitian.
+ * Data penelitiannya ditulis terpisah lewat DefaultHabitCompletionRepository.markTertinggal.
  */
 object TertinggalStore {
     private const val PREFS = "tertinggal_hari_ini"
