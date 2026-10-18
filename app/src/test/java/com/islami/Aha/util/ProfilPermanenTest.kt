@@ -1,5 +1,6 @@
 package com.islami.Aha.util
 
+import com.islami.Aha.data.research.ResearchSchema
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -50,17 +51,29 @@ class ProfilPermanenTest {
     }
 
     @Test
-    fun `kode rentang usia sama persis dengan firestore rules`() {
-        assertEquals(listOf("<13", "13-17", "18+"), AgeRange.entries.map { it.code })
-        assertEquals(AgeRange.TEEN, AgeRange.fromCode("13-17"))
+    fun `kode rentang usia sama persis dengan skema penelitian`() {
+        assertEquals(ResearchSchema.Profil.RENTANG_UMUR_VALUES, AgeRange.entries.map { it.code })
+        assertEquals(AgeRange.AGE_15_18, AgeRange.fromCode("15-18"))
         assertNull(AgeRange.fromCode("20"))
     }
 
     @Test
+    fun `kode lama hanya dipetakan bila pasti masuk rentang baru`() {
+        assertEquals(AgeRange.UNDER_15, AgeRange.fromCode("<13"))
+        assertNull(AgeRange.fromCode("13-17"))
+        assertNull(AgeRange.fromCode("18+"))
+    }
+
+    @Test
+    fun `kode kesibukan sama persis dengan skema penelitian`() {
+        assertEquals(ResearchSchema.Profil.STATUS_AKTIVITAS_VALUES, StatusAktivitas.entries.map { it.code })
+    }
+
+    @Test
     fun `izin wali hanya berlaku untuk di bawah 18 tahun`() {
-        UserPreferencesManager.setAgeRange(AgeRange.TEEN, guardianOk = true)
+        UserPreferencesManager.setAgeRange(AgeRange.AGE_15_18, guardianOk = true)
         assertTrue(UserPreferencesManager.guardianOk.value)
-        UserPreferencesManager.setAgeRange(AgeRange.ADULT, guardianOk = true)
+        UserPreferencesManager.setAgeRange(AgeRange.AGE_19_25, guardianOk = true)
         assertFalse(UserPreferencesManager.guardianOk.value)
         UserPreferencesManager.clearAll()
         assertNull(UserPreferencesManager.ageRange.value)

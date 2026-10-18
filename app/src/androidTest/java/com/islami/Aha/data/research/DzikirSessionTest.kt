@@ -116,8 +116,8 @@ class DzikirSessionTest {
     }
 
     @Test
-    fun sumberPencatatanSelaluTidakDiketahui() = runBlocking {
+    fun sumberPencatatanBukaAplikasi() = runBlocking {
         catat(t0)
-        assertEquals(ResearchSchema.Sumber.TIDAK_DIKETAHUI, db.researchLogDao().getAll().single().sumberPencatatan)
+        assertEquals(ResearchSchema.Sumber.BUKA_APLIKASI, db.researchLogDao().getAll().single().sumberPencatatan)
     }
 }

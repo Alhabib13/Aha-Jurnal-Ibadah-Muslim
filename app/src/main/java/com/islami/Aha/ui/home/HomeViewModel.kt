@@ -77,8 +77,23 @@ class HomeViewModel @Inject constructor(
     private val defaultHabitCompletion: com.islami.Aha.data.repository.DefaultHabitCompletionRepository
 ) : ViewModel() {
     companion object {
+        /**
+         * Kartu "Lengkapi profil penelitian" tampil bila: login, setuju ikut penelitian, usia atau
+         * kesibukan masih kosong, dan tidak sedang ditunda ("Nanti" = 7 hari).
+         */
+        fun perluLengkapiProfil(
+            isLoggedIn: Boolean,
+            setujuPenelitian: Boolean?,
+            usia: com.islami.Aha.util.AgeRange?,
+            status: com.islami.Aha.util.StatusAktivitas?,
+            hariIni: Long,
+            ditundaSampai: Long
+        ): Boolean = isLoggedIn && setujuPenelitian == true && (usia == null || status == null) &&
+            hariIni >= ditundaSampai
+
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
         private const val KEY_USER_NAME = "user_name"
+        private const val KEY_LENGKAPI_PROFIL_DITUNDA = "lengkapi_profil_ditunda_sampai"
         private const val KEY_PRAYER_TIME_SOURCE = "prayer_time_source"
         private const val KEY_PRAYER_TIME_LAST_SYNC_AT = "prayer_time_last_sync_at"
         private const val PRAYER_TIME_SOURCE_DEFAULT = "DEFAULT"
@@ -128,6 +143,7 @@ class HomeViewModel @Inject constructor(
             )
             tilawahState.syncOnLogin()
             dzikirHabitRepository.syncOnLogin()
+            researchLogRepository.pulihkanProfilDariServer()
             researchLogRepository.scheduleUpload()
             syncTodayCompletionsToUiState()
             val firstIssue = syncStatuses.firstOrNull { it.hasIssue }?.userMessage
@@ -143,6 +159,13 @@ class HomeViewModel @Inject constructor(
         startPeriodicHomeUpdates()
         loadDailyIslamicContent()
         
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                UserPreferencesManager.ageRange,
+                UserPreferencesManager.statusAktivitas
+            ) { _, _ -> }.collect { hitungLengkapiProfil() }
+        }
+
         // showGenderPrompt logic removed as requested
         viewModelScope.launch {
             UserPreferencesManager.isJumatEnabled.collect { enabled ->
@@ -755,6 +778,38 @@ class HomeViewModel @Inject constructor(
     fun decideResearchConsent(setuju: Boolean) {
         researchLogRepository.setResearchConsent(setuju)
         _uiState.update { it.copy(showResearchNotice = false) }
+        hitungLengkapiProfil()
+    }
+
+    private fun hitungLengkapiProfil() {
+        val tampil = perluLengkapiProfil(
+            isLoggedIn = _uiState.value.isLoggedIn,
+            setujuPenelitian = researchLogRepository.researchConsent(),
+            usia = UserPreferencesManager.ageRange.value,
+            status = UserPreferencesManager.statusAktivitas.value,
+            hariIni = java.time.LocalDate.now().toEpochDay(),
+            ditundaSampai = sharedPreferences.getLong(KEY_LENGKAPI_PROFIL_DITUNDA, 0L)
+        )
+        _uiState.update { it.copy(tampilLengkapiProfil = tampil) }
+    }
+
+    fun simpanLengkapiProfil(
+        usia: com.islami.Aha.util.AgeRange,
+        izinWali: Boolean,
+        status: com.islami.Aha.util.StatusAktivitas
+    ) {
+        UserPreferencesManager.setAgeRange(usia, izinWali)
+        UserPreferencesManager.setStatusAktivitas(status)
+        researchLogRepository.scheduleUpload()
+        hitungLengkapiProfil()
+    }
+
+    /** "Nanti": kartu disembunyikan 7 hari. */
+    fun tundaLengkapiProfil() {
+        sharedPreferences.edit()
+            .putLong(KEY_LENGKAPI_PROFIL_DITUNDA, java.time.LocalDate.now().toEpochDay() + 7)
+            .apply()
+        hitungLengkapiProfil()
     }
 
     private fun dzikirWaktuLabel(waktu: String): String = when (waktu) {
@@ -1229,6 +1284,7 @@ class HomeViewModel @Inject constructor(
                 userName = userName
             )
         }
+        hitungLengkapiProfil()
 
         if (!wasLoggedIn && isLoggedIn && !hasFetchedInitialCloudData) {
             hasFetchedInitialCloudData = true
@@ -1244,6 +1300,7 @@ class HomeViewModel @Inject constructor(
                 )
                 tilawahState.syncOnLogin()
                 dzikirHabitRepository.syncOnLogin()
+                researchLogRepository.pulihkanProfilDariServer()
                 researchLogRepository.scheduleUpload()
                 
                 val prefsResult = authRepository.fetchUserPreferences()

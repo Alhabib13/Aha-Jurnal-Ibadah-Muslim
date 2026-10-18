@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -102,6 +103,45 @@ fun SyncStatusBanner(message: String) {
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Ajakan untuk pengguna yang ikut penelitian tetapi belum mengisi usia/kesibukan
+ * (mis. masuk lewat "Sudah punya akun? Masuk" sehingga melewati onboarding).
+ */
+@Composable
+fun LengkapiProfilBanner(onLengkapi: () -> Unit, onNanti: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.PersonOutline, contentDescription = null, tint = Gold, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text("Lengkapi profil penelitian", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Dua pertanyaan singkat: rentang usia dan kesibukan. Membantu penelitian memahami siapa saja pengguna Aha.",
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 30.dp, end = 6.dp)
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onNanti) {
+                    Text("Nanti", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = onLengkapi) {
+                    Text("Lengkapi", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Emerald)
+                }
             }
         }
     }

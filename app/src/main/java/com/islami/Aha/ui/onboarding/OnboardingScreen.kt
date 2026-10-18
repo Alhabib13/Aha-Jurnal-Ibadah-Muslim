@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LocationOn
@@ -67,22 +68,26 @@ import com.islami.Aha.ui.consent.ResearchConsentContent
 import com.islami.Aha.ui.settings.LegalDocumentActivity
 import com.islami.Aha.util.AgeRange
 import com.islami.Aha.util.GenderProfile
+import com.islami.Aha.util.NotificationScheduler
+import com.islami.Aha.util.StatusAktivitas
 
 private const val HAL_SELAMAT_DATANG = 0
 private const val HAL_FITUR = 1
 private const val HAL_PROFIL = 2
 private const val HAL_USIA = 3
 private const val HAL_PERSETUJUAN = 4
-private const val HAL_LOKASI = 5
-private const val HAL_NOTIFIKASI = 6
-private const val JUMLAH_HAL = 7
+private const val HAL_PILIHAN = 5
+private const val HAL_LOKASI = 6
+private const val HAL_NOTIFIKASI = 7
+private const val JUMLAH_HAL = 8
 
 private val PinkCuti = Color(0xFFF48FB1)
 private val Emas = Color(0xFFE2B65A)
 
 /**
- * Onboarding: pengenalan → profil ibadah (permanen) → rentang usia → persetujuan penelitian
- * → izin lokasi → izin notifikasi. Halaman tidak bisa digeser; berpindah hanya lewat tombol,
+ * Onboarding: pengenalan → profil ibadah (permanen) → usia & kesibukan → persetujuan penelitian
+ * → ibadah yang biasa dilakukan → izin lokasi → izin notifikasi lalu (di halaman yang sama)
+ * izin "Alarm & pengingat" agar pengingat tepat waktu. Halaman tidak bisa digeser; berpindah hanya lewat tombol,
  * supaya setiap keputusan diambil dengan tindakan aktif.
  */
 @Composable
@@ -94,14 +99,29 @@ fun OnboardingScreen(
     val context = LocalContext.current
     var halaman by rememberSaveable { mutableIntStateOf(HAL_SELAMAT_DATANG) }
     val butuhIzinNotifikasi = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    // Halaman notifikasi punya dua tahap: izin notifikasi, lalu izin alarm tepat waktu.
+    var tahapAlarm by rememberSaveable { mutableStateOf(false) }
 
     fun lanjut() {
         val berikut = halaman + 1
-        if (berikut >= JUMLAH_HAL || (berikut == HAL_NOTIFIKASI && !butuhIzinNotifikasi)) onFinish() else halaman = berikut
+        when {
+            berikut >= JUMLAH_HAL -> onFinish()
+            berikut == HAL_NOTIFIKASI && !butuhIzinNotifikasi -> {
+                if (NotificationScheduler.canScheduleExactAlarms(context)) onFinish()
+                else { tahapAlarm = true; halaman = berikut }
+            }
+            else -> halaman = berikut
+        }
+    }
+
+    fun setelahIzinNotifikasi() {
+        if (NotificationScheduler.canScheduleExactAlarms(context)) onFinish() else tahapAlarm = true
     }
 
     val izinLokasi = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { lanjut() }
-    val izinNotifikasi = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { lanjut() }
+    val izinNotifikasi = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { setelahIzinNotifikasi() }
+    // Pengaturan sistem tidak mengembalikan hasil; apa pun pilihannya, onboarding selesai.
+    val izinAlarm = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { onFinish() }
 
     Box(
         modifier = Modifier
@@ -122,7 +142,7 @@ fun OnboardingScreen(
                 )
             }
             HAL_USIA -> Kerangka(halaman) {
-                PilihUsia(onLanjut = { usia, izinWali -> viewModel.simpanUsia(usia, izinWali); lanjut() })
+                PilihUsia(onLanjut = { usia, izinWali, status -> viewModel.simpanUsia(usia, izinWali, status); lanjut() })
             }
             HAL_PERSETUJUAN -> Kerangka(halaman) {
                 ResearchConsentContent(
@@ -134,6 +154,12 @@ fun OnboardingScreen(
                                 .putExtra(LegalDocumentActivity.EXTRA_DOCUMENT_TYPE, LegalDocumentActivity.DOC_PRIVACY)
                         )
                     }
+                )
+            }
+            HAL_PILIHAN -> Kerangka(halaman, aksiKanan = "Lewati" to { lanjut() }) {
+                PilihIbadahAwal(
+                    onSimpan = { pilihan -> viewModel.simpanPilihanAwal(pilihan); lanjut() },
+                    onBelumAda = { viewModel.simpanPilihanAwal(emptySet()); lanjut() }
                 )
             }
             HAL_LOKASI -> Kerangka(halaman) {
@@ -151,7 +177,22 @@ fun OnboardingScreen(
                     onNanti = { lanjut() }
                 )
             }
-            HAL_NOTIFIKASI -> Kerangka(halaman) {
+            HAL_NOTIFIKASI -> if (tahapAlarm) Kerangka(halaman) {
+                LayarIzin(
+                    icon = Icons.Rounded.Alarm,
+                    warnaIcon = Emas,
+                    judul = "Pengingat tepat\npada waktunya",
+                    isi = "Tanpa izin “Alarm & pengingat”, Android bisa menunda pengingat sholat beberapa menit atau lebih. Izinkan supaya pengingat berbunyi tepat waktu.",
+                    petunjuk = "Setelah ini pengaturan HP terbuka. Aktifkan “Izinkan setel alarm dan pengingat”, lalu kembali ke Aha.",
+                    tombol = "Izinkan alarm tepat waktu",
+                    tombolNanti = "Nanti saja",
+                    onIzinkan = {
+                        val intent = NotificationScheduler.exactAlarmSettingsIntent(context)
+                        if (intent == null || runCatching { izinAlarm.launch(intent) }.isFailure) onFinish()
+                    },
+                    onNanti = { onFinish() }
+                )
+            } else Kerangka(halaman) {
                 LayarIzin(
                     icon = Icons.Rounded.NotificationsActive,
                     warnaIcon = Emas,
@@ -161,9 +202,10 @@ fun OnboardingScreen(
                     tombol = "Aktifkan pengingat",
                     tombolNanti = "Nanti saja",
                     onIzinkan = {
-                        if (butuhIzinNotifikasi) izinNotifikasi.launch(Manifest.permission.POST_NOTIFICATIONS) else lanjut()
+                        if (butuhIzinNotifikasi) izinNotifikasi.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        else setelahIzinNotifikasi()
                     },
-                    onNanti = { lanjut() }
+                    onNanti = { setelahIzinNotifikasi() }
                 )
             }
         }
@@ -431,9 +473,10 @@ private fun KartuProfil(
 }
 
 @Composable
-private fun ColumnScope.PilihUsia(onLanjut: (AgeRange, Boolean) -> Unit) {
+internal fun ColumnScope.PilihUsia(onLanjut: (AgeRange, Boolean, StatusAktivitas) -> Unit) {
     var pilihan by rememberSaveable { mutableStateOf<AgeRange?>(null) }
     var izinWali by rememberSaveable { mutableStateOf(false) }
+    var status by rememberSaveable { mutableStateOf<StatusAktivitas?>(null) }
     Column(
         modifier = Modifier
             .weight(1f)
@@ -441,29 +484,16 @@ private fun ColumnScope.PilihUsia(onLanjut: (AgeRange, Boolean) -> Unit) {
             .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Berapa usiamu?", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+        Text("Usia dan kesibukanmu", fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.ExtraBold)
         Text(
             "Cukup rentangnya saja. Kami tidak meminta tanggal lahir.",
             fontSize = 15.sp,
             lineHeight = 23.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
         AgeRange.entries.forEach { usia ->
-            val dipilih = pilihan == usia
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(if (dipilih) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable { pilihan = usia }
-                    .padding(start = 20.dp, end = 8.dp)
-            ) {
-                Text(usia.label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                RadioButton(selected = dipilih, onClick = { pilihan = usia })
-            }
+            BarisPilihan(usia.label, pilihan == usia) { pilihan = usia }
         }
         if (pilihan?.isMinor == true) {
             Row(
@@ -477,16 +507,95 @@ private fun ColumnScope.PilihUsia(onLanjut: (AgeRange, Boolean) -> Unit) {
             ) {
                 Checkbox(checked = izinWali, onCheckedChange = { izinWali = it })
                 Text(
-                    "Orang tua atau waliku sudah mengizinkan aku memakai aplikasi ini dan ikut penelitiannya.",
+                    "Bila usiaku di bawah 18 tahun: orang tua atau waliku sudah mengizinkan aku memakai aplikasi ini dan ikut penelitiannya.",
                     fontSize = 14.sp,
                     lineHeight = 21.sp,
                     modifier = Modifier.padding(top = 12.dp, end = 8.dp)
                 )
             }
         }
+        Spacer(Modifier.height(12.dp))
+        Text("Kesibukan utamamu saat ini", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        StatusAktivitas.entries.forEach { s ->
+            BarisPilihan(s.label, status == s) { status = s }
+        }
     }
     Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
-        TombolUtama("Lanjut", onClick = { pilihan?.let { onLanjut(it, izinWali) } }, enabled = pilihan != null)
+        TombolUtama(
+            "Lanjut",
+            onClick = {
+                val usia = pilihan
+                val kesibukan = status
+                if (usia != null && kesibukan != null) onLanjut(usia, izinWali, kesibukan)
+            },
+            enabled = pilihan != null && status != null
+        )
+    }
+}
+
+@Composable
+private fun ColumnScope.PilihIbadahAwal(onSimpan: (Set<String>) -> Unit, onBelumAda: () -> Unit) {
+    var dipilih by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Ibadah yang biasa\nkamu lakukan",fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.ExtraBold)
+        Text(
+            "Centang yang sudah biasa kamu kerjakan. Sholat sunnah, puasa sunnah, dan dzikir yang dicentang langsung masuk daftar ibadahmu, dan bisa diubah kapan saja.",
+            fontSize = 15.sp,
+            lineHeight = 23.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        KelompokPilihan.entries.forEach { kelompok ->
+            Spacer(Modifier.height(8.dp))
+            Text(kelompok.label, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            OPSI_PILIHAN_AWAL.filter { it.kelompok == kelompok }.forEach { opsi ->
+                val centang = opsi.kode in dipilih
+                fun ubah() { dipilih = if (centang) dipilih - opsi.kode else dipilih + opsi.kode }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (centang) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable { ubah() }
+                        .padding(start = 8.dp, end = 16.dp)
+                ) {
+                    Checkbox(checked = centang, onCheckedChange = { ubah() })
+                    Text(opsi.label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+    Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
+        TombolUtama(
+            if (dipilih.isEmpty()) "Simpan pilihan" else "Simpan ${dipilih.size} pilihan",
+            onClick = { onSimpan(dipilih.toSet()) },
+            enabled = dipilih.isNotEmpty()
+        )
+        TombolKecil("Belum ada yang rutin", onBelumAda)
+    }
+}
+
+@Composable
+private fun BarisPilihan(label: String, dipilih: Boolean, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (dipilih) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(start = 20.dp, end = 8.dp)
+    ) {
+        Text(label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        RadioButton(selected = dipilih, onClick = onClick)
     }
 }
 

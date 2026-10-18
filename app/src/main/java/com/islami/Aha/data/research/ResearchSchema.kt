@@ -15,12 +15,26 @@ object ResearchSchema {
         const val RENTANG_UMUR = "rentang_umur"
         const val STATUS_AKTIVITAS = "status_aktivitas"
         const val TANGGAL_MULAI = "tanggal_mulai"
+        /**
+         * Ibadah yang dicentang pengguna di onboarding ("biasa dilakukan"), sebagai snapshot
+         * yang tidak ikut berubah saat habit ditambah/dihapus. null = tidak menjawab (dilewati
+         * atau pengguna lama), [] = menjawab "belum ada yang rutin". Fakta awal, BUKAN label.
+         */
+        const val PILIHAN_AWAL = "pilihan_awal"
 
         const val LAKI_LAKI = "laki_laki"
         const val PEREMPUAN = "perempuan"
 
         val RENTANG_UMUR_VALUES = listOf("<15", "15-18", "19-25", "26-35", ">35")
         val STATUS_AKTIVITAS_VALUES = listOf("pelajar", "mahasiswa", "pekerja", "lainnya")
+        /** Nilai sah [PILIHAN_AWAL] (= nama_detail, unik lintas jenis; "iqro" untuk Iqro). */
+        val PILIHAN_AWAL_VALUES = listOf(
+            "dhuha", "tahajud", "witir", "rawatib",
+            "senin_kamis", "ayyamul_bidh", "daud",
+            "dzikir_bada_sholat", "dzikir_pagi", "dzikir_petang", "dzikir_sebelum_tidur",
+            "istighfar", "sholawat", "tahlil", "asmaul_husna",
+            "bacaan_harian", "hafalan", "iqro"
+        )
     }
 
     object Log {
@@ -137,12 +151,16 @@ object ResearchSchema {
     }
 
     object Sumber {
+        /** Tombol "Sudah"/"Tertinggal" langsung di notifikasi pengingat. */
         const val DARI_NOTIFIKASI = "dari_notifikasi"
+        /**
+         * Semua pencatatan dari dalam aplikasi (Beranda, Statistik, dzikir/tilawah/Iqro),
+         * termasuk bila aplikasi dibuka dengan mengetuk badan notifikasi (keputusan 2026-10-18).
+         */
         const val BUKA_APLIKASI = "buka_aplikasi"
         /**
-         * Dipakai sampai Tahap 4 (penanda notifikasi) selesai. Mengisi "buka_aplikasi"
-         * sebelum itu adalah data salah: ketukan notifikasi ikut tercatat sebagai buka
-         * aplikasi. Pipeline analisis membuang baris bernilai ini.
+         * Hanya dari versi sebelum v1.2.0 (sebelum notifikasi bisa dibedakan). Tidak lagi
+         * ditulis aplikasi; tetap sah di rules untuk baris lama. Pipeline membuang nilai ini.
          */
         const val TIDAK_DIKETAHUI = "tidak_diketahui"
     }

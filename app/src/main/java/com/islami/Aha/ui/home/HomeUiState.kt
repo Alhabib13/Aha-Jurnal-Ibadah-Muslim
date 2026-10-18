@@ -90,6 +90,8 @@ data class HomeUiState(
     val isRamadanMonth: Boolean = DateUtils.isRamadanMonth(),
     val showGenderPrompt: Boolean = false,
     val showResearchNotice: Boolean = false,
+    /** Kartu "Lengkapi profil penelitian": ikut penelitian tapi usia/kesibukan belum diisi. */
+    val tampilLengkapiProfil: Boolean = false,
     /** Habit dzikir pilihan pengguna; kosong = Beranda menampilkan pintu masuk netral, bukan 0/0. */
     val dzikirHabits: List<DzikirHabitUi> = emptyList(),
     val tilawahSessions: List<TilawahSessionUi> = emptyList(),

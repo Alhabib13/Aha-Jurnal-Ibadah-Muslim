@@ -96,6 +96,9 @@ import com.islami.Aha.util.LocationHelper
 import com.islami.Aha.util.rememberLocationPermissionState
 import com.islami.Aha.util.rememberNotificationPermissionState
 import com.islami.Aha.ui.home.components.*
+import com.islami.Aha.ui.onboarding.PilihUsia
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 
 internal const val CATEGORY_SHOLAT = "Sholat"
 internal const val CATEGORY_PUASA = "Puasa"
@@ -122,6 +125,7 @@ fun HomeScreen(
     var showLocationPermissionBanner by rememberSaveable { mutableStateOf(false) }
     var showLocationPermissionDialog by rememberSaveable { mutableStateOf(false) }
     var showLocationServiceDialog by rememberSaveable { mutableStateOf(false) }
+    var lengkapiProfilDibuka by rememberSaveable { mutableStateOf(false) }
     var hasPromptedLocationPermission by rememberSaveable { mutableStateOf(false) }
     var hasPromptedLocationService by rememberSaveable { mutableStateOf(false) }
     var hasAutoRequestedLocationPermission by rememberSaveable { mutableStateOf(false) }
@@ -258,8 +262,34 @@ fun HomeScreen(
             onSelectTilawahJenis = viewModel::selectTilawahJenis,
             onSaveTilawahSession = viewModel::saveTilawahSession,
             onSetTilawahPenanda = viewModel::setTilawahPenanda,
-            onSetTilawahTarget = viewModel::setTilawahTarget
+            onSetTilawahTarget = viewModel::setTilawahTarget,
+            onLengkapiProfil = { lengkapiProfilDibuka = true },
+            onTundaLengkapiProfil = viewModel::tundaLengkapiProfil
         )
+
+        if (lengkapiProfilDibuka) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { lengkapiProfilDibuka = false },
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                androidx.compose.foundation.layout.Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                ) {
+                    androidx.compose.material3.TextButton(
+                        onClick = { lengkapiProfilDibuka = false },
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    ) { Text("Tutup") }
+                    PilihUsia(onLanjut = { usia, izinWali, status ->
+                        viewModel.simpanLengkapiProfil(usia, izinWali, status)
+                        lengkapiProfilDibuka = false
+                    })
+                }
+            }
+        }
 
         if (uiState.showKhatamDialog) {
             KhatamDialog(onDismiss = viewModel::dismissKhatamDialog)
@@ -455,7 +485,9 @@ fun HomeScreenContent(
     onSelectTilawahJenis: (String) -> Unit = {},
     onSaveTilawahSession: (String, com.islami.Aha.data.quran.AyatPosition, com.islami.Aha.data.quran.AyatPosition) -> Unit = { _, _, _ -> },
     onSetTilawahPenanda: (String, com.islami.Aha.data.quran.AyatPosition) -> Unit = { _, _ -> },
-    onSetTilawahTarget: (Int?) -> Unit = {}
+    onSetTilawahTarget: (Int?) -> Unit = {},
+    onLengkapiProfil: () -> Unit = {},
+    onTundaLengkapiProfil: () -> Unit = {}
 ) {
     if (uiState.isLoading) {
         return
@@ -529,6 +561,15 @@ fun HomeScreenContent(
                         message = uiState.syncNoticeMessage.ifBlank {
                             stringResource(R.string.offline_sync_notice_default)
                         }
+                    )
+                }
+            }
+
+            if (uiState.tampilLengkapiProfil) {
+                item {
+                    com.islami.Aha.ui.home.components.LengkapiProfilBanner(
+                        onLengkapi = onLengkapiProfil,
+                        onNanti = onTundaLengkapiProfil
                     )
                 }
             }

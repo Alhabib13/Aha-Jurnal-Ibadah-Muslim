@@ -7,16 +7,36 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class GenderProfile { UNSPECIFIED, MALE, FEMALE }
 
-/** Rentang usia dari onboarding. [code] = nilai yang disimpan di Firestore (meta/profile.rentangUsia). */
+/**
+ * Rentang usia dari onboarding. [code] = nilai di Firestore (meta/profile.rentangUsia dan
+ * users/{uid}.rentang_umur), sama dengan ResearchSchema.Profil.RENTANG_UMUR_VALUES.
+ */
 enum class AgeRange(val code: String, val label: String) {
-    UNDER_13("<13", "Di bawah 13 tahun"),
-    TEEN("13-17", "13–17 tahun"),
-    ADULT("18+", "18 tahun ke atas");
+    UNDER_15("<15", "Di bawah 15 tahun"),
+    AGE_15_18("15-18", "15–18 tahun"),
+    AGE_19_25("19-25", "19–25 tahun"),
+    AGE_26_35("26-35", "26–35 tahun"),
+    OVER_35(">35", "Di atas 35 tahun");
 
-    val isMinor: Boolean get() = this != ADULT
+    /** Rentang yang (sebagian) di bawah 18 tahun: perlu pernyataan izin orang tua/wali. */
+    val isMinor: Boolean get() = this == UNDER_15 || this == AGE_15_18
 
     companion object {
-        fun fromCode(code: String?): AgeRange? = entries.firstOrNull { it.code == code }
+        /** Kode lama sebelum v1.2.0 ("<13", "13-17", "18+"): hanya "<13" yang pasti masuk rentang baru. */
+        fun fromCode(code: String?): AgeRange? =
+            entries.firstOrNull { it.code == code } ?: if (code == "<13") UNDER_15 else null
+    }
+}
+
+/** Kesibukan utama dari onboarding. [code] = users/{uid}.status_aktivitas. */
+enum class StatusAktivitas(val code: String, val label: String) {
+    PELAJAR("pelajar", "Pelajar"),
+    MAHASISWA("mahasiswa", "Mahasiswa"),
+    PEKERJA("pekerja", "Pekerja"),
+    LAINNYA("lainnya", "Lainnya");
+
+    companion object {
+        fun fromCode(code: String?): StatusAktivitas? = entries.firstOrNull { it.code == code }
     }
 }
 
@@ -28,6 +48,8 @@ object UserPreferencesManager {
     private const val KEY_SEEN_PROMPT = "seen_gender_prompt"
     private const val KEY_AGE_RANGE = "age_range"
     private const val KEY_GUARDIAN_OK = "guardian_ok"
+    private const val KEY_STATUS_AKTIVITAS = "status_aktivitas"
+    private const val KEY_PILIHAN_AWAL = "pilihan_awal"
     
     private val _gender = MutableStateFlow(GenderProfile.UNSPECIFIED)
     val gender: StateFlow<GenderProfile> = _gender.asStateFlow()
@@ -54,6 +76,13 @@ object UserPreferencesManager {
     private val _guardianOk = MutableStateFlow(false)
     val guardianOk: StateFlow<Boolean> = _guardianOk.asStateFlow()
 
+    private val _statusAktivitas = MutableStateFlow<StatusAktivitas?>(null)
+    val statusAktivitas: StateFlow<StatusAktivitas?> = _statusAktivitas.asStateFlow()
+
+    /** Snapshot ibadah yang dicentang di onboarding; null = tidak menjawab. */
+    private val _pilihanAwal = MutableStateFlow<Set<String>?>(null)
+    val pilihanAwal: StateFlow<Set<String>?> = _pilihanAwal.asStateFlow()
+
     private var prefs: SharedPreferences? = null
 
     /** Profil ibadah permanen: sekali diisi (laki-laki/perempuan) tidak bisa diganti dari aplikasi. */
@@ -69,6 +98,8 @@ object UserPreferencesManager {
         _haidhDates.value = sharedPreferences.getStringSet(KEY_HAIDH_DATES, emptySet()) ?: emptySet()
         _ageRange.value = AgeRange.fromCode(sharedPreferences.getString(KEY_AGE_RANGE, null))
         _guardianOk.value = sharedPreferences.getBoolean(KEY_GUARDIAN_OK, false)
+        _statusAktivitas.value = StatusAktivitas.fromCode(sharedPreferences.getString(KEY_STATUS_AKTIVITAS, null))
+        _pilihanAwal.value = sharedPreferences.getStringSet(KEY_PILIHAN_AWAL, null)?.toSet()
         syncHaidhDates()
     }
 
@@ -103,6 +134,17 @@ object UserPreferencesManager {
         _ageRange.value = range
         _guardianOk.value = range.isMinor && guardianOk
         prefs?.edit()?.putString(KEY_AGE_RANGE, range.code)?.putBoolean(KEY_GUARDIAN_OK, _guardianOk.value)?.apply()
+    }
+
+    fun setStatusAktivitas(status: StatusAktivitas) {
+        _statusAktivitas.value = status
+        prefs?.edit()?.putString(KEY_STATUS_AKTIVITAS, status.code)?.apply()
+    }
+
+    /** Disimpan sekali saat onboarding; [pilihan] kosong = "belum ada yang rutin". */
+    fun setPilihanAwal(pilihan: Set<String>) {
+        _pilihanAwal.value = pilihan
+        prefs?.edit()?.putStringSet(KEY_PILIHAN_AWAL, pilihan)?.apply()
     }
 
     private fun applyGender(profile: GenderProfile) {
@@ -187,8 +229,12 @@ object UserPreferencesManager {
         _hasSeenPrompt.value = false
         _ageRange.value = null
         _guardianOk.value = false
+        _statusAktivitas.value = null
+        _pilihanAwal.value = null
         prefs?.edit()?.apply {
             remove(KEY_AGE_RANGE)
+            remove(KEY_STATUS_AKTIVITAS)
+            remove(KEY_PILIHAN_AWAL)
             remove(KEY_GUARDIAN_OK)
             remove(KEY_GENDER)
             remove(KEY_JUMAT_ENABLED)

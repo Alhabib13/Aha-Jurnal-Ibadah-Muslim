@@ -10,7 +10,10 @@ import androidx.work.WorkManager
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import com.islami.Aha.data.local.DeletedSyncDao
 import com.islami.Aha.data.local.DzikirHabitDao
 import com.islami.Aha.data.local.HabitDao
@@ -19,6 +22,8 @@ import com.islami.Aha.data.local.ResearchLogDao
 import com.islami.Aha.data.model.DeletedSyncRecord
 import com.islami.Aha.data.model.ResearchLogEntity
 import com.islami.Aha.data.repository.CloudSyncStatus
+import com.islami.Aha.util.GenderProfile
+import com.islami.Aha.util.UserPreferencesManager
 import com.islami.Aha.worker.SyncResearchLogsWorker
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.TimeoutCancellationException
@@ -67,6 +72,8 @@ class ResearchLogRepository @Inject constructor(
         const val CONSENT_SETUJU = "setuju"
         const val CONSENT_TOLAK = "tolak"
         private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
+        /** Isi profil penelitian terakhir yang berhasil dikirim, per akun. */
+        private const val KEY_PROFIL_TERKIRIM_PREFIX = "research_profil_terkirim_"
 
 
         private fun prefixSesiDzikir(tanggal: String, slug: String, idHabit: String) =
@@ -103,7 +110,7 @@ class ResearchLogRepository @Inject constructor(
         ref: SlotRef?,
         tanggal: String,
         jamPencatatanMs: Long = System.currentTimeMillis(),
-        sumber: String = ResearchSchema.Sumber.TIDAK_DIKETAHUI,
+        sumber: String = ResearchSchema.Sumber.BUKA_APLIKASI,
         jumlah: Int? = null,
         jilid: Int? = null,
         jumlahAyat: Int? = null,
@@ -153,6 +160,51 @@ class ResearchLogRepository @Inject constructor(
         deletedSyncDao.deleteByRecordIdAndType(key, RECORD_TYPE)
     }
 
+    /**
+     * Pengguna sendiri menekan "Tertinggal" di notifikasi sholat wajib: baris "tidak" dengan
+     * jam = saat menekan dan sumber = dari_notifikasi (beda dari "tidak" hasil penyimpulan,
+     * yang jam & sumbernya null). ID sama dengan baris "dikerjakan", jadi centang belakangan
+     * menimpanya. Baris "dikerjakan" yang sudah ada tidak pernah ditimpa jadi "tidak".
+     * Mengembalikan true bila baris ditulis.
+     */
+    suspend fun recordTidakDariNotifikasi(
+        ref: SlotRef?,
+        tanggal: String,
+        jamPencatatanMs: Long = System.currentTimeMillis()
+    ): Boolean {
+        ref ?: return false
+        if (ref.slot.jenisIbadah != ResearchSchema.Jenis.SHOLAT_WAJIB) return false
+        val key = slotKeyOrNull(ref, tanggal) ?: return false
+        if (researchLogDao.getBySlotKey(key)?.status == ResearchSchema.Status.DIKERJAKAN) return false
+        researchLogDao.upsert(
+            ResearchLogEntity(
+                slotKey = key,
+                tanggal = tanggal,
+                jenisIbadah = ref.slot.jenisIbadah,
+                namaDetail = ref.slot.namaDetail,
+                namaDetailAsli = null,
+                status = ResearchSchema.Status.TIDAK,
+                jumlah = null,
+                jilid = null,
+                jamPencatatan = jamPencatatanMs,
+                sumberPencatatan = ResearchSchema.Sumber.DARI_NOTIFIKASI,
+                ownerUid = currentUid(),
+                isSynced = false,
+                updatedAt = System.currentTimeMillis(),
+                jumlahAyat = null,
+                juz = null,
+                offsetWaktu = ResearchTime.offsetString(jamPencatatanMs),
+                selisihMenitDariAdzan = null,
+                modePencatatan = null,
+                waktuDzikir = null,
+                targetHitungan = null,
+                durasiDetik = null
+            )
+        )
+        deletedSyncDao.deleteByRecordIdAndType(key, RECORD_TYPE)
+        return true
+    }
+
     /** Centang dibatalkan (keputusan C): baris dihapus, bukan diubah jadi "tidak". */
     suspend fun remove(ref: SlotRef?, tanggal: String) {
         ref ?: return
@@ -191,7 +243,7 @@ class ResearchLogRepository @Inject constructor(
     }
 
     /**
-     * "Hapus data penelitianku": hapus semua dokumen `logs` milik akun ini di server,
+     * "Hapus data penelitianku": hapus semua dokumen `logs` dan profil `users/{uid}` milik akun ini di server,
      * berhenti ikut penelitian, dan tandai catatan lokal belum terkirim (catatan ibadah di HP
      * tetap ada; bila kelak setuju lagi, catatan itu ikut terkirim sesuai keputusan pemilik proyek).
      */
@@ -213,6 +265,11 @@ class ResearchLogRepository @Inject constructor(
                 chunk.forEach { batch.delete(it.reference) }
                 withTimeout(WRITE_TIMEOUT_MS) { batch.commit().await() }
             }
+            // Profil penelitian ikut dihapus (subkoleksi penanda/target/dzikir_habits tidak tersentuh).
+            withTimeout(WRITE_TIMEOUT_MS) {
+                db.collection(ResearchSchema.COLLECTION_USERS).document(uid).delete().await()
+            }
+            sharedPreferences.edit().remove(KEY_PROFIL_TERKIRIM_PREFIX + uid).apply()
             researchLogDao.markAllUnsynced()
             deletedSyncDao.deleteByType(RECORD_TYPE)
             CloudSyncStatus.success(docs.size)
@@ -244,7 +301,7 @@ class ResearchLogRepository @Inject constructor(
         durasiDetik: Int? = null,
         namaDetailAsli: String? = null,
         nowMs: Long = System.currentTimeMillis(),
-        sumber: String = ResearchSchema.Sumber.TIDAK_DIKETAHUI
+        sumber: String = ResearchSchema.Sumber.BUKA_APLIKASI
     ): String? {
         if (slug !in ResearchSchema.DETAIL_PER_JENIS.getValue(ResearchSchema.Jenis.DZIKIR)) return null
         if (modePencatatan !in ResearchSchema.MODE_PENCATATAN || waktuDzikir !in ResearchSchema.WAKTU_DZIKIR) return null
@@ -410,6 +467,13 @@ class ResearchLogRepository @Inject constructor(
             }
         }
 
+        if (bolehUnggah) {
+            runCatching { syncProfilPenelitian(uid) }.onFailure { error ->
+                if (error.isRetryable()) return failure(changed, retry = true, error)
+                firstIssue = firstIssue ?: failure(changed, retry = false, error)
+            }
+        }
+
         val pendingUploads = if (bolehUnggah) researchLogDao.getPendingUploads(uid) else emptyList()
         for (row in pendingUploads) {
             val result = runCatching {
@@ -450,7 +514,9 @@ class ResearchLogRepository @Inject constructor(
 
     private fun clearRestoreFlags() {
         val editor = sharedPreferences.edit()
-        sharedPreferences.all.keys.filter { it.startsWith(KEY_RESTORED_PREFIX) }.forEach { editor.remove(it) }
+        sharedPreferences.all.keys
+            .filter { it.startsWith(KEY_RESTORED_PREFIX) || it.startsWith(KEY_PROFIL_TERKIRIM_PREFIX) }
+            .forEach { editor.remove(it) }
         editor.apply()
     }
 
@@ -461,6 +527,95 @@ class ResearchLogRepository @Inject constructor(
         clearRestoreFlags()
         tilawahState.clearLocal()
         dzikirHabitDao.deleteNotOwnedBy(uid)
+    }
+
+    /**
+     * Isi profil penelitian `users/{uid}` dari pilihan onboarding, atau null bila profil ibadah
+     * belum diatur (jenis_kelamin wajib di skema). Rentang umur kode lama dikirim null.
+     */
+    internal fun isiProfilPenelitian(): Map<String, Any?>? {
+        val jenisKelamin = when (UserPreferencesManager.gender.value) {
+            GenderProfile.MALE -> ResearchSchema.Profil.LAKI_LAKI
+            GenderProfile.FEMALE -> ResearchSchema.Profil.PEREMPUAN
+            GenderProfile.UNSPECIFIED -> return null
+        }
+        return mapOf(
+            ResearchSchema.Profil.JENIS_KELAMIN to jenisKelamin,
+            ResearchSchema.Profil.RENTANG_UMUR to UserPreferencesManager.ageRange.value?.code
+                ?.takeIf { it in ResearchSchema.Profil.RENTANG_UMUR_VALUES },
+            ResearchSchema.Profil.STATUS_AKTIVITAS to UserPreferencesManager.statusAktivitas.value?.code,
+            ResearchSchema.Profil.PILIHAN_AWAL to UserPreferencesManager.pilihanAwal.value
+                ?.filter { it in ResearchSchema.Profil.PILIHAN_AWAL_VALUES }?.sorted()
+        )
+    }
+
+    /**
+     * Kirim profil penelitian bila isinya berubah sejak pengiriman terakhir. Dokumen baru
+     * mendapat tanggal_mulai = waktu server; dokumen lama hanya diperbarui (tanggal_mulai tetap).
+     * Isian yang kosong di HP (mis. setelah instal ulang lalu login) lebih dulu dipulihkan dari
+     * server, supaya jawaban lama tidak tertimpa null.
+     */
+    private suspend fun syncProfilPenelitian(uid: String) {
+        val kunci = KEY_PROFIL_TERKIRIM_PREFIX + uid
+        val awal = isiProfilPenelitian() ?: return
+        if (sharedPreferences.getString(kunci, null) == awal.values.joinToString("|")) return
+        val db = firestore ?: return
+        val ref = db.collection(ResearchSchema.COLLECTION_USERS).document(uid)
+        val sidik = withTimeout(WRITE_TIMEOUT_MS) {
+            val snap = ref.get(Source.SERVER).await()
+            if (snap.exists()) {
+                pulihkanProfilKosong(
+                    rentangUmur = snap.getString(ResearchSchema.Profil.RENTANG_UMUR),
+                    statusAktivitas = snap.getString(ResearchSchema.Profil.STATUS_AKTIVITAS),
+                    pilihanAwal = (snap.get(ResearchSchema.Profil.PILIHAN_AWAL) as? List<*>)?.filterIsInstance<String>()
+                )
+            }
+            val isi = isiProfilPenelitian() ?: return@withTimeout null
+            if (snap.exists()) {
+                ref.set(isi, SetOptions.merge()).await()
+            } else {
+                ref.set(isi + (ResearchSchema.Profil.TANGGAL_MULAI to FieldValue.serverTimestamp())).await()
+            }
+            isi.values.joinToString("|")
+        } ?: return
+        sharedPreferences.edit().putString(kunci, sidik).apply()
+    }
+
+    /**
+     * Saat login: pulihkan usia/kesibukan/pilihan awal dari profil penelitian di server, supaya
+     * pengguna yang pernah mengisi tidak ditanya ulang. Gagal (offline) = diam saja; worker
+     * unggah tetap memulihkan sebelum menulis.
+     */
+    suspend fun pulihkanProfilDariServer() {
+        val uid = currentUid() ?: return
+        val db = firestore ?: return
+        runCatching {
+            val snap = withTimeout(WRITE_TIMEOUT_MS) {
+                db.collection(ResearchSchema.COLLECTION_USERS).document(uid).get(Source.SERVER).await()
+            }
+            if (snap.exists()) {
+                pulihkanProfilKosong(
+                    rentangUmur = snap.getString(ResearchSchema.Profil.RENTANG_UMUR),
+                    statusAktivitas = snap.getString(ResearchSchema.Profil.STATUS_AKTIVITAS),
+                    pilihanAwal = (snap.get(ResearchSchema.Profil.PILIHAN_AWAL) as? List<*>)?.filterIsInstance<String>()
+                )
+            }
+        }
+    }
+
+    /** Isi pilihan lokal yang masih kosong dengan nilai dari server; nilai lokal yang ada menang. */
+    internal fun pulihkanProfilKosong(rentangUmur: String?, statusAktivitas: String?, pilihanAwal: List<String>?) {
+        if (UserPreferencesManager.ageRange.value == null) {
+            com.islami.Aha.util.AgeRange.fromCode(rentangUmur)?.let {
+                UserPreferencesManager.setAgeRange(it, UserPreferencesManager.guardianOk.value)
+            }
+        }
+        if (UserPreferencesManager.statusAktivitas.value == null) {
+            com.islami.Aha.util.StatusAktivitas.fromCode(statusAktivitas)?.let { UserPreferencesManager.setStatusAktivitas(it) }
+        }
+        if (UserPreferencesManager.pilihanAwal.value == null && pilihanAwal != null) {
+            UserPreferencesManager.setPilihanAwal(pilihanAwal.toSet())
+        }
     }
 
     private fun slotKeyOrNull(ref: SlotRef, tanggal: String): String? =

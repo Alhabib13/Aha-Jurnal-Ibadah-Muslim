@@ -83,7 +83,7 @@ fun ResearchConsentContent(
                         "• Tilawah: jumlah ayat, halaman, dan juz. Iqro: jilid dan halaman.\n" +
                         "• Dzikir: cara mencatat dan target hitungan bila kamu mengaturnya.\n" +
                         "• Selisih menit antara jam mencatat dan waktu adzan, dihitung di HP.\n" +
-                        "• Profil ibadah (laki-laki/perempuan) dan rentang usia."
+                        "• Profil ibadah (laki-laki/perempuan), rentang usia, kesibukan utama, dan ibadah yang kamu centang sebagai kebiasaan di awal."
                 )
                 Bagian(
                     "Apa yang tidak dicatat",
