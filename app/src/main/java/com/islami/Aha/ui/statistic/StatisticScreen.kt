@@ -1,5 +1,8 @@
 package com.islami.Aha.ui.statistic
 
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import com.islami.Aha.ui.theme.temaGelap
 
 import com.islami.Aha.ui.theme.teks
@@ -646,5 +649,57 @@ private fun KartuKhatam(s: StatisticUiState) {
             }
         }
         Text(s.khatamKeterangan, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        s.khatamPerkiraan?.let { p -> PerkiraanKhatamBlok(p) }
+    }
+}
+
+private val FORMAT_PERKIRAAN = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("id-ID"))
+
+private fun tanggalPerkiraan(t: LocalDate): String =
+    listOf(t.format(FORMAT_PERKIRAAN), com.islami.Aha.util.DateUtils.hijriFormatted(t))
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+
+/** Sisa halaman + perkiraan khatam dari kecepatan nyata 14 hari terakhir dan dari target harian. */
+@Composable
+private fun PerkiraanKhatamBlok(p: PerkiraanKhatam) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("${p.sisaHalaman}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Emas.teks())
+            Text(" halaman lagi menuju khatam", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 3.dp))
+        }
+        val laju = p.lajuHarian
+        val selesaiLaju = p.selesaiMenurutLaju
+        if (laju != null && selesaiLaju != null) {
+            BarisPerkiraan(
+                "Dengan kecepatanmu ${JENDELA_LAJU_HARI} hari terakhir (±${"%.1f".format(Locale.forLanguageTag("id-ID"), laju)} hlm/hari)",
+                tanggalPerkiraan(selesaiLaju)
+            )
+        } else if (p.sisaHalaman > 0) {
+            Text(
+                "Belum ada bacaan harian dalam ${JENDELA_LAJU_HARI} hari terakhir, jadi perkiraan dari kecepatanmu belum bisa dihitung.",
+                fontSize = 12.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        val target = p.target
+        val selesaiTarget = p.selesaiMenurutTarget
+        if (target != null && selesaiTarget != null) {
+            BarisPerkiraan("Dengan target $target hlm/hari", tanggalPerkiraan(selesaiTarget))
+        }
+    }
+}
+
+@Composable
+private fun BarisPerkiraan(dasar: String, tanggal: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(dasar, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Khatam ≈ $tanggal", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
     }
 }

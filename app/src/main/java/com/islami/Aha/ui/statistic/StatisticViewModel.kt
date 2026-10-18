@@ -69,6 +69,7 @@ data class StatisticUiState(
     /** Juz posisi bacaan harian; null = belum ada sesi. */
     val khatamJuz: Int? = null,
     val khatamKeterangan: String = "",
+    val khatamPerkiraan: PerkiraanKhatam? = null,
     val sholatBulan: RingkasanSholatBulan = RingkasanSholatBulan()
 ) {
     val tanggalDipilihHariIni: Boolean get() = tanggalDipilih == DateUtils.getTodayKey()
@@ -209,6 +210,18 @@ class StatisticViewModel @Inject constructor(
             "Bacaan harian sampai ${com.islami.Aha.ui.home.components.namaSurah(it.surah)} ${it.ayat} · " +
                 "halaman ${QuranCalculator.halamanOf(it)} dari ${QuranData.TOTAL_HALAMAN}"
         } ?: "Belum ada sesi bacaan harian. Catat di Beranda, tab Tilawah."
+        val khatamPerkiraan = posisi?.let {
+            val hari = LocalDate.now()
+            perkiraanKhatam(
+                halamanSekarang = QuranCalculator.halamanOf(it),
+                totalHalaman = QuranData.TOTAL_HALAMAN,
+                sesiTilawah = activityStats.getAktivitasLainBetween(
+                    hari.minusDays((JENDELA_LAJU_HARI - 1).toLong()).toString(), hari.toString()
+                ),
+                hariIni = hari,
+                target = tilawahState.targetHalaman()
+            )
+        }
 
         val tglDipilih = runCatching { LocalDate.parse(tanggal) }.getOrNull()
 
@@ -236,6 +249,7 @@ class StatisticViewModel @Inject constructor(
                 punyaSunnah = sunnahHabits.isNotEmpty(),
                 khatamJuz = khatamJuz,
                 khatamKeterangan = khatamKeterangan,
+                khatamPerkiraan = khatamPerkiraan,
                 sholatBulan = sholatBulan
             )
         }

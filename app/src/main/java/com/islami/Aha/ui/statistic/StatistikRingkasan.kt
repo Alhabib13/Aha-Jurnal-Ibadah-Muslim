@@ -214,3 +214,51 @@ fun susunRingkasanSholatBulan(
         harian = harian
     )
 }
+
+/**
+ * Perkiraan khatam bacaan harian. [lajuHarian] = halaman bacaan harian 14 hari terakhir / 14
+ * (kecepatan nyata, bukan target); null bila tidak ada bacaan. Tanggal perkiraan dihitung dari
+ * laju nyata dan, bila ada, dari target halaman per hari.
+ */
+data class PerkiraanKhatam(
+    val halaman: Int,
+    val sisaHalaman: Int,
+    val lajuHarian: Double?,
+    val selesaiMenurutLaju: LocalDate?,
+    val target: Int?,
+    val selesaiMenurutTarget: LocalDate?
+)
+
+const val JENDELA_LAJU_HARI = 14
+
+fun perkiraanKhatam(
+    halamanSekarang: Int,
+    totalHalaman: Int,
+    sesiTilawah: List<ResearchLogEntity>,
+    hariIni: LocalDate,
+    target: Int?
+): PerkiraanKhatam {
+    val awalJendela = hariIni.minusDays((JENDELA_LAJU_HARI - 1).toLong()).toString()
+    val halamanJendela = sesiTilawah
+        .filter {
+            it.jenisIbadah == ResearchSchema.Jenis.TILAWAH &&
+                it.namaDetail == ResearchSchema.Detail.BACAAN_HARIAN &&
+                it.status == ResearchSchema.Status.DIKERJAKAN &&
+                it.tanggal >= awalJendela && it.tanggal <= hariIni.toString()
+        }
+        .sumOf { it.jumlah ?: 0 }
+    val sisa = (totalHalaman - halamanSekarang).coerceAtLeast(0)
+    val laju = (halamanJendela.toDouble() / JENDELA_LAJU_HARI).takeIf { it > 0 }
+    fun selesai(perHari: Double?): LocalDate? =
+        if (perHari == null || perHari <= 0 || sisa == 0) null
+        else hariIni.plusDays(kotlin.math.ceil(sisa / perHari).toLong())
+    val targetSah = target?.takeIf { it > 0 }
+    return PerkiraanKhatam(
+        halaman = halamanSekarang,
+        sisaHalaman = sisa,
+        lajuHarian = laju,
+        selesaiMenurutLaju = selesai(laju),
+        target = targetSah,
+        selesaiMenurutTarget = selesai(targetSah?.toDouble())
+    )
+}
