@@ -43,6 +43,7 @@ const profil = (o = {}) => ({
   rentang_umur: "15-18",
   status_aktivitas: "pelajar",
   tanggal_mulai: serverTimestamp(),
+  pilihan_awal: ["dhuha", "dzikir_pagi"],
   ...o,
 });
 
@@ -155,6 +156,26 @@ describe("users/{uid}: profil penelitian", () => {
     await assertFails(updateDoc(doc(db(ALICE), "users", ALICE), { tanggal_mulai: Timestamp.now() }));
   });
 
+  test("pilihan_awal: null / [] / nilai katalog sah, selain itu ditolak", async () => {
+    const ref = doc(db(ALICE), "users", ALICE);
+    await assertSucceeds(setDoc(ref, profil({ pilihan_awal: null })));
+    await env.clearFirestore();
+    await assertSucceeds(setDoc(ref, profil({ pilihan_awal: [] })));
+    await env.clearFirestore();
+    await assertFails(setDoc(ref, profil({ pilihan_awal: ["dhuha", "main_game"] })));
+    await assertFails(setDoc(ref, profil({ pilihan_awal: "dhuha" })));
+    const p = profil();
+    delete p.pilihan_awal;
+    await assertFails(setDoc(ref, p));
+  });
+
+  test("cara aplikasi: buat dengan serverTimestamp, lalu merge tanpa tanggal_mulai", async () => {
+    await assertSucceeds(setDoc(doc(db(ALICE), "users", ALICE), profil()));
+    const ubah = { jenis_kelamin: "perempuan", rentang_umur: "26-35", status_aktivitas: "pekerja",
+                   pilihan_awal: ["tahajud"] };
+    await assertSucceeds(setDoc(doc(db(ALICE), "users", ALICE), ubah, { merge: true }));
+  });
+
   test("hapus hanya oleh pemilik", async () => {
     await seed(`users/${ALICE}`, profil({ tanggal_mulai: Timestamp.now() }));
     await assertFails(deleteDoc(doc(db(BOB), "users", ALICE)));
@@ -240,6 +261,22 @@ describe("logs: status tiga nilai", () => {
     await assertSucceeds(tulisLog({ status: "tidak", jam_pencatatan: null, sumber_pencatatan: null }));
     await assertFails(tulisLog({ status: "tidak", sumber_pencatatan: null }));
     await assertFails(tulisLog({ status: "tidak", jam_pencatatan: null }));
+  });
+
+  test("tidak dari tombol Tertinggal: sholat wajib, jam + sumber dari_notifikasi", async () => {
+    const tt = { status: "tidak", sumber_pencatatan: "dari_notifikasi" };
+    await assertSucceeds(tulisLog(tt));
+    await assertFails(tulisLog({ ...tt, jam_pencatatan: null }));
+    await assertFails(tulisLog({ ...tt, sumber_pencatatan: "buka_aplikasi" }));
+    await assertFails(tulisLog({ ...tt, sumber_pencatatan: "tidak_diketahui" }));
+    await assertFails(tulisLog({ ...tt, selisih_menit_dari_adzan: 5 }));
+    await assertFails(tulisLog({ ...DZ, ...tt, nama_detail: "dzikir_petang", mode_pencatatan: null, waktu_dzikir: "petang" }));
+    await assertFails(tulisLog({ status: "udzur", sumber_pencatatan: "dari_notifikasi" }));
+  });
+
+  test("tidak dari Tertinggal lalu dicentang: tertimpa jadi dikerjakan", async () => {
+    await assertSucceeds(tulisLog({ status: "tidak", sumber_pencatatan: "dari_notifikasi" }));
+    await assertSucceeds(tulisLog({ sumber_pencatatan: "buka_aplikasi" }));
   });
 
   test("tidak hanya untuk sholat wajib dan dzikir", async () => {
@@ -670,8 +707,11 @@ describe("meta/profile: profil ibadah permanen & rentang usia", () => {
   });
 
   test("rentang usia & izin wali divalidasi, usia boleh berubah", async () => {
-    await assertSucceeds(setDoc(prof(), { rentangUsia: "13-17", izinWali: true }));
-    await assertSucceeds(setDoc(prof(), { rentangUsia: "18+", izinWali: false }, { merge: true }));
+    await assertSucceeds(setDoc(prof(), { rentangUsia: "15-18", izinWali: true }));
+    await assertSucceeds(setDoc(prof(), { rentangUsia: "19-25", izinWali: false }, { merge: true }));
+    await assertSucceeds(setDoc(prof(), { rentangUsia: ">35" }, { merge: true }));
+    // Kode lama (sebelum v1.2.0) tetap sah supaya dokumen lama bisa diperbarui.
+    await assertSucceeds(setDoc(prof(), { rentangUsia: "18+" }, { merge: true }));
     await assertFails(setDoc(prof(), { rentangUsia: "20" }, { merge: true }));
     await assertFails(setDoc(prof(), { izinWali: "ya" }, { merge: true }));
     await assertFails(setDoc(prof(), { genderProfile: "lainnya" }, { merge: true }));
@@ -679,6 +719,66 @@ describe("meta/profile: profil ibadah permanen & rentang usia", () => {
 
   test("profil orang lain tetap tidak bisa ditulis", async () => {
     await assertFails(setDoc(doc(db(BOB), `users/${ALICE}/meta/profile`), { genderProfile: "MALE" }));
+  });
+
+  test("field tak dikenal (role, isAdmin) ditolak saat dibuat maupun diubah", async () => {
+    await assertFails(setDoc(prof(), { name: "Alice", role: "admin" }));
+    await assertSucceeds(setDoc(prof(), { name: "Alice", updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(prof(), { role: "admin" }, { merge: true }));
+    await assertFails(setDoc(prof(), { isAdmin: true }, { merge: true }));
+    await assertFails(updateDoc(prof(), { updatedAt: 123 }));
+  });
+
+  test("semua field yang ditulis aplikasi tetap diterima", () =>
+    assertSucceeds(setDoc(prof(), {
+      name: "Alice", email: "a@b.c", genderProfile: "FEMALE", rentangUsia: "18+", izinWali: false,
+      isHaidhMode: false, haidhDates: [], avatarBase64: "abc", avatarUrl: null,
+      lastUsernameChangedAt: Date.now(), updatedAt: serverTimestamp(),
+    })));
+
+  test("dokumen lama dengan field lain tetap bisa diperbarui (field itu tidak disentuh)", async () => {
+    await seed(`users/${ALICE}/meta/profile`, { name: "Alice", fieldLama: "x" });
+    await assertSucceeds(setDoc(prof(), { isHaidhMode: true, updatedAt: serverTimestamp() }, { merge: true }));
+    await assertFails(setDoc(prof(), { fieldLama: "y" }, { merge: true }));
+  });
+});
+
+describe("logs: tanggal tidak boleh di masa depan", () => {
+  // Tanggal kalender UTC, digeser n hari dari sekarang.
+  const hari = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+
+  test("hari ini, kemarin, dan besok (selisih zona waktu) diterima", async () => {
+    await assertSucceeds(tulisLog({ tanggal: hari(0) }));
+    await assertSucceeds(tulisLog({ tanggal: hari(-1) }));
+    await assertSucceeds(tulisLog({ tanggal: hari(1) }));
+  });
+
+  test("lusa dan seterusnya ditolak", async () => {
+    await assertFails(tulisLog({ tanggal: hari(2) }));
+    await assertFails(tulisLog({ tanggal: "2099-01-01" }));
+  });
+
+  test("tanggal mustahil ditolak", () => assertFails(tulisLog({ tanggal: "2026-02-31" })));
+
+  test("dokumen lama tidak bisa digeser ke masa depan lewat update", async () => {
+    const lama = log({ tanggal: hari(0) });
+    await seed(`logs/${logId(lama)}`, lama);
+    await assertFails(setDoc(doc(db(ALICE), "logs", logId(lama)), { ...lama, tanggal: "2099-01-01" }));
+  });
+});
+
+describe("admin hanya lewat token", () => {
+  const adminDb = (claims) => env.authenticatedContext(ALICE, claims).firestore();
+
+  test("role admin di meta/profile tidak memberi akses admin", async () => {
+    await seed(`users/${ALICE}/meta/profile`, { role: "admin" });
+    await assertFails(setDoc(doc(db(ALICE), "app_config/flags"), { x: 1 }));
+    await assertFails(setDoc(doc(db(ALICE), "hadith_contents/h1"), { x: 1 }));
+  });
+
+  test("custom claim admin tetap bisa menulis konten", async () => {
+    await assertSucceeds(setDoc(doc(adminDb({ admin: true }), "app_config/flags"), { x: 1 }));
+    await assertSucceeds(setDoc(doc(adminDb({ role: "admin" }), "surah_verses/s1"), { x: 1 }));
   });
 });
 

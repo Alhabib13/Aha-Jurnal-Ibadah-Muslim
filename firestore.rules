@@ -4,11 +4,12 @@ service cloud.firestore {
     return request.auth != null;
   }
 
+  // Admin HANYA lewat custom claim di token (diberikan dari server/Admin SDK).
+  // Jangan membaca dokumen yang bisa ditulis pengguna sendiri (mis. meta/profile).
   function isAdmin() {
     return isSignedIn() && (
       request.auth.token.admin == true ||
-      request.auth.token.role == "admin" ||
-      get(/databases/$(database)/documents/users/$(request.auth.uid)/meta/profile).data.role == "admin"
+      request.auth.token.role == "admin"
     );
   }
 
@@ -16,11 +17,31 @@ service cloud.firestore {
     return isSignedIn() && request.auth.uid == userId;
   }
 
+  // Semua field yang pernah ditulis aplikasi ke meta/profile (avatarUrl = versi lama).
+  function profileFields() {
+    return ["name", "email", "genderProfile", "rentangUsia", "izinWali", "isHaidhMode",
+            "haidhDates", "avatarBase64", "avatarUrl", "lastUsernameChangedAt", "updatedAt"];
+  }
+
+  // Field di luar daftar ditolak. Saat update hanya field yang BERUBAH yang diperiksa,
+  // supaya dokumen lama yang terlanjur punya field lain tetap bisa diperbarui.
+  function profileKeysDikenal() {
+    return request.resource.data.keys().hasOnly(profileFields());
+  }
+
+  function profileUbahanDikenal() {
+    return request.resource.data.diff(resource.data).affectedKeys().hasOnly(profileFields());
+  }
+
   function validProfileWrite(data) {
-    return (!("name" in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 100))
+    return (!("updatedAt" in data) || data.updatedAt is timestamp)
+        && (!("avatarUrl" in data) || data.avatarUrl == null || data.avatarUrl is string)
+        && (!("name" in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 100))
         && (!("email" in data) || (data.email is string && data.email.size() <= 254))
         && (!("genderProfile" in data) || data.genderProfile in ["UNSPECIFIED", "MALE", "FEMALE"])
-        && (!("rentangUsia" in data) || data.rentangUsia in ["<13", "13-17", "18+"])
+        // Kode baru (v1.2.0, sama dengan skema penelitian) + kode lama agar dokumen lama tetap bisa diperbarui.
+        && (!("rentangUsia" in data) || data.rentangUsia in ["<15", "15-18", "19-25", "26-35", ">35",
+                                                             "<13", "13-17", "18+"])
         && (!("izinWali" in data) || data.izinWali is bool)
         && (!("isHaidhMode" in data) || data.isHaidhMode is bool)
         && (!("haidhDates" in data) || data.haidhDates is list)
@@ -92,7 +113,17 @@ service cloud.firestore {
   // ===================================================================
 
   function profilFields() {
-    return ["jenis_kelamin", "rentang_umur", "status_aktivitas", "tanggal_mulai"];
+    return ["jenis_kelamin", "rentang_umur", "status_aktivitas", "tanggal_mulai", "pilihan_awal"];
+  }
+
+  // Snapshot ibadah yang dicentang di onboarding. null = tidak menjawab, [] = belum ada yang rutin.
+  // Sama dengan ResearchSchema.Profil.PILIHAN_AWAL_VALUES.
+  function pilihanAwalValues() {
+    return ["dhuha", "tahajud", "witir", "rawatib",
+            "senin_kamis", "ayyamul_bidh", "daud",
+            "dzikir_bada_sholat", "dzikir_pagi", "dzikir_petang", "dzikir_sebelum_tidur",
+            "istighfar", "sholawat", "tahlil", "asmaul_husna",
+            "bacaan_harian", "hafalan", "iqro"];
   }
 
   function validProfilPenelitian(data) {
@@ -103,7 +134,10 @@ service cloud.firestore {
             || data.rentang_umur in ["<15", "15-18", "19-25", "26-35", ">35"])
         && (data.status_aktivitas == null
             || data.status_aktivitas in ["pelajar", "mahasiswa", "pekerja", "lainnya"])
-        && data.tanggal_mulai is timestamp;
+        && data.tanggal_mulai is timestamp
+        && (data.pilihan_awal == null
+            || (data.pilihan_awal is list && data.pilihan_awal.size() <= 18
+                && data.pilihan_awal.hasOnly(pilihanAwalValues())));
   }
 
   function logFields() {
@@ -184,15 +218,21 @@ service cloud.firestore {
         || (data.status == "udzur" && data.jenis_ibadah in ["sholat_wajib", "puasa"]);
   }
 
-  // Jam & sumber hanya ada untuk tindakan nyata pengguna (dikerjakan).
-  // Baris "tidak"/"udzur" adalah hasil penyimpulan aplikasi -> keduanya null.
+  // Jam & sumber hanya ada untuk tindakan nyata pengguna.
+  // - dikerjakan: keduanya wajib.
+  // - "tidak" dari tombol "Tertinggal" di notifikasi (sholat wajib saja): jam = saat menekan,
+  //   sumber = dari_notifikasi. Pengakuan langsung pengguna, beda dari "tidak" hasil penyimpulan.
+  // - "tidak"/"udzur" hasil penyimpulan aplikasi: keduanya null.
   // "tidak_diketahui" = versi aplikasi yang belum bisa membedakan notifikasi vs
   // buka aplikasi (sebelum Tahap 4). Pipeline membuang baris bernilai ini.
   function validJamDanSumber(data) {
     return data.status == "dikerjakan"
         ? (data.jam_pencatatan is timestamp
            && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi", "tidak_diketahui"])
-        : (data.jam_pencatatan == null && data.sumber_pencatatan == null);
+        : (data.jam_pencatatan == null && data.sumber_pencatatan == null)
+          || (data.status == "tidak" && data.jenis_ibadah == "sholat_wajib"
+              && data.jam_pencatatan is timestamp
+              && data.sumber_pencatatan == "dari_notifikasi");
   }
 
   // tilawah: jumlah = halaman tersentuh (dihitung aplikasi), jumlah_ayat = ukuran halus,
@@ -270,12 +310,21 @@ service cloud.firestore {
         : data.selisih_menit_dari_adzan == null;
   }
 
+  // Ibadah tidak bisa dicatat untuk hari yang belum tiba. Batasnya "besok" menurut UTC
+  // supaya tanggal lokal di zona waktu mana pun (sampai UTC+14) tetap lolos.
+  // Tanggal mustahil (mis. 2026-02-31) membuat timestamp.date gagal -> ditolak.
+  function tanggalBukanMasaDepan(tanggal) {
+    let p = tanggal.split("-");
+    return timestamp.date(int(p[0]), int(p[1]), int(p[2])) <= request.time + duration.value(1, "d");
+  }
+
   function validLog(data, logId) {
     return data.keys().hasOnly(logFields())
         && data.keys().hasAll(logFields())
         && data.user_id == request.auth.uid
         && data.tanggal is string
         && data.tanggal.matches("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
+        && tanggalBukanMasaDepan(data.tanggal)
         && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "qadha_sholat", "puasa",
                                  "dzikir", "tilawah", "iqro"]
         && validDetail(data)
@@ -412,9 +461,11 @@ service cloud.firestore {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId)
                     && docId == "profile"
+                    && profileKeysDikenal()
                     && validProfileWrite(request.resource.data);
       allow update: if isOwner(userId)
                     && docId == "profile"
+                    && profileUbahanDikenal()
                     && validProfileWrite(request.resource.data)
                     && genderTidakBerubah();
       allow delete: if isOwner(userId);
