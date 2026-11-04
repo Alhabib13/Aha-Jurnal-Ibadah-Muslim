@@ -51,6 +51,57 @@ class ProfilPermanenTest {
     }
 
     @Test
+    fun `pengguna dari v1-1-1 - jenis kelamin dari server belum dikunci sampai dikonfirmasi`() {
+        // v1.1.1: jenis kelamin ada (bisa nilai lama dari server), usia belum pernah ditanyakan.
+        UserPreferencesManager.setGenderFromCloud(GenderProfile.MALE)
+        assertFalse(UserPreferencesManager.isGenderLocked)
+        assertTrue(UserPreferencesManager.perluKonfirmasiGender)
+
+        // Membetulkan lewat kartu konfirmasi, lalu terkunci.
+        UserPreferencesManager.konfirmasiGender(GenderProfile.FEMALE, belumTerkirim = true)
+        assertEquals(GenderProfile.FEMALE, UserPreferencesManager.gender.value)
+        assertTrue(UserPreferencesManager.isGenderLocked)
+        assertFalse(UserPreferencesManager.perluKonfirmasiGender)
+        assertFalse(UserPreferencesManager.setGender(GenderProfile.MALE))
+    }
+
+    @Test
+    fun `konfirmasi yang belum terkirim tidak ditimpa nilai lama dari server`() {
+        UserPreferencesManager.setGenderFromCloud(GenderProfile.MALE)
+        UserPreferencesManager.konfirmasiGender(GenderProfile.FEMALE, belumTerkirim = true)
+        UserPreferencesManager.setGenderFromCloud(GenderProfile.MALE)
+        assertEquals(GenderProfile.FEMALE, UserPreferencesManager.gender.value)
+        assertTrue(UserPreferencesManager.isGenderBelumTerkirim)
+        // Setelah server menerima, nilai server kembali menang (dan sudah sama).
+        UserPreferencesManager.genderTerkirim()
+        assertFalse(UserPreferencesManager.isGenderBelumTerkirim)
+    }
+
+    @Test
+    fun `tamu yang mengonfirmasi tetap kalah dari server saat login`() {
+        UserPreferencesManager.setGender(GenderProfile.UNSPECIFIED)
+        UserPreferencesManager.setGenderFromCloud(GenderProfile.FEMALE)
+        UserPreferencesManager.konfirmasiGender(GenderProfile.MALE, belumTerkirim = false)
+        UserPreferencesManager.setGenderFromCloud(GenderProfile.FEMALE)
+        assertEquals(GenderProfile.FEMALE, UserPreferencesManager.gender.value)
+    }
+
+    @Test
+    fun `usia terisi (onboarding v1-2-0) = sudah ditegaskan, tidak ditanya lagi`() {
+        UserPreferencesManager.setGenderFromCloud(GenderProfile.FEMALE)
+        UserPreferencesManager.setAgeRange(AgeRange.AGE_19_25, guardianOk = false)
+        assertTrue(UserPreferencesManager.isGenderLocked)
+        assertFalse(UserPreferencesManager.perluKonfirmasiGender)
+    }
+
+    @Test
+    fun `belum memilih jenis kelamin tidak perlu konfirmasi`() {
+        assertFalse(UserPreferencesManager.perluKonfirmasiGender)
+        UserPreferencesManager.konfirmasiGender(GenderProfile.UNSPECIFIED, belumTerkirim = true)
+        assertFalse(UserPreferencesManager.isGenderLocked)
+    }
+
+    @Test
     fun `kode rentang usia sama persis dengan skema penelitian`() {
         assertEquals(ResearchSchema.Profil.RENTANG_UMUR_VALUES, AgeRange.entries.map { it.code })
         assertEquals(AgeRange.AGE_15_18, AgeRange.fromCode("15-18"))

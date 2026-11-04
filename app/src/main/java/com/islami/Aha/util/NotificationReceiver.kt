@@ -152,7 +152,7 @@ class NotificationReceiver : BroadcastReceiver() {
 
         val isFardhu = habit.category == "Sholat Fardhu"
         val slug = if (isFardhu) SuaraSholat.slugDariNama(habit.name) else null
-        val namaTampil = namaTampil(habit.name, prefs)
+        val namaTampil = namaTampil(habit.name, prefs, tanggal)
         val notificationId = NotificationScheduler.notificationId(habitId)
         val payload = ReminderActionReceiver.Payload(
             habitDbId = habitDbId,
@@ -219,11 +219,14 @@ class NotificationReceiver : BroadcastReceiver() {
         debugLog("Actionable notification shown for '${habit.name}'")
     }
 
-    private fun namaTampil(habitName: String, prefs: android.content.SharedPreferences): String {
-        // Cek apakah hari ini Jumat dan mode Jumat aktif (untuk Laki-laki)
+    private fun namaTampil(habitName: String, prefs: android.content.SharedPreferences, tanggal: String): String {
+        // Laki-laki di hari Jumat: Dzuhur tampil sebagai Jumat, kecuali hari itu diganti Dzuhur.
         val isJumatEnabled = prefs.getBoolean("jumat_enabled", false)
-        val isFriday = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.FRIDAY
-        val nama = if (isJumatEnabled && isFriday && habitName == "Sholat Dzuhur") "Sholat Jumat" else habitName
+        val gantiDzuhur = com.islami.Aha.data.research.PilihanJumat(prefs).gantiDzuhur(tanggal)
+        val jumat = habitName == com.islami.Aha.data.research.SholatJumat.NAMA_DZUHUR &&
+            com.islami.Aha.data.research.SholatJumat.detailTengahHari(tanggal, isJumatEnabled, gantiDzuhur) ==
+            com.islami.Aha.data.research.ResearchSchema.Detail.JUMAT
+        val nama = if (jumat) com.islami.Aha.data.research.SholatJumat.NAMA_JUMAT else habitName
         return nama.removePrefix("Sholat ").ifBlank { nama }
     }
 

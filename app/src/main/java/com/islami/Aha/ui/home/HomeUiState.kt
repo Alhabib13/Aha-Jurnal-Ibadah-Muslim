@@ -66,6 +66,8 @@ data class HomeUiState(
     val isJumatEnabled: Boolean = false,
     val isHaidhMode: Boolean = false,
     val genderProfile: GenderProfile = GenderProfile.UNSPECIFIED,
+    /** Pengguna dari v1.1.1: jenis kelamin yang perlu ditegaskan di kartu "Lengkapi profil"; null = tidak perlu. */
+    val konfirmasiGender: GenderProfile? = null,
     val puasaWajibRamadanEnabled: Boolean = true,
     val ramadanScheduleByLocationEnabled: Boolean = true,
     val sholatTarawihEnabled: Boolean = true,
@@ -98,6 +100,10 @@ data class HomeUiState(
     val iqroProgress: IqroProgressUi? = null,
     /** Sholat fardhu hari ini: nama_detail -> jam pencatatan "HH.mm" (dari research_logs). */
     val jamSholatDicatat: Map<String, String> = emptyMap(),
+    /** Sholat fardhu hari ini: nama_detail -> status ("dikerjakan" / "tidak" / "udzur"). */
+    val statusSholatHariIni: Map<String, String> = emptyMap(),
+    /** Slot tengah hari hari ini: "jumat" (laki-laki di hari Jumat) atau "dzuhur". */
+    val detailTengahHariIni: String = com.islami.Aha.data.research.ResearchSchema.Detail.DZUHUR,
     val tilawahJenisDipilih: String = com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN,
     /** Posisi AKHIR sesi terakhir per jenis sesi Al-Qur'an. */
     val tilawahPenanda: Map<String, com.islami.Aha.data.quran.AyatPosition?> = emptyMap(),
@@ -133,6 +139,32 @@ data class HomeUiState(
     /** "01:27" — jam:menit menuju sholat berikutnya. */
     val hitungMundur: String
         get() = if (nextPrayerMenit < 0) "" else "%02d:%02d".format(nextPrayerMenit / 60, nextPrayerMenit % 60)
+
+    /** Sholat fardhu yang ditandai "Tertinggal" hari ini (dan belum dicentang). */
+    fun tertinggal(habit: com.islami.Aha.data.model.Habit): Boolean {
+        if (habit.isCompleted) return false
+        val slot = com.islami.Aha.data.research.ResearchMapping.fromDefaultHabit(habit.name, habit.category) ?: return false
+        if (slot.jenisIbadah != com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB) return false
+        return statusSholatHariIni[slot.namaDetail] == com.islami.Aha.data.research.ResearchSchema.Status.TIDAK
+    }
+
+    /** Kartu sholat wajib (yang punya tombol Tertinggal). */
+    fun sholatWajib(habit: com.islami.Aha.data.model.Habit): Boolean =
+        com.islami.Aha.data.research.ResearchMapping.fromDefaultHabit(habit.name, habit.category)?.jenisIbadah ==
+            com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB
+
+    /**
+     * Opsi tukar slot tengah hari di kartu itu (laki-laki, hari Jumat): true = kartu sedang Jumat
+     * dan bisa diganti Dzuhur; false = sedang Dzuhur dan bisa kembali ke Jumat; null = tidak berlaku.
+     */
+    fun opsiJumat(habit: com.islami.Aha.data.model.Habit): Boolean? {
+        if (!isJumatEnabled || !isFriday || habit.category != "Sholat Fardhu") return null
+        return when (habit.name) {
+            com.islami.Aha.data.research.SholatJumat.NAMA_JUMAT -> true
+            com.islami.Aha.data.research.SholatJumat.NAMA_DZUHUR -> false
+            else -> null
+        }
+    }
 
     /** Jam pencatatan sholat fardhu yang sudah dicentang hari ini; null bila tidak diketahui. */
     fun jamDicatat(habit: com.islami.Aha.data.model.Habit): String? {
@@ -255,8 +287,10 @@ data class HomeUiState(
                 
                 true
             }.map { habit ->
-                if (isJumatEnabled && isFriday && habit.name == "Sholat Dzuhur") {
-                    habit.copy(name = "Sholat Jumat")
+                if (detailTengahHariIni == com.islami.Aha.data.research.ResearchSchema.Detail.JUMAT &&
+                    habit.name == com.islami.Aha.data.research.SholatJumat.NAMA_DZUHUR
+                ) {
+                    habit.copy(name = com.islami.Aha.data.research.SholatJumat.NAMA_JUMAT)
                 } else {
                     habit
                 }

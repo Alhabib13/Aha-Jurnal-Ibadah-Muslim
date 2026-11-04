@@ -16,6 +16,10 @@ interface ResearchLogDao {
     @Query("SELECT * FROM research_logs WHERE slotKey = :slotKey")
     suspend fun getBySlotKey(slotKey: String): ResearchLogEntity?
 
+    /** Semua baris (dikerjakan / tidak / udzur) satu jenis pada satu tanggal; kartu sholat Beranda. */
+    @Query("SELECT * FROM research_logs WHERE tanggal = :tanggal AND jenisIbadah = :jenis")
+    fun observeSemuaStatus(tanggal: String, jenis: String): kotlinx.coroutines.flow.Flow<List<ResearchLogEntity>>
+
     @Query("DELETE FROM research_logs WHERE slotKey = :slotKey")
     suspend fun deleteBySlotKey(slotKey: String)
 

@@ -72,6 +72,8 @@ class ResearchLogRepository @Inject constructor(
         const val CONSENT_SETUJU = "setuju"
         const val CONSENT_TOLAK = "tolak"
         private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
+        /** Sumber yang sah untuk "Tertinggal" (sama dengan validJamDanSumber di firestore.rules). */
+        val SUMBER_TERTINGGAL = setOf(ResearchSchema.Sumber.DARI_NOTIFIKASI, ResearchSchema.Sumber.BUKA_APLIKASI)
         /** Isi profil penelitian terakhir yang berhasil dikirim, per akun. */
         private const val KEY_PROFIL_TERKIRIM_PREFIX = "research_profil_terkirim_"
 
@@ -161,17 +163,19 @@ class ResearchLogRepository @Inject constructor(
     }
 
     /**
-     * Pengguna sendiri menekan "Tertinggal" di notifikasi sholat wajib: baris "tidak" dengan
-     * jam = saat menekan dan sumber = dari_notifikasi (beda dari "tidak" hasil penyimpulan,
-     * yang jam & sumbernya null). ID sama dengan baris "dikerjakan", jadi centang belakangan
-     * menimpanya. Baris "dikerjakan" yang sudah ada tidak pernah ditimpa jadi "tidak".
-     * Mengembalikan true bila baris ditulis.
+     * Pengguna sendiri menekan "Tertinggal" untuk sholat wajib, di notifikasi
+     * ([sumber] = dari_notifikasi) atau di kartu Beranda (buka_aplikasi): baris "tidak" dengan
+     * jam = saat menekan (beda dari "tidak" hasil penyimpulan, yang jam & sumbernya null).
+     * ID sama dengan baris "dikerjakan", jadi centang belakangan menimpanya. Baris "dikerjakan"
+     * yang sudah ada tidak pernah ditimpa jadi "tidak". Mengembalikan true bila baris ditulis.
      */
     suspend fun recordTidakDariNotifikasi(
         ref: SlotRef?,
         tanggal: String,
-        jamPencatatanMs: Long = System.currentTimeMillis()
+        jamPencatatanMs: Long = System.currentTimeMillis(),
+        sumber: String = ResearchSchema.Sumber.DARI_NOTIFIKASI
     ): Boolean {
+        if (sumber !in SUMBER_TERTINGGAL) return false
         ref ?: return false
         if (ref.slot.jenisIbadah != ResearchSchema.Jenis.SHOLAT_WAJIB) return false
         val key = slotKeyOrNull(ref, tanggal) ?: return false
@@ -187,7 +191,7 @@ class ResearchLogRepository @Inject constructor(
                 jumlah = null,
                 jilid = null,
                 jamPencatatan = jamPencatatanMs,
-                sumberPencatatan = ResearchSchema.Sumber.DARI_NOTIFIKASI,
+                sumberPencatatan = sumber,
                 ownerUid = currentUid(),
                 isSynced = false,
                 updatedAt = System.currentTimeMillis(),
@@ -204,6 +208,22 @@ class ResearchLogRepository @Inject constructor(
         deletedSyncDao.deleteByRecordIdAndType(key, RECORD_TYPE)
         return true
     }
+
+    /** Status baris slot [ref] pada [tanggal] ("dikerjakan" / "tidak" / "udzur"), null bila belum ada. */
+    suspend fun statusSlot(ref: SlotRef?, tanggal: String): String? {
+        ref ?: return null
+        return researchLogDao.getBySlotKey(slotKeyOrNull(ref, tanggal) ?: return null)?.status
+    }
+
+    /** "Tertinggal" dibatalkan: hanya baris berstatus "tidak" yang dihapus. */
+    suspend fun removeTidak(ref: SlotRef?, tanggal: String): Boolean {
+        if (statusSlot(ref, tanggal) != ResearchSchema.Status.TIDAK) return false
+        remove(ref, tanggal)
+        return true
+    }
+
+    fun observeSemuaStatus(tanggal: String, jenis: String): Flow<List<ResearchLogEntity>> =
+        researchLogDao.observeSemuaStatus(tanggal, jenis)
 
     /** Centang dibatalkan (keputusan C): baris dihapus, bukan diubah jadi "tidak". */
     suspend fun remove(ref: SlotRef?, tanggal: String) {
@@ -632,7 +652,9 @@ class ResearchLogRepository @Inject constructor(
     }
 
     private fun slotKeyOrNull(ref: SlotRef, tanggal: String): String? =
-        runCatching {
+        // Pengaman: "jumat" di tanggal selain Jumat tidak pernah ditulis (server pasti menolaknya).
+        if (ref.slot.namaDetail == ResearchSchema.Detail.JUMAT && !SholatJumat.hariJumat(tanggal)) null
+        else runCatching {
             ResearchSchema.slotKey(tanggal, ref.slot.jenisIbadah, ref.slot.namaDetail, ref.localId)
         }.onFailure { runCatching { com.islami.Aha.util.logCrashlyticsSafe(it) } }.getOrNull()
 

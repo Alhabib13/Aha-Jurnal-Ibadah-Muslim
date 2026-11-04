@@ -185,7 +185,8 @@ service cloud.firestore {
   // nama_detail yang sah per jenis_ibadah. iqro & qadha_sholat wajib null.
   function detailPerJenis() {
     return {
-      "sholat_wajib": ["subuh", "dzuhur", "ashar", "maghrib", "isya"],
+      // "jumat" = slot tengah hari laki-laki di hari Jumat, menggantikan "dzuhur".
+      "sholat_wajib": ["subuh", "dzuhur", "jumat", "ashar", "maghrib", "isya"],
       "sholat_sunnah": ["tahajud", "dhuha", "rawatib", "witir", "tarawih",
                         "taubat", "istikharah", "sunnah_lainnya"],
       "puasa": ["senin_kamis", "ayyamul_bidh", "daud", "syawal", "ramadan",
@@ -244,8 +245,9 @@ service cloud.firestore {
   // Jam & sumber hanya ada untuk tindakan nyata pengguna.
   // - dikerjakan: keduanya wajib. dari_notifikasi = tombol di notifikasi; dari_notifikasi_dibuka =
   //   badan notifikasi diketuk lalu ibadah itu dicatat di aplikasi; buka_aplikasi = inisiatif sendiri.
-  // - "tidak" dari tombol "Tertinggal" di notifikasi (sholat wajib saja): jam = saat menekan,
-  //   sumber = dari_notifikasi. Pengakuan langsung pengguna, beda dari "tidak" hasil penyimpulan.
+  // - "tidak" dari tombol "Tertinggal" (sholat wajib saja): jam = saat menekan, sumber =
+  //   dari_notifikasi (tombol di notifikasi) atau buka_aplikasi (tombol di kartu Beranda).
+  //   Pengakuan langsung pengguna, beda dari "tidak" hasil penyimpulan.
   // - "tidak"/"udzur" hasil penyimpulan aplikasi: keduanya null.
   // "tidak_diketahui" = versi aplikasi yang belum bisa membedakan notifikasi vs
   // buka aplikasi (sebelum Tahap 4). Pipeline membuang baris bernilai ini.
@@ -257,7 +259,7 @@ service cloud.firestore {
         : (data.jam_pencatatan == null && data.sumber_pencatatan == null)
           || (data.status == "tidak" && data.jenis_ibadah == "sholat_wajib"
               && data.jam_pencatatan is timestamp
-              && data.sumber_pencatatan == "dari_notifikasi");
+              && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi"]);
   }
 
   // tilawah: jumlah = halaman tersentuh (dihitung aplikasi), jumlah_ayat = ukuran halus,
@@ -343,6 +345,25 @@ service cloud.firestore {
     return timestamp.date(int(p[0]), int(p[1]), int(p[2])) <= request.time + duration.value(1, "d");
   }
 
+  function hariJumat(tanggal) {
+    let p = tanggal.split("-");
+    return timestamp.date(int(p[0]), int(p[1]), int(p[2])).dayOfWeek() == 5;
+  }
+
+  // Sholat Jumat hanya ada di hari Jumat.
+  function jumatDiHariJumat(data) {
+    return data.nama_detail != "jumat" || hariJumat(data.tanggal);
+  }
+
+  // Jumat dan Dzuhur saling meniadakan: di satu hari Jumat hanya boleh ada salah satu
+  // (dokumen lawannya harus sudah/ikut terhapus). Hari selain Jumat tidak perlu dibaca.
+  function tengahHariTunggal(database, data) {
+    return !(data.jenis_ibadah == "sholat_wajib" && data.nama_detail in ["jumat", "dzuhur"])
+        || !hariJumat(data.tanggal)
+        || !existsAfter(/databases/$(database)/documents/logs/$(request.auth.uid + "_" + data.tanggal
+             + "_sholat_wajib_" + (data.nama_detail == "jumat" ? "dzuhur" : "jumat")));
+  }
+
   function validLog(data, logId) {
     return data.keys().hasOnly(logFields())
         && data.keys().hasAll(logFields())
@@ -353,6 +374,7 @@ service cloud.firestore {
         && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "qadha_sholat", "puasa",
                                  "dzikir", "tilawah", "iqro"]
         && validDetail(data)
+        && jumatDiHariJumat(data)
         && validLogId(data, logId)
         && (data.nama_detail_asli == null
             || (data.nama_detail_asli is string && data.nama_detail_asli.size() <= 100))
@@ -441,10 +463,12 @@ service cloud.firestore {
     // wajib menyertakan where("user_id", "==", uid).
     match /logs/{logId} {
       allow read, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
-      allow create: if isSignedIn() && validLog(request.resource.data, logId);
+      allow create: if isSignedIn() && validLog(request.resource.data, logId)
+                    && tengahHariTunggal(database, request.resource.data);
       allow update: if isSignedIn()
                     && resource.data.user_id == request.auth.uid
                     && validLog(request.resource.data, logId)
+                    && tengahHariTunggal(database, request.resource.data)
                     && request.resource.data.diff(resource.data).unchangedKeys()
                          .hasAll(["user_id", "tanggal", "jenis_ibadah", "nama_detail"]);
     }

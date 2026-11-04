@@ -259,7 +259,9 @@ fun SettingsScreenContent(
                     com.islami.Aha.util.GenderProfile.FEMALE -> stringResource(R.string.settings_gender_female_active)
                     else -> stringResource(R.string.settings_gender_not_set)
                 }
-                val profilTerkunci = uiState.genderProfile != com.islami.Aha.util.GenderProfile.UNSPECIFIED
+                // Terkunci setelah ditegaskan di v1.2.0; pengguna dari v1.1.1 masih bisa membetulkan.
+                val profilTerkunci = uiState.genderProfile != com.islami.Aha.util.GenderProfile.UNSPECIFIED &&
+                    com.islami.Aha.util.UserPreferencesManager.isGenderLocked
                 SettingsGroup {
                     SettingsClickableItem(
                         icon = Icons.Outlined.Schedule,

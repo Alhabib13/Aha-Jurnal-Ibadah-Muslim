@@ -85,7 +85,8 @@ class StatisticViewModel @Inject constructor(
     private val completionSyncRepository: com.islami.Aha.data.repository.CompletionSyncRepository,
     private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
     private val activityStats: com.islami.Aha.data.research.ActivityStatsRepository,
-    private val tilawahState: com.islami.Aha.data.research.TilawahStateRepository
+    private val tilawahState: com.islami.Aha.data.research.TilawahStateRepository,
+    private val defaultHabitCompletion: com.islami.Aha.data.repository.DefaultHabitCompletionRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StatisticUiState())
@@ -293,11 +294,17 @@ class StatisticViewModel @Inject constructor(
             val haidhDates = com.islami.Aha.util.UserPreferencesManager.getHaidhDates()
             val isHaidh = haidhDates.contains(dateKey)
 
+            // Slot tengah hari tanggal itu: Jumat atau Dzuhur, disimpulkan dari catatan yang ada.
             val isJumatEnabled = com.islami.Aha.util.UserPreferencesManager.isJumatEnabled.value
-            val isFriday = runCatching {
-                val parsed = java.time.LocalDate.parse(dateKey)
-                parsed.dayOfWeek == java.time.DayOfWeek.FRIDAY
-            }.getOrDefault(false)
+            fun slotTengah(detail: String) = com.islami.Aha.data.research.SlotRef(
+                com.islami.Aha.data.research.IbadahSlot(com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB, detail, null), null
+            )
+            val gantiDzuhur = com.islami.Aha.data.research.SholatJumat.simpulkanGanti(
+                adaJumat = researchLogRepository.statusSlot(slotTengah(com.islami.Aha.data.research.ResearchSchema.Detail.JUMAT), dateKey) != null,
+                adaDzuhur = researchLogRepository.statusSlot(slotTengah(com.islami.Aha.data.research.ResearchSchema.Detail.DZUHUR), dateKey) != null
+            )
+            val isFriday = com.islami.Aha.data.research.SholatJumat.detailTengahHari(dateKey, isJumatEnabled, gantiDzuhur) ==
+                com.islami.Aha.data.research.ResearchSchema.Detail.JUMAT
 
             val items = mutableListOf<PastDayHabitItem>()
             fardhuHabits.forEach { habit ->
@@ -336,6 +343,20 @@ class StatisticViewModel @Inject constructor(
         val dateKey = _selectedPastDate.value ?: return
         viewModelScope.launch {
             val willComplete = !item.isCompleted
+            if (!item.isSunnah) {
+                // Habit bawaan lewat jalur tunggal (sama dengan Beranda & notifikasi): slot tengah
+                // hari mengikuti Jumat/Dzuhur tanggal itu dan keduanya saling meniadakan.
+                val habitId = item.habitKey.removePrefix("default_").toIntOrNull() ?: return@launch
+                val sumber = if (willComplete) {
+                    com.islami.Aha.util.NotifikasiSesi.sumberUntuk(item.habitKey, dateKey)
+                } else {
+                    com.islami.Aha.data.research.ResearchSchema.Sumber.BUKA_APLIKASI
+                }
+                defaultHabitCompletion.setCompleted(habitId, willComplete, sumber, dateKey)
+                loadPastDayHabits(dateKey)
+                _muatUlang.update { it + 1 }
+                return@launch
+            }
             val record = com.islami.Aha.data.model.HabitCompletionRecord(
                 habitKey = item.habitKey,
                 dateKey = dateKey,
@@ -343,17 +364,12 @@ class StatisticViewModel @Inject constructor(
                 source = if (item.isSunnah) "SUNNAH" else "DEFAULT"
             )
             // tanggal = hari ibadahnya; jam_pencatatan = sekarang (pencatatan susulan, keputusan F).
-            val researchSlot = if (item.isSunnah) {
-                com.islami.Aha.data.research.ResearchLogRepository.slotForSunnahHabit(
-                    item.habitKey.removePrefix("sunnah_"), item.name, item.category
-                )
-            } else {
-                com.islami.Aha.data.research.ResearchLogRepository.slotForDefaultHabit(item.name, item.category)
-            }
+            val researchSlot = com.islami.Aha.data.research.ResearchLogRepository.slotForSunnahHabit(
+                item.habitKey.removePrefix("sunnah_"), item.name, item.category
+            )
             if (willComplete) {
                 habitCompletionDao.insert(record)
-                // Id notifikasi: "default_N" untuk habit bawaan, id habit untuk sunnah.
-                val idNotifikasi = if (item.isSunnah) item.habitKey.removePrefix("sunnah_") else item.habitKey
+                val idNotifikasi = item.habitKey.removePrefix("sunnah_")
                 researchLogRepository.recordDikerjakan(
                     researchSlot, dateKey,
                     sumber = com.islami.Aha.util.NotifikasiSesi.sumberUntuk(idNotifikasi, dateKey)

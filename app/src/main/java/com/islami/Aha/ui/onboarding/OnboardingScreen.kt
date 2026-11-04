@@ -443,7 +443,7 @@ private fun ColumnScope.PilihProfil(onSimpan: (GenderProfile) -> Unit, onNanti: 
 }
 
 @Composable
-private fun KartuProfil(
+internal fun KartuProfil(
     iconRes: Int,
     label: String,
     dipilih: Boolean,
@@ -469,6 +469,60 @@ private fun KartuProfil(
         )
         Text(label, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         if (dipilih) Text("Dipilih", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/**
+ * Kartu "Lengkapi profil", untuk pengguna dari v1.1.1: tegaskan jenis kelamin sekali sebelum
+ * dikunci. [awal] = nilai yang tersimpan sekarang (bisa saja nilai lama yang tertimpa dari server).
+ */
+@Composable
+internal fun ColumnScope.KonfirmasiProfilIbadah(awal: GenderProfile, onBenar: (GenderProfile) -> Unit) {
+    var pilihan by rememberSaveable { mutableStateOf(awal) }
+    val namaAwal = if (awal == GenderProfile.MALE) "Laki-laki" else "Perempuan"
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("Profil ibadahmu: $namaAwal — sudah benar?", fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.ExtraBold)
+        Text(
+            "Dipakai untuk Mode Cuti (perempuan) dan Sholat Jumat (laki-laki). Kalau keliru, pilih yang benar sekarang.",
+            fontSize = 15.sp,
+            lineHeight = 23.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            KartuProfil(R.drawable.ic_gender_male, "Laki-laki", pilihan == GenderProfile.MALE,
+                Modifier.weight(1f)) { pilihan = GenderProfile.MALE }
+            KartuProfil(R.drawable.ic_gender_female, "Perempuan", pilihan == GenderProfile.FEMALE,
+                Modifier.weight(1f)) { pilihan = GenderProfile.FEMALE }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Emas.copy(alpha = 0.14f))
+                .padding(16.dp)
+        ) {
+            Icon(Icons.Rounded.Lock, contentDescription = null, tint = Emas, modifier = Modifier.size(22.dp))
+            Text(
+                "Setelah ini profil ibadah dikunci dan tidak bisa diubah lagi.",
+                fontSize = 14.sp,
+                lineHeight = 21.sp
+            )
+        }
+    }
+    Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
+        TombolUtama(
+            if (pilihan == awal) "Ya, sudah benar" else "Simpan sebagai ${if (pilihan == GenderProfile.MALE) "laki-laki" else "perempuan"}",
+            onClick = { onBenar(pilihan) }
+        )
     }
 }
 

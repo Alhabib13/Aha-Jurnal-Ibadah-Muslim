@@ -96,6 +96,7 @@ import com.islami.Aha.util.LocationHelper
 import com.islami.Aha.util.rememberLocationPermissionState
 import com.islami.Aha.util.rememberNotificationPermissionState
 import com.islami.Aha.ui.home.components.*
+import com.islami.Aha.ui.onboarding.KonfirmasiProfilIbadah
 import com.islami.Aha.ui.onboarding.PilihUsia
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -244,6 +245,9 @@ fun HomeScreen(
                 }
             },
             onToggleHabitCompletion = viewModel::toggleHabitCompletion,
+            onTandaiTertinggal = viewModel::tandaiTertinggal,
+            onBatalkanTertinggal = viewModel::batalkanTertinggal,
+            onGantiTengahHari = viewModel::gantiTengahHari,
             onToggleHabitReminder = viewModel::toggleReminderEnabled,
             onNavigateToAddHabit = onNavigateToAddHabit,
             onNavigateToAddDzikir = onNavigateToAddDzikir,
@@ -284,10 +288,18 @@ fun HomeScreen(
                         onClick = { lengkapiProfilDibuka = false },
                         modifier = Modifier.padding(start = 8.dp, top = 4.dp)
                     ) { Text("Tutup") }
-                    PilihUsia(onLanjut = { usia, izinWali, status ->
-                        viewModel.simpanLengkapiProfil(usia, izinWali, status)
-                        lengkapiProfilDibuka = false
-                    })
+                    // Pengguna dari v1.1.1: jenis kelamin ditegaskan dulu, baru usia & kesibukan.
+                    val perluKonfirmasi = uiState.konfirmasiGender
+                    var genderDitegaskan by rememberSaveable { mutableStateOf<String?>(null) }
+                    if (perluKonfirmasi != null && genderDitegaskan == null) {
+                        KonfirmasiProfilIbadah(awal = perluKonfirmasi, onBenar = { genderDitegaskan = it.name })
+                    } else {
+                        PilihUsia(onLanjut = { usia, izinWali, status ->
+                            val gender = genderDitegaskan?.let { com.islami.Aha.util.GenderProfile.valueOf(it) }
+                            viewModel.simpanLengkapiProfil(usia, izinWali, status, gender)
+                            lengkapiProfilDibuka = false
+                        })
+                    }
                 }
             }
         }
@@ -468,6 +480,9 @@ fun HomeScreenContent(
     onRefresh: () -> Unit = {},
     onRefreshLocation: () -> Unit = {},
     onToggleHabitCompletion: (Habit) -> Unit,
+    onTandaiTertinggal: (Habit) -> Unit = {},
+    onBatalkanTertinggal: (Habit) -> Unit = {},
+    onGantiTengahHari: (Habit, Boolean) -> Unit = { _, _ -> },
     onToggleHabitReminder: (Habit) -> Unit,
     onNavigateToAddHabit: () -> Unit,
     onNavigateToAddDzikir: () -> Unit = onNavigateToAddHabit,
@@ -571,6 +586,7 @@ fun HomeScreenContent(
                 item {
                     com.islami.Aha.ui.home.components.LengkapiProfilBanner(
                         onLengkapi = onLengkapiProfil,
+                        konfirmasiGender = uiState.konfirmasiGender != null,
                         onNanti = onTundaLengkapiProfil
                     )
                 }
@@ -700,7 +716,12 @@ fun HomeScreenContent(
                         onToggleReminder = { onToggleHabitReminder(habit) },
                         currentTime = uiState.currentTime,
                         jamDicatat = uiState.jamDicatat(habit),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        tertinggal = uiState.tertinggal(habit),
+                        onTertinggal = if (uiState.sholatWajib(habit)) ({ onTandaiTertinggal(habit) }) else null,
+                        onBatalTertinggal = { onBatalkanTertinggal(habit) },
+                        opsiJumat = uiState.opsiJumat(habit),
+                        onGantiTengahHari = { keDzuhur -> onGantiTengahHari(habit, keDzuhur) }
                     )
                 }
                 // User-added sunnah habits (from AddHabitScreen)

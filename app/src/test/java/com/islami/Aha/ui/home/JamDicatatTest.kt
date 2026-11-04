@@ -12,9 +12,10 @@ class JamDicatatTest {
     fun `sholat yang dicentang menampilkan jam pencatatan`() {
         val subuh = Habit(1, "Sholat Subuh", "Sholat Fardhu", "sunrise", "", isCompleted = true)
         assertEquals("04.12", state.jamDicatat(subuh))
-        // Jumat memakai slot dzuhur.
+        // Jumat punya nama_detail sendiri: jam diambil dari baris "jumat", bukan "dzuhur".
         val jumat = Habit(2, "Sholat Jumat", "Sholat Fardhu", "sun", "", isCompleted = true)
-        assertEquals("11.40", state.jamDicatat(jumat))
+        assertNull(state.jamDicatat(jumat))
+        assertEquals("12.05", state.copy(jamSholatDicatat = mapOf("jumat" to "12.05")).jamDicatat(jumat))
     }
 
     @Test

@@ -113,7 +113,7 @@ fun SyncStatusBanner(message: String) {
  * (mis. masuk lewat "Sudah punya akun? Masuk" sehingga melewati onboarding).
  */
 @Composable
-fun LengkapiProfilBanner(onLengkapi: () -> Unit, onNanti: () -> Unit) {
+fun LengkapiProfilBanner(onLengkapi: () -> Unit, onNanti: () -> Unit, konfirmasiGender: Boolean = false) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -125,11 +125,12 @@ fun LengkapiProfilBanner(onLengkapi: () -> Unit, onNanti: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.PersonOutline, contentDescription = null, tint = Gold, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("Lengkapi profil penelitian", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(if (konfirmasiGender) "Lengkapi profil" else "Lengkapi profil penelitian", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                "Dua pertanyaan singkat: rentang usia dan kesibukan. Membantu penelitian memahami siapa saja pengguna Aha.",
+                if (konfirmasiGender) "Pastikan profil ibadahmu benar sebelum dikunci, lalu dua pertanyaan singkat: rentang usia dan kesibukan."
+                else "Dua pertanyaan singkat: rentang usia dan kesibukan. Membantu penelitian memahami siapa saja pengguna Aha.",
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -193,7 +193,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setGenderProfile(profile: com.islami.Aha.util.GenderProfile) {
         viewModelScope.launch {
-            if (!com.islami.Aha.util.UserPreferencesManager.setGender(profile)) {
+            val login = authRepository.currentUser != null
+            if (!com.islami.Aha.util.UserPreferencesManager.setGender(profile, belumTerkirim = login)) {
                 // Profil ibadah permanen: sudah diisi, tidak bisa diganti.
                 hideGenderDialog()
                 return@launch
@@ -205,6 +206,7 @@ class SettingsViewModel @Inject constructor(
             )
             hideGenderDialog()
             res.onSuccess {
+                if (login) com.islami.Aha.util.UserPreferencesManager.genderTerkirim()
                 showSnackbar(appContext.getString(R.string.settings_snackbar_profile_updated))
             }.onFailure { err ->
                 val errorMsg = appContext.getString(R.string.error_sync_cloud, err.message ?: "")

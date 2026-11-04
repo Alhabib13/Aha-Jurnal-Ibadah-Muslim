@@ -94,7 +94,15 @@ fun HomeHabitItem(
     onToggleReminder: () -> Unit,
     currentTime: String,
     jamDicatat: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Sholat wajib yang ditandai "Tertinggal" hari ini. */
+    tertinggal: Boolean = false,
+    /** null = kartu tanpa tombol Tertinggal (bukan sholat wajib). */
+    onTertinggal: (() -> Unit)? = null,
+    onBatalTertinggal: () -> Unit = {},
+    /** Hari Jumat (laki-laki): true = kartu Jumat (bisa diganti Dzuhur), false = kartu Dzuhur pengganti. */
+    opsiJumat: Boolean? = null,
+    onGantiTengahHari: (keDzuhur: Boolean) -> Unit = {}
 ) {
     val completionStateDescription = if (habit.isCompleted) {
         stringResource(R.string.home_completed_cd)
@@ -165,6 +173,15 @@ fun HomeHabitItem(
                     Text(if (jamDicatat != null) "Dicatat $jamDicatat" else "Dicatat", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = hijau.teks())
                 }
             }
+            AksiSholatWajib(
+                habit = habit,
+                currentTime = currentTime,
+                tertinggal = tertinggal,
+                onTertinggal = onTertinggal,
+                onBatalTertinggal = onBatalTertinggal,
+                opsiJumat = opsiJumat,
+                onGantiTengahHari = onGantiTengahHari
+            )
         }
         IconButton(onClick = onToggleReminder) {
             Icon(
@@ -175,4 +192,86 @@ fun HomeHabitItem(
             )
         }
     }
+}
+
+
+/**
+ * Baris aksi kecil di kartu sholat wajib: "Tertinggal" (setelah waktunya masuk), tanda tertinggal
+ * yang bisa dibatalkan, dan di hari Jumat (laki-laki) pilihan Jumat <-> Dzuhur.
+ */
+@Composable
+private fun AksiSholatWajib(
+    habit: Habit,
+    currentTime: String,
+    tertinggal: Boolean,
+    onTertinggal: (() -> Unit)?,
+    onBatalTertinggal: () -> Unit,
+    opsiJumat: Boolean?,
+    onGantiTengahHari: (Boolean) -> Unit
+) {
+    val merah = Color(0xFFE5675A)
+    var konfirmasiGanti by remember { mutableStateOf(false) }
+    val bisaTertinggal = onTertinggal != null && !habit.isCompleted && !tertinggal && waktuSudahMasuk(habit.time, currentTime)
+    if (!bisaTertinggal && !tertinggal && opsiJumat == null) return
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (tertinggal) {
+            Text(
+                "Tertinggal",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = merah.teks(),
+                modifier = Modifier.clip(CircleShape).background(merah.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 1.dp)
+            )
+            AksiKecil("Batalkan", onBatalTertinggal)
+        } else if (bisaTertinggal) {
+            AksiKecil("Tertinggal", { onTertinggal?.invoke() })
+        }
+        when (opsiJumat) {
+            true -> AksiKecil("Tidak Jumat? Ganti Dzuhur") {
+                if (habit.isCompleted || tertinggal) konfirmasiGanti = true else onGantiTengahHari(true)
+            }
+            false -> AksiKecil("Kembali ke Jumat") {
+                if (habit.isCompleted || tertinggal) konfirmasiGanti = true else onGantiTengahHari(false)
+            }
+            null -> Unit
+        }
+    }
+    if (konfirmasiGanti && opsiJumat != null) {
+        val dari = if (opsiJumat) "Jumat" else "Dzuhur"
+        val ke = if (opsiJumat) "Dzuhur" else "Jumat"
+        AlertDialog(
+            onDismissRequest = { konfirmasiGanti = false },
+            title = { Text("Ganti ke $ke?") },
+            text = { Text("Catatan $dari hari ini akan dihapus. Satu hari Jumat hanya mencatat salah satu: Jumat atau Dzuhur.") },
+            confirmButton = {
+                TextButton(onClick = { konfirmasiGanti = false; onGantiTengahHari(opsiJumat) }) { Text("Ganti ke $ke") }
+            },
+            dismissButton = { TextButton(onClick = { konfirmasiGanti = false }) { Text("Batal") } }
+        )
+    }
+}
+
+@Composable
+private fun AksiKecil(label: String, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+        modifier = Modifier.height(30.dp)
+    ) {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** "HH:mm" waktu sholat sudah lewat/masuk dibanding jam sekarang ("HH:mm"). Tak terbaca = false. */
+internal fun waktuSudahMasuk(habitTime: String, currentTime: String): Boolean {
+    fun menit(t: String): Int? {
+        val bagian = t.trim().split(":")
+        if (bagian.size < 2) return null
+        val j = bagian[0].trim().toIntOrNull() ?: return null
+        val m = bagian[1].trim().take(2).toIntOrNull() ?: return null
+        return j * 60 + m
+    }
+    val waktu = menit(habitTime) ?: return false
+    val sekarang = menit(currentTime) ?: return false
+    return sekarang >= waktu
 }

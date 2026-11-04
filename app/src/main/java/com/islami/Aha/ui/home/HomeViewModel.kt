@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -87,9 +88,13 @@ class HomeViewModel @Inject constructor(
             usia: com.islami.Aha.util.AgeRange?,
             status: com.islami.Aha.util.StatusAktivitas?,
             hariIni: Long,
-            ditundaSampai: Long
-        ): Boolean = isLoggedIn && setujuPenelitian == true && (usia == null || status == null) &&
-            hariIni >= ditundaSampai
+            ditundaSampai: Long,
+            perluKonfirmasiGender: Boolean = false
+        ): Boolean = hariIni >= ditundaSampai && (
+            // Pengguna dari v1.1.1: jenis kelamin ditegaskan sekali sebelum dikunci.
+            perluKonfirmasiGender ||
+                (isLoggedIn && setujuPenelitian == true && (usia == null || status == null))
+            )
 
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
         private const val KEY_USER_NAME = "user_name"
@@ -162,8 +167,9 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             kotlinx.coroutines.flow.combine(
                 UserPreferencesManager.ageRange,
-                UserPreferencesManager.statusAktivitas
-            ) { _, _ -> }.collect { hitungLengkapiProfil() }
+                UserPreferencesManager.statusAktivitas,
+                UserPreferencesManager.gender
+            ) { _, _, _ -> }.collect { hitungLengkapiProfil() }
         }
 
         // showGenderPrompt logic removed as requested
@@ -682,6 +688,7 @@ class HomeViewModel @Inject constructor(
                 com.islami.Aha.data.research.ResearchSchema.Sumber.BUKA_APLIKASI
             }
             val hasil = defaultHabitCompletion.setCompleted(habit.id, willComplete, sumber) ?: return@launch
+            if (willComplete) com.islami.Aha.util.TertinggalStore.hapus(context, habit.id)
             val syncStatus = hasil.syncStatus
             if (syncStatus.hasIssue) {
                 showSyncNotice(syncStatus.userMessage ?: DEFAULT_OFFLINE_NOTICE)
@@ -693,6 +700,42 @@ class HomeViewModel @Inject constructor(
                     "${habit.name} dibatalkan dari selesai"
                 }
             )
+        }
+    }
+
+    /** Tombol "Tertinggal" di kartu sholat wajib Beranda (sumber buka_aplikasi). */
+    fun tandaiTertinggal(habit: Habit) {
+        viewModelScope.launch {
+            val hariIni = DateUtils.getTodayKey()
+            val ok = defaultHabitCompletion.markTertinggal(
+                habit.id, hariIni, com.islami.Aha.data.research.ResearchSchema.Sumber.BUKA_APLIKASI
+            )
+            if (!ok) return@launch
+            com.islami.Aha.util.TertinggalStore.tandai(context, habit.id)
+            showSnackbar("${habit.name.removePrefix("Sholat ")} ditandai tertinggal")
+        }
+    }
+
+    fun batalkanTertinggal(habit: Habit) {
+        viewModelScope.launch {
+            if (!defaultHabitCompletion.batalkanTertinggal(habit.id, DateUtils.getTodayKey())) return@launch
+            com.islami.Aha.util.TertinggalStore.hapus(context, habit.id)
+            showSnackbar("Tanda tertinggal ${habit.name.removePrefix("Sholat ")} dibatalkan")
+        }
+    }
+
+    /** Hari Jumat (laki-laki): ganti slot tengah hari ke Dzuhur, atau kembali ke Jumat. */
+    fun gantiTengahHari(habit: Habit, keDzuhur: Boolean) {
+        viewModelScope.launch {
+            if (!defaultHabitCompletion.gantiTengahHari(habit.id, DateUtils.getTodayKey(), keDzuhur)) return@launch
+            com.islami.Aha.util.TertinggalStore.hapus(context, habit.id)
+            _uiState.update {
+                it.copy(
+                    detailTengahHariIni = if (keDzuhur) com.islami.Aha.data.research.ResearchSchema.Detail.DZUHUR
+                    else com.islami.Aha.data.research.ResearchSchema.Detail.JUMAT
+                )
+            }
+            showSnackbar(if (keDzuhur) "Hari ini dicatat sebagai Dzuhur" else "Hari ini dicatat sebagai Jumat")
         }
     }
 
@@ -758,6 +801,20 @@ class HomeViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            // Status tiap sholat wajib hari ini (untuk tombol Tertinggal) dan slot tengah hari
+            // (Jumat/Dzuhur); dihitung ulang tiap catatan berubah, hari berganti, atau profil berubah.
+            kotlinx.coroutines.flow.combine(todayKeyFlow, UserPreferencesManager.isJumatEnabled) { today, _ -> today }
+                .flatMapLatest { today ->
+                    researchLogRepository.observeSemuaStatus(today, com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB)
+                        .map { rows -> today to rows }
+                }
+                .collect { (today, rows) ->
+                    val status = rows.mapNotNull { r -> r.namaDetail?.let { it to r.status } }.toMap()
+                    val tengahHari = defaultHabitCompletion.detailTengahHari(today)
+                    _uiState.update { it.copy(statusSholatHariIni = status, detailTengahHariIni = tengahHari) }
+                }
+        }
+        viewModelScope.launch {
             todayKeyFlow.flatMapLatest { today ->
                 researchLogRepository.observeDikerjakan(today, com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB)
             }.collect { rows ->
@@ -795,20 +852,40 @@ class HomeViewModel @Inject constructor(
             usia = UserPreferencesManager.ageRange.value,
             status = UserPreferencesManager.statusAktivitas.value,
             hariIni = java.time.LocalDate.now().toEpochDay(),
-            ditundaSampai = sharedPreferences.getLong(KEY_LENGKAPI_PROFIL_DITUNDA, 0L)
+            ditundaSampai = sharedPreferences.getLong(KEY_LENGKAPI_PROFIL_DITUNDA, 0L),
+            perluKonfirmasiGender = UserPreferencesManager.perluKonfirmasiGender
         )
-        _uiState.update { it.copy(tampilLengkapiProfil = tampil) }
+        val konfirmasi = UserPreferencesManager.gender.value.takeIf { UserPreferencesManager.perluKonfirmasiGender }
+        _uiState.update { it.copy(tampilLengkapiProfil = tampil, konfirmasiGender = konfirmasi) }
     }
 
+    /**
+     * Simpan kartu "Lengkapi profil". [gender] = jenis kelamin yang ditegaskan pengguna dari v1.1.1
+     * (null bila tidak ditanyakan). Profil langsung didorong ke meta/profile: begitu rentangUsia
+     * tersimpan di server, aturan Firestore ikut mengunci jenis kelaminnya.
+     */
     fun simpanLengkapiProfil(
         usia: com.islami.Aha.util.AgeRange,
         izinWali: Boolean,
-        status: com.islami.Aha.util.StatusAktivitas
+        status: com.islami.Aha.util.StatusAktivitas,
+        gender: GenderProfile? = null
     ) {
+        val login = authRepository.currentUser != null
+        if (gender != null) UserPreferencesManager.konfirmasiGender(gender, belumTerkirim = login)
         UserPreferencesManager.setAgeRange(usia, izinWali)
         UserPreferencesManager.setStatusAktivitas(status)
         researchLogRepository.scheduleUpload()
         hitungLengkapiProfil()
+        if (!login) return
+        viewModelScope.launch {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                authRepository.syncUserPreferences(
+                    gender = UserPreferencesManager.gender.value.name,
+                    isHaidhMode = UserPreferencesManager.isHaidhMode.value,
+                    haidhDates = UserPreferencesManager.getHaidhDates().toList()
+                ).onSuccess { UserPreferencesManager.genderTerkirim() }
+            }
+        }
     }
 
     /**
@@ -970,13 +1047,14 @@ class HomeViewModel @Inject constructor(
     
     fun setGenderProfile(profile: GenderProfile) {
         viewModelScope.launch {
-            if (!UserPreferencesManager.setGender(profile)) return@launch // profil sudah terkunci
+            val login = authRepository.currentUser != null
+            if (!UserPreferencesManager.setGender(profile, belumTerkirim = login)) return@launch // profil sudah terkunci
             kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                 authRepository.syncUserPreferences(
                     gender = profile.name,
                     isHaidhMode = UserPreferencesManager.isHaidhMode.value,
                     haidhDates = UserPreferencesManager.getHaidhDates().toList()
-                )
+                ).onSuccess { if (login) UserPreferencesManager.genderTerkirim() }
             }
         }
     }
@@ -1351,13 +1429,15 @@ class HomeViewModel @Inject constructor(
                     UserPreferencesManager.setHasSeenPrompt()
                 }
                 // Profil/usia yang baru ada di HP (mis. dipilih saat tamu) didorong ke server.
-                if (UserPreferencesManager.isGenderLocked || UserPreferencesManager.ageRange.value != null) {
+                if (UserPreferencesManager.isGenderLocked || UserPreferencesManager.ageRange.value != null ||
+                    UserPreferencesManager.isGenderBelumTerkirim
+                ) {
                     // Local has data but cloud doesn't (or fetch failed), sync up to cloud
                     authRepository.syncUserPreferences(
                         gender = UserPreferencesManager.gender.value.name,
                         isHaidhMode = UserPreferencesManager.isHaidhMode.value,
                         haidhDates = UserPreferencesManager.getHaidhDates().toList()
-                    )
+                    ).onSuccess { UserPreferencesManager.genderTerkirim() }
                 }
                 
                 syncTodayCompletionsToUiState()

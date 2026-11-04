@@ -13,8 +13,17 @@ class LengkapiProfilTest {
         usia: AgeRange? = null,
         status: StatusAktivitas? = null,
         hariIni: Long = 100,
-        ditunda: Long = 0
-    ) = HomeViewModel.perluLengkapiProfil(login, setuju, usia, status, hariIni, ditunda)
+        ditunda: Long = 0,
+        konfirmasiGender: Boolean = false
+    ) = HomeViewModel.perluLengkapiProfil(login, setuju, usia, status, hariIni, ditunda, konfirmasiGender)
+
+    @Test
+    fun `konfirmasi jenis kelamin (pengguna v1-1-1) tampil walau tidak ikut penelitian`() {
+        assertTrue(perlu(setuju = false, konfirmasiGender = true))
+        assertTrue(perlu(setuju = null, login = false, konfirmasiGender = true))
+        // "Nanti" tetap berlaku.
+        assertFalse(perlu(konfirmasiGender = true, hariIni = 100, ditunda = 107))
+    }
 
     @Test
     fun `tampil untuk peserta penelitian yang usia atau kesibukannya kosong`() {

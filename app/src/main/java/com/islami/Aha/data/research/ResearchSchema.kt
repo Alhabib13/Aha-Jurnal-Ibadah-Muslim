@@ -82,6 +82,8 @@ object ResearchSchema {
     object Detail {
         const val SUBUH = "subuh"
         const val DZUHUR = "dzuhur"
+        /** Sholat Jumat (laki-laki, hari Jumat) mengisi slot tengah hari menggantikan Dzuhur. */
+        const val JUMAT = "jumat"
         const val ASHAR = "ashar"
         const val MAGHRIB = "maghrib"
         const val ISYA = "isya"
@@ -172,7 +174,7 @@ object ResearchSchema {
 
     /** nama_detail yang sah per jenis_ibadah; iqro & qadha_sholat tidak punya detail. */
     val DETAIL_PER_JENIS: Map<String, Set<String>> = mapOf(
-        Jenis.SHOLAT_WAJIB to setOf(Detail.SUBUH, Detail.DZUHUR, Detail.ASHAR, Detail.MAGHRIB, Detail.ISYA),
+        Jenis.SHOLAT_WAJIB to setOf(Detail.SUBUH, Detail.DZUHUR, Detail.JUMAT, Detail.ASHAR, Detail.MAGHRIB, Detail.ISYA),
         Jenis.SHOLAT_SUNNAH to setOf(
             Detail.TAHAJUD, Detail.DHUHA, Detail.RAWATIB, Detail.WITIR, Detail.TARAWIH,
             Detail.TAUBAT, Detail.ISTIKHARAH, Detail.SUNNAH_LAINNYA
@@ -295,8 +297,8 @@ object ResearchMapping {
     private val FARDHU_BY_NAME = mapOf(
         "sholat subuh" to ResearchSchema.Detail.SUBUH,
         "sholat dzuhur" to ResearchSchema.Detail.DZUHUR,
-        // Pengganti Dzuhur di hari Jumat; detail tetap dzuhur, nama asli menyimpan "Jumat".
-        "sholat jumat" to ResearchSchema.Detail.DZUHUR,
+        // Pengganti Dzuhur di hari Jumat (laki-laki): slot tengah hari yang sama, detail sendiri.
+        "sholat jumat" to ResearchSchema.Detail.JUMAT,
         "sholat ashar" to ResearchSchema.Detail.ASHAR,
         "sholat maghrib" to ResearchSchema.Detail.MAGHRIB,
         "sholat isya" to ResearchSchema.Detail.ISYA

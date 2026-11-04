@@ -392,7 +392,8 @@ describe("logs: struktur & kepemilikan", () => {
 
   test("nama_detail harus cocok dengan jenis_ibadah", async () => {
     await assertFails(tulisLog({ nama_detail: "pagi" }));
-    await assertFails(tulisLog({ nama_detail: "jumat" }));
+    // "jumat" hanya sah untuk sholat_wajib (lihat blok sholat Jumat).
+    await assertFails(tulisLog({ jenis_ibadah: "sholat_sunnah", nama_detail: "jumat" }));
     await assertFails(tulisLog({ nama_detail: null }));
     await assertFails(tulisLog({ ...DZ, nama_detail: "subuh" }));
   });
@@ -433,11 +434,14 @@ describe("logs: status tiga nilai", () => {
     await assertFails(tulisLog({ status: "tidak", jam_pencatatan: null }));
   });
 
-  test("tidak dari tombol Tertinggal: sholat wajib, jam + sumber dari_notifikasi", async () => {
+  test("tidak dari tombol Tertinggal: sholat wajib, jam + sumber dari_notifikasi / buka_aplikasi", async () => {
     const tt = { status: "tidak", sumber_pencatatan: "dari_notifikasi" };
     await assertSucceeds(tulisLog(tt));
     await assertFails(tulisLog({ ...tt, jam_pencatatan: null }));
-    await assertFails(tulisLog({ ...tt, sumber_pencatatan: "buka_aplikasi" }));
+    // Tombol Tertinggal di kartu Beranda.
+    await assertSucceeds(tulisLog({ ...tt, sumber_pencatatan: "buka_aplikasi" }));
+    await assertFails(tulisLog({ ...DZ, ...tt, sumber_pencatatan: "buka_aplikasi", nama_detail: "dzikir_petang",
+      mode_pencatatan: null, waktu_dzikir: "petang" }));
     await assertFails(tulisLog({ ...tt, sumber_pencatatan: "tidak_diketahui" }));
     await assertFails(tulisLog({ ...tt, selisih_menit_dari_adzan: 5 }));
     await assertFails(tulisLog({ ...DZ, ...tt, nama_detail: "dzikir_petang", mode_pencatatan: null, waktu_dzikir: "petang" }));
@@ -920,6 +924,69 @@ describe("meta/profile: profil ibadah permanen & rentang usia", () => {
     await assertSucceeds(setDoc(prof(), { isHaidhMode: true, updatedAt: serverTimestamp() }, { merge: true }));
     await assertFails(setDoc(prof(), { fieldLama: "y" }, { merge: true }));
   });
+});
+
+describe("logs: sholat Jumat (slot tengah hari)", () => {
+  const JUMAT = "2026-10-09"; // Jumat
+  const KAMIS = "2026-10-08";
+  const jumat = (o = {}) => ({ nama_detail: "jumat", nama_detail_asli: "Sholat Jumat", tanggal: JUMAT, ...o });
+  const dzuhur = (o = {}) => ({ nama_detail: "dzuhur", nama_detail_asli: "Sholat Dzuhur", tanggal: JUMAT, ...o });
+
+  test("jumat sah di hari Jumat, dengan selisih adzan & sumber seperti sholat wajib lain", async () => {
+    await assertSucceeds(tulisLog(jumat({ selisih_menit_dari_adzan: 25, sumber_pencatatan: "dari_notifikasi" })));
+  });
+
+  test("jumat ditolak di hari selain Jumat", () =>
+    assertFails(tulisLog(jumat({ tanggal: KAMIS }))));
+
+  test("dzuhur di hari biasa tidak terpengaruh", () =>
+    assertSucceeds(tulisLog(dzuhur({ tanggal: KAMIS }))));
+
+  test("ID dokumen jumat = {uid}_{tanggal}_sholat_wajib_jumat", async () => {
+    await assertFails(tulisLog(jumat(), { id: `${ALICE}_${JUMAT}_sholat_wajib_dzuhur` }));
+    await assertSucceeds(tulisLog(jumat(), { id: `${ALICE}_${JUMAT}_sholat_wajib_jumat` }));
+  });
+
+  test("Tertinggal Jumat (dari Beranda atau notifikasi), lalu dicentang", async () => {
+    await assertSucceeds(tulisLog(jumat({ status: "tidak", sumber_pencatatan: "buka_aplikasi" })));
+    await assertSucceeds(tulisLog(jumat({ sumber_pencatatan: "buka_aplikasi" })));
+  });
+
+  test("saling meniadakan: jumat ditolak bila dzuhur hari itu ada, dan sebaliknya", async () => {
+    await seed(`logs/${logId(dzuhur())}`, log(dzuhur()));
+    await assertFails(tulisLog(jumat()));
+    await env.clearFirestore();
+    await seed(`logs/${logId(jumat())}`, log(jumat()));
+    await assertFails(tulisLog(dzuhur()));
+    await assertFails(tulisLog(dzuhur({ status: "tidak", sumber_pencatatan: "dari_notifikasi" })));
+  });
+
+  test("ganti Jumat -> Dzuhur: hapus dulu lalu tulis (urutan sinkron aplikasi) atau dalam satu batch", async () => {
+    const { writeBatch } = await import("firebase/firestore");
+    await seed(`logs/${logId(jumat())}`, log(jumat()));
+    await assertSucceeds(deleteDoc(doc(db(ALICE), "logs", logId(jumat()))));
+    await assertSucceeds(tulisLog(dzuhur()));
+    // Kembali ke Jumat dalam satu batch.
+    const fs = db(ALICE);
+    const b = writeBatch(fs);
+    b.delete(doc(fs, "logs", logId(dzuhur())));
+    b.set(doc(fs, "logs", logId(jumat())), log(jumat()));
+    await assertSucceeds(b.commit());
+  });
+
+  test("menulis ulang slot yang sama (tidak -> dikerjakan) tetap boleh", async () => {
+    await seed(`logs/${logId(jumat())}`, log(jumat({ status: "tidak", sumber_pencatatan: "dari_notifikasi" })));
+    await assertSucceeds(tulisLog(jumat()));
+  });
+
+  test("catatan pengguna lain tidak mengganggu", async () => {
+    await seed(`logs/${logId(dzuhur({ user_id: BOB }), BOB)}`, log(dzuhur({ user_id: BOB })));
+    await assertSucceeds(tulisLog(jumat()));
+  });
+
+  test("Mode Cuti: udzur untuk jumat tetap mengikuti aturan sholat wajib", () =>
+    assertSucceeds(tulisLog(jumat({ status: "udzur", jam_pencatatan: null, sumber_pencatatan: null,
+      nama_detail_asli: null }))));
 });
 
 describe("logs: tanggal tidak boleh di masa depan", () => {
