@@ -113,7 +113,9 @@ class SettingsViewModel @Inject constructor(
     private val sharedPreferences: SharedPreferences,
     private val authRepository: AuthRepository,
     private val userHabitRepository: com.islami.Aha.data.repository.UserHabitRepository,
-    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
+    /** null hanya di unit test lama; logout lalu langsung signOut. */
+    private val penyimpanToken: com.islami.Aha.data.notifikasi.PenyimpanTokenFcm? = null
 ) : ViewModel() {
     companion object {
         private const val VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
@@ -401,7 +403,8 @@ class SettingsViewModel @Inject constructor(
             clearTrackedDataForGuestMode()
             // Unggah log penelitian selagi akun lama masih login, lalu kosongkan.
             runCatching { researchLogRepository.flushAndClear() }
-            authRepository.logout()
+            // Token FCM dihapus dari server selagi masih login, lalu token perangkat dimatikan.
+            penyimpanToken?.hapusSaatLogout { authRepository.logout() } ?: authRepository.logout()
             val user = authRepository.currentUser
             val prefs = com.islami.Aha.util.SecurePrefsProvider.get(appContext)
             val formatStr = prefs.getString("time_format", TimeFormatOption.HOUR_24.name)

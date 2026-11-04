@@ -62,8 +62,13 @@ service cloud.firestore {
 
   // Profil ibadah permanen: sekali MALE/FEMALE tersimpan, tidak bisa diganti (termasuk
   // dikosongkan). Koreksi hanya lewat hapus akun atau admin di Firebase Console.
+  // SEMENTARA: kunci hanya untuk dokumen yang sudah melewati onboarding v1.2.0 (punya
+  // rentangUsia). v1.1.1 di Play Store masih punya pilihan ganti jenis kelamin dan selalu
+  // mengirim genderProfile bersama Mode Cuti; tanpa pengecualian ini sinkron Mode Cuti-nya
+  // ikut ditolak. Hapus baris rentangUsia setelah v1.1.1 tidak dipakai lagi.
   function genderTidakBerubah() {
-    return !(resource.data.get("genderProfile", "UNSPECIFIED") in ["MALE", "FEMALE"])
+    return !("rentangUsia" in resource.data)
+        || !(resource.data.get("genderProfile", "UNSPECIFIED") in ["MALE", "FEMALE"])
         || request.resource.data.get("genderProfile", "UNSPECIFIED") == resource.data.genderProfile;
   }
 
@@ -126,9 +131,27 @@ service cloud.firestore {
             "bacaan_harian", "hafalan", "iqro"];
   }
 
+  // users/{uid} HANYA untuk peserta penelitian: profil lengkap wajib ada.
+  // manufaktur (merek HP, untuk keandalan notifikasi per merek) ikut profil, opsional.
+  function validDokumenUser(data) {
+    return data.keys().hasOnly(profilFields().concat(["manufaktur"]))
+        && validProfilPenelitian(data)
+        && (!("manufaktur" in data)
+            || (data.manufaktur is string && data.manufaktur.size() >= 1 && data.manufaktur.size() <= 64));
+  }
+
+  // users/{uid}/meta/notifikasi: token FCM perangkat. Terpisah dari profil penelitian supaya
+  // pengguna yang menolak penelitian tetap bisa menerima notifikasi tanpa dokumen users/{uid}.
+  function validTokenFcm(data) {
+    return data.keys().hasOnly(["fcm_token", "fcm_token_diperbarui"])
+        && data.keys().hasAll(["fcm_token", "fcm_token_diperbarui"])
+        && data.fcm_token is string
+        && data.fcm_token.size() >= 1 && data.fcm_token.size() <= 4096
+        && data.fcm_token_diperbarui == request.time;
+  }
+
   function validProfilPenelitian(data) {
-    return data.keys().hasOnly(profilFields())
-        && data.keys().hasAll(profilFields())
+    return data.keys().hasAll(profilFields())
         && data.jenis_kelamin in ["laki_laki", "perempuan"]
         && (data.rentang_umur == null
             || data.rentang_umur in ["<15", "15-18", "19-25", "26-35", ">35"])
@@ -380,16 +403,38 @@ service cloud.firestore {
             : !("nama_detail_asli" in data));
   }
 
+  function validJadwalPengingat(docId, data) {
+    return data.keys().hasOnly(["waktu_kirim", "jenis_ibadah", "nama_detail", "id_pengingat"])
+        && data.keys().hasAll(["waktu_kirim", "jenis_ibadah", "nama_detail", "id_pengingat"])
+        && data.waktu_kirim is timestamp
+        && data.waktu_kirim > request.time - duration.value(1, "d")
+        && data.waktu_kirim <= request.time + duration.value(8, "d")
+        && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "qadha_sholat", "puasa"]
+        && validDetail(data)
+        && data.id_pengingat is string
+        && data.id_pengingat.matches("^[A-Za-z0-9_-]{1,64}$")
+        && docId.matches("^" + data.id_pengingat + "_[0-9]{8}$");
+  }
+
   match /databases/{database}/documents {
     // Profil penelitian. Satu dokumen per pengguna, hanya pemiliknya.
+    // Profil penelitian (+ manufaktur). Satu dokumen per peserta, hanya pemiliknya.
+    // Dokumen tanpa profil penelitian ditolak.
     match /users/{userId} {
       allow read, delete: if isOwner(userId);
       allow create: if isOwner(userId)
-                    && validProfilPenelitian(request.resource.data)
+                    && validDokumenUser(request.resource.data)
                     && request.resource.data.tanggal_mulai == request.time;
       allow update: if isOwner(userId)
-                    && validProfilPenelitian(request.resource.data)
+                    && validDokumenUser(request.resource.data)
                     && request.resource.data.tanggal_mulai == resource.data.tanggal_mulai;
+    }
+
+    // Jadwal pengingat 7 hari yang disusun HP (server tidak menghitung waktu sholat,
+    // koordinat tidak pernah dikirim). ID = {id_pengingat}_{yyyyMMdd}.
+    match /users/{userId}/jadwal_pengingat/{docId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validJadwalPengingat(docId, request.resource.data);
     }
 
     // Log ibadah penelitian. Kepemilikan lewat field user_id; query klien
@@ -458,18 +503,20 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
-    // User profile meta. Client can only manage basic profile fields.
+    // meta/profile: profil aplikasi (field dasar saja). meta/notifikasi: token FCM.
     match /users/{userId}/meta/{docId} {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId)
-                    && docId == "profile"
-                    && profileKeysDikenal()
-                    && validProfileWrite(request.resource.data);
+                    && ((docId == "profile"
+                         && profileKeysDikenal()
+                         && validProfileWrite(request.resource.data))
+                        || (docId == "notifikasi" && validTokenFcm(request.resource.data)));
       allow update: if isOwner(userId)
-                    && docId == "profile"
-                    && profileUbahanDikenal()
-                    && validProfileWrite(request.resource.data)
-                    && genderTidakBerubah();
+                    && ((docId == "profile"
+                         && profileUbahanDikenal()
+                         && validProfileWrite(request.resource.data)
+                         && genderTidakBerubah())
+                        || (docId == "notifikasi" && validTokenFcm(request.resource.data)));
       allow delete: if isOwner(userId);
     }
 

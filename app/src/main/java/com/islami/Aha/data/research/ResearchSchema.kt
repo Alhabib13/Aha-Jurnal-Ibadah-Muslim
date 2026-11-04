@@ -21,6 +21,8 @@ object ResearchSchema {
          * atau pengguna lama), [] = menjawab "belum ada yang rutin". Fakta awal, BUKAN label.
          */
         const val PILIHAN_AWAL = "pilihan_awal"
+        /** Build.MANUFACTURER; untuk mengukur keandalan notifikasi per merek HP. Opsional. */
+        const val MANUFAKTUR = "manufaktur"
 
         const val LAKI_LAKI = "laki_laki"
         const val PEREMPUAN = "perempuan"

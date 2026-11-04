@@ -243,7 +243,8 @@ class ResearchLogRepository @Inject constructor(
     }
 
     /**
-     * "Hapus data penelitianku": hapus semua dokumen `logs` dan profil `users/{uid}` milik akun ini di server,
+     * "Hapus data penelitianku": hapus semua dokumen `logs` dan profil `users/{uid}` milik akun ini di server
+     * (termasuk manufaktur; token FCM di meta/notifikasi tidak tersentuh),
      * berhenti ikut penelitian, dan tandai catatan lokal belum terkirim (catatan ibadah di HP
      * tetap ada; bila kelak setuju lagi, catatan itu ikut terkirim sesuai keputusan pemilik proyek).
      */
@@ -558,7 +559,10 @@ class ResearchLogRepository @Inject constructor(
     private suspend fun syncProfilPenelitian(uid: String) {
         val kunci = KEY_PROFIL_TERKIRIM_PREFIX + uid
         val awal = isiProfilPenelitian() ?: return
-        if (sharedPreferences.getString(kunci, null) == awal.values.joinToString("|")) return
+        // Merek HP untuk mengukur keandalan notifikasi per merek; ikut sidik supaya profil yang
+        // sudah terkirim sebelum field ini ada dikirim ulang sekali.
+        val manufaktur = manufakturPerangkat()
+        if (sharedPreferences.getString(kunci, null) == sidikProfil(awal, manufaktur)) return
         val db = firestore ?: return
         val ref = db.collection(ResearchSchema.COLLECTION_USERS).document(uid)
         val sidik = withTimeout(WRITE_TIMEOUT_MS) {
@@ -571,15 +575,24 @@ class ResearchLogRepository @Inject constructor(
                 )
             }
             val isi = isiProfilPenelitian() ?: return@withTimeout null
-            if (snap.exists()) {
-                ref.set(isi, SetOptions.merge()).await()
+            val tulis = isi + (ResearchSchema.Profil.MANUFAKTUR to manufaktur)
+            // tanggal_mulai hanya diisi sekali, saat dokumen pertama kali dibuat.
+            if (snap.contains(ResearchSchema.Profil.TANGGAL_MULAI)) {
+                ref.set(tulis, SetOptions.merge()).await()
             } else {
-                ref.set(isi + (ResearchSchema.Profil.TANGGAL_MULAI to FieldValue.serverTimestamp())).await()
+                ref.set(tulis + (ResearchSchema.Profil.TANGGAL_MULAI to FieldValue.serverTimestamp()), SetOptions.merge()).await()
             }
-            isi.values.joinToString("|")
+            sidikProfil(isi, manufaktur)
         } ?: return
         sharedPreferences.edit().putString(kunci, sidik).apply()
     }
+
+    private fun sidikProfil(isi: Map<String, Any?>, manufaktur: String?): String =
+        (isi.values + manufaktur).joinToString("|")
+
+    /** Build.MANUFACTURER apa adanya (dipangkas, maks 64 huruf), null bila kosong. */
+    private fun manufakturPerangkat(): String? =
+        android.os.Build.MANUFACTURER?.trim()?.take(64)?.takeIf { it.isNotEmpty() }
 
     /**
      * Saat login: pulihkan usia/kesibukan/pilihan awal dari profil penelitian di server, supaya

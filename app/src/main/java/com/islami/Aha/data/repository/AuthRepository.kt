@@ -513,6 +513,13 @@ class AuthRepository @Inject constructor(
                 .delete()
                 .await()
 
+            // Data notifikasi server (token FCM + jadwal 7 hari): bisa disusun ulang dari HP,
+            // jadi tidak dicadangkan.
+            db.collection("users").document(uid).collection("meta")
+                .document(com.islami.Aha.data.notifikasi.PenyimpanTokenFcm.DOC_NOTIFIKASI)
+                .delete().await()
+            com.islami.Aha.data.notifikasi.hapusSemuaJadwal(db, uid)
+
             // users/{uid} (profil penelitian) belum dibuat sebelum Tahap 3. Dokumen ini tidak
             // bisa dipulihkan dengan tanggal_mulai aslinya (rules: harus waktu server), jadi
             // dihapus paling akhir. TODO Tahap 3: tentukan cara pemulihannya.

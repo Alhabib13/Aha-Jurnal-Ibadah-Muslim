@@ -83,7 +83,8 @@ class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val featureConfigRepository: FeatureConfigRepository,
     private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
-    private val activityStats: com.islami.Aha.data.research.ActivityStatsRepository
+    private val activityStats: com.islami.Aha.data.research.ActivityStatsRepository,
+    private val penyimpanToken: com.islami.Aha.data.notifikasi.PenyimpanTokenFcm
 ) : ViewModel() {
 
     companion object {
@@ -261,7 +262,8 @@ class ProfileViewModel @Inject constructor(
             }
             // Unggah log penelitian selagi akun lama masih login, lalu kosongkan.
             runCatching { researchLogRepository.flushAndClear() }
-            authRepository.logout()
+            // Token FCM dihapus dari server selagi masih login, lalu token perangkat dimatikan.
+            penyimpanToken.hapusSaatLogout { authRepository.logout() }
 
             _uiState.update {
                 it.copy(
