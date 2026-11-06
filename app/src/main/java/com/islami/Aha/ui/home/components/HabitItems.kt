@@ -215,13 +215,7 @@ private fun AksiSholatWajib(
     if (!bisaTertinggal && !tertinggal && opsiJumat == null) return
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (tertinggal) {
-            Text(
-                "Tertinggal",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = merah.teks(),
-                modifier = Modifier.clip(CircleShape).background(merah.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 1.dp)
-            )
+            ChipTertinggal(merah)
             AksiKecil("Batalkan", onBatalTertinggal)
         } else if (bisaTertinggal) {
             AksiKecil("Tertinggal", { onTertinggal?.invoke() })
@@ -249,6 +243,42 @@ private fun AksiSholatWajib(
             dismissButton = { TextButton(onClick = { konfirmasiGanti = false }) { Text("Batal") } }
         )
     }
+}
+
+/**
+ * Tombol "Tertinggal" untuk kartu puasa & habit sunnah: muncul setelah [waktu] masuk (habit tanpa
+ * jam = sepanjang hari), berubah jadi tanda yang bisa dibatalkan, hilang bila sudah dicentang.
+ */
+@Composable
+internal fun AksiTertinggal(
+    selesai: Boolean,
+    waktu: String?,
+    currentTime: String,
+    tertinggal: Boolean,
+    onTertinggal: () -> Unit,
+    onBatal: () -> Unit
+) {
+    val bisa = !selesai && !tertinggal && (waktu.isNullOrBlank() || waktuSudahMasuk(waktu, currentTime))
+    if (!bisa && !tertinggal) return
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (tertinggal) {
+            ChipTertinggal(Color(0xFFE5675A))
+            AksiKecil("Batalkan", onBatal)
+        } else {
+            AksiKecil("Tertinggal", onTertinggal)
+        }
+    }
+}
+
+@Composable
+private fun ChipTertinggal(merah: Color) {
+    Text(
+        "Tertinggal",
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = merah.teks(),
+        modifier = Modifier.clip(CircleShape).background(merah.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 1.dp)
+    )
 }
 
 @Composable

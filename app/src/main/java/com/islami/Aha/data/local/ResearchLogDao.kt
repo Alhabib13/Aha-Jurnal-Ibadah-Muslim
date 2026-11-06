@@ -16,6 +16,10 @@ interface ResearchLogDao {
     @Query("SELECT * FROM research_logs WHERE slotKey = :slotKey")
     suspend fun getBySlotKey(slotKey: String): ResearchLogEntity?
 
+    /** Semua baris satu tanggal (semua jenis); kartu puasa & sunnah Beranda. */
+    @Query("SELECT * FROM research_logs WHERE tanggal = :tanggal")
+    fun observeHari(tanggal: String): kotlinx.coroutines.flow.Flow<List<ResearchLogEntity>>
+
     /** Semua baris (dikerjakan / tidak / udzur) satu jenis pada satu tanggal; kartu sholat Beranda. */
     @Query("SELECT * FROM research_logs WHERE tanggal = :tanggal AND jenisIbadah = :jenis")
     fun observeSemuaStatus(tanggal: String, jenis: String): kotlinx.coroutines.flow.Flow<List<ResearchLogEntity>>
@@ -46,6 +50,10 @@ interface ResearchLogDao {
 
     @Query("DELETE FROM research_logs WHERE ownerUid IS NOT NULL AND ownerUid != :uid")
     suspend fun deleteNotOwnedBy(uid: String)
+
+    /** Baris tamu tanpa pemilik diadopsi akun anonim yang baru dibuat di HP ini. */
+    @Query("UPDATE research_logs SET ownerUid = :uid WHERE ownerUid IS NULL")
+    suspend fun klaimTanpaPemilik(uid: String)
 
     @Query("DELETE FROM research_logs")
     suspend fun deleteAll()

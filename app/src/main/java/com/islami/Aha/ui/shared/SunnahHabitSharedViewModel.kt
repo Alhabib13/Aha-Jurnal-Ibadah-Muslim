@@ -93,4 +93,9 @@ class SunnahHabitSharedViewModel @Inject constructor(
     suspend fun syncFromCloudIfLoggedInAwait(): CloudSyncStatus {
         return repository.syncFromCloudIfLoggedIn()
     }
+
+    /** Tombol "Tertinggal" di kartu habit sunnah/puasa (lihat UserHabitRepository.markTertinggal). */
+    suspend fun markTertinggal(id: String): Boolean = repository.markTertinggal(id)
+
+    suspend fun batalkanTertinggal(id: String): Boolean = repository.batalkanTertinggal(id)
 }

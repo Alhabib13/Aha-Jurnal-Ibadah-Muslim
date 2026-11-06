@@ -716,6 +716,19 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /** Tombol "Tertinggal" di kartu habit sunnah/puasa buatan pengguna. */
+    fun tandaiTertinggalSunnah(habit: com.islami.Aha.domain.model.SunnahHabit) {
+        viewModelScope.launch {
+            if (sunnahHabitSharedViewModel.markTertinggal(habit.id)) showSnackbar("${habit.name} ditandai tertinggal")
+        }
+    }
+
+    fun batalkanTertinggalSunnah(habit: com.islami.Aha.domain.model.SunnahHabit) {
+        viewModelScope.launch {
+            if (sunnahHabitSharedViewModel.batalkanTertinggal(habit.id)) showSnackbar("Tanda tertinggal ${habit.name} dibatalkan")
+        }
+    }
+
     fun batalkanTertinggal(habit: Habit) {
         viewModelScope.launch {
             if (!defaultHabitCompletion.batalkanTertinggal(habit.id, DateUtils.getTodayKey())) return@launch
@@ -801,6 +814,16 @@ class HomeViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            // Status semua catatan hari ini: tombol Tertinggal di kartu puasa & sunnah.
+            todayKeyFlow.flatMapLatest { today ->
+                researchLogRepository.observeHari(today).map { rows -> today to rows }
+            }.collect { (today, rows) ->
+                _uiState.update { s ->
+                    s.copy(statusSlotHariIni = rows.associate { it.slotKey to it.status }, tanggalStatus = today)
+                }
+            }
+        }
+        viewModelScope.launch {
             // Status tiap sholat wajib hari ini (untuk tombol Tertinggal) dan slot tengah hari
             // (Jumat/Dzuhur); dihitung ulang tiap catatan berubah, hari berganti, atau profil berubah.
             kotlinx.coroutines.flow.combine(todayKeyFlow, UserPreferencesManager.isJumatEnabled) { today, _ -> today }
@@ -839,8 +862,8 @@ class HomeViewModel @Inject constructor(
     }
 
     /** Keputusan atas persetujuan penelitian (Setuju / Tidak). Fitur tetap berjalan apa pun pilihannya. */
-    fun decideResearchConsent(setuju: Boolean) {
-        researchLogRepository.setResearchConsent(setuju)
+    fun decideResearchConsent(setuju: Boolean, kodeResponden: String? = null) {
+        researchLogRepository.setResearchConsent(setuju, kodeResponden)
         _uiState.update { it.copy(showResearchNotice = false) }
         hitungLengkapiProfil()
     }

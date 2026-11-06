@@ -26,7 +26,9 @@ data class LoginUiState(
     val loginSuccess: Boolean = false,
     val errorMessage: String? = null,
     val infoMessage: String? = null,
-    val showForgotPassword: Boolean = false
+    val showForgotPassword: Boolean = false,
+    /** Tamu masuk ke akun yang sudah ada: daftar data yang akan hilang dari HP; null = tidak ada dialog. */
+    val konfirmasiPindahAkun: List<String>? = null
 )
 
 data class RegisterUiState(
@@ -42,14 +44,78 @@ data class RegisterUiState(
     val passwordError: String? = null,
     val confirmPasswordError: String? = null,
     val registerSuccess: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val konfirmasiPindahAkun: List<String>? = null
 )
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    @ApplicationContext private val appContext: Context
+    @ApplicationContext private val appContext: Context,
+    private val dataTamu: com.islami.Aha.data.repository.DataTamuRepository
 ) : ViewModel() {
+
+    /** Login yang menunggu penegasan pindah akun (tamu -> akun yang sudah ada). */
+    private sealed class LoginTertunda {
+        object Email : LoginTertunda()
+        data class Google(val idToken: String, val dariDaftar: Boolean) : LoginTertunda()
+    }
+
+    private var tertunda: LoginTertunda? = null
+
+    /**
+     * Repositori menolak pindah akun tanpa penegasan. Data tamu kosong = langsung lanjut tanpa
+     * dialog; ada data = tampilkan daftarnya dulu.
+     */
+    private suspend fun mintaKonfirmasi(aksi: LoginTertunda) {
+        val ringkasan = dataTamu.ringkasan()
+        if (ringkasan.kosong) {
+            jalankanPindahAkun(aksi)
+            return
+        }
+        tertunda = aksi
+        when (aksi) {
+            is LoginTertunda.Google -> if (aksi.dariDaftar) {
+                _registerState.update { it.copy(isLoading = false, konfirmasiPindahAkun = ringkasan.baris()) }
+            } else {
+                _loginState.update { it.copy(isLoading = false, konfirmasiPindahAkun = ringkasan.baris()) }
+            }
+            LoginTertunda.Email -> _loginState.update { it.copy(isLoading = false, konfirmasiPindahAkun = ringkasan.baris()) }
+        }
+    }
+
+    /** Pengguna menegaskan: kirim data tamu yang tertunda, lalu masuk ke akun lama. */
+    fun setujuiPindahAkun() {
+        val aksi = tertunda ?: return
+        tertunda = null
+        _loginState.update { it.copy(konfirmasiPindahAkun = null) }
+        _registerState.update { it.copy(konfirmasiPindahAkun = null) }
+        viewModelScope.launch { jalankanPindahAkun(aksi) }
+    }
+
+    fun batalkanPindahAkun() {
+        tertunda = null
+        _loginState.update { it.copy(konfirmasiPindahAkun = null, isLoading = false) }
+        _registerState.update { it.copy(konfirmasiPindahAkun = null, isLoading = false) }
+    }
+
+    private suspend fun jalankanPindahAkun(aksi: LoginTertunda) {
+        when (aksi) {
+            LoginTertunda.Email -> {
+                _loginState.update { it.copy(isLoading = true, errorMessage = null) }
+                dataTamu.kirimSebelumPindah()
+                val s = _loginState.value
+                terapkanHasilLogin(authRepository.login(s.email, s.password, izinkanPindahAkun = true))
+            }
+            is LoginTertunda.Google -> {
+                if (aksi.dariDaftar) _registerState.update { it.copy(isLoading = true, errorMessage = null) }
+                else _loginState.update { it.copy(isLoading = true, errorMessage = null) }
+                dataTamu.kirimSebelumPindah()
+                val hasil = authRepository.loginWithGoogleIdToken(aksi.idToken, izinkanPindahAkun = true)
+                if (aksi.dariDaftar) terapkanHasilDaftarGoogle(hasil) else terapkanHasilGoogle(hasil)
+            }
+        }
+    }
 
     companion object {
         private const val INVALID_LOGIN_CREDENTIAL_KEYWORD = "invalid login credentials"
@@ -119,7 +185,14 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _loginState.update { it.copy(isLoading = true, errorMessage = null, infoMessage = null) }
 
-            when (val result = authRepository.login(currentState.email, currentState.password)) {
+            terapkanHasilLogin(authRepository.login(currentState.email, currentState.password))
+        }
+    }
+
+    private suspend fun terapkanHasilLogin(hasil: AuthResult) {
+        run { // blok asli login(), isinya tidak diubah
+            when (val result = hasil) {
+                AuthResult.PerluKonfirmasiPindahAkun -> mintaKonfirmasi(LoginTertunda.Email)
                 is AuthResult.Success -> {
                     _loginState.update {
                         it.copy(
@@ -283,9 +356,11 @@ class AuthViewModel @Inject constructor(
                         it.copy(isLoading = false, registerSuccess = true)
                     }
                 }
+                // Daftar email selalu membuat/menautkan akun baru, tidak pernah pindah akun.
+                AuthResult.PerluKonfirmasiPindahAkun,
                 is AuthResult.Error -> {
                     _registerState.update {
-                        it.copy(isLoading = false, errorMessage = result.message)
+                        it.copy(isLoading = false, errorMessage = (result as? AuthResult.Error)?.message)
                     }
                 }
             }
@@ -374,15 +449,27 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _loginState.update { it.copy(isLoading = true, errorMessage = null, infoMessage = null) }
             val result = authRepository.loginWithGoogleIdToken(idToken)
-
-            when (result) {
-                is AuthResult.Success -> {
-                    _loginState.update { it.copy(isLoading = false, loginSuccess = true) }
-                }
-                is AuthResult.Error -> {
-                    _loginState.update { it.copy(isLoading = false, errorMessage = result.message) }
-                }
+            if (result == AuthResult.PerluKonfirmasiPindahAkun) {
+                mintaKonfirmasi(LoginTertunda.Google(idToken, dariDaftar = false))
+            } else {
+                terapkanHasilGoogle(result)
             }
+        }
+    }
+
+    private fun terapkanHasilGoogle(result: AuthResult) {
+        when (result) {
+            is AuthResult.Success -> _loginState.update { it.copy(isLoading = false, loginSuccess = true) }
+            is AuthResult.Error -> _loginState.update { it.copy(isLoading = false, errorMessage = result.message) }
+            AuthResult.PerluKonfirmasiPindahAkun -> _loginState.update { it.copy(isLoading = false) }
+        }
+    }
+
+    private fun terapkanHasilDaftarGoogle(result: AuthResult) {
+        when (result) {
+            is AuthResult.Success -> _registerState.update { it.copy(isLoading = false, registerSuccess = true) }
+            is AuthResult.Error -> _registerState.update { it.copy(isLoading = false, errorMessage = result.message) }
+            AuthResult.PerluKonfirmasiPindahAkun -> _registerState.update { it.copy(isLoading = false) }
         }
     }
 
@@ -390,14 +477,10 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _registerState.update { it.copy(isLoading = true, errorMessage = null) }
             val result = authRepository.loginWithGoogleIdToken(idToken)
-
-            when (result) {
-                is AuthResult.Success -> {
-                    _registerState.update { it.copy(isLoading = false, registerSuccess = true) }
-                }
-                is AuthResult.Error -> {
-                    _registerState.update { it.copy(isLoading = false, errorMessage = result.message) }
-                }
+            if (result == AuthResult.PerluKonfirmasiPindahAkun) {
+                mintaKonfirmasi(LoginTertunda.Google(idToken, dariDaftar = true))
+            } else {
+                terapkanHasilDaftarGoogle(result)
             }
         }
     }

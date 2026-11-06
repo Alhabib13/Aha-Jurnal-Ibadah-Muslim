@@ -133,11 +133,27 @@ service cloud.firestore {
 
   // users/{uid} HANYA untuk peserta penelitian: profil lengkap wajib ada.
   // manufaktur (merek HP, untuk keandalan notifikasi per merek) ikut profil, opsional.
+  //   kode_responden: kode dari peneliti untuk responden yang direkrut langsung (opsional).
+  //   disetujui_pada: waktu server saat profil pertama dikirim setelah menyetujui penelitian.
   function validDokumenUser(data) {
-    return data.keys().hasOnly(profilFields().concat(["manufaktur"]))
+    return data.keys().hasOnly(profilFields().concat(["manufaktur", "kode_responden", "disetujui_pada"]))
         && validProfilPenelitian(data)
         && (!("manufaktur" in data)
-            || (data.manufaktur is string && data.manufaktur.size() >= 1 && data.manufaktur.size() <= 64));
+            || (data.manufaktur is string && data.manufaktur.size() >= 1 && data.manufaktur.size() <= 64))
+        && (!("kode_responden" in data)
+            || (data.kode_responden is string && data.kode_responden.matches("^[A-Za-z0-9-]{4,20}$")));
+  }
+
+  // Persetujuan penelitian = syarat dokumen users/{uid}: wajib ada sejak dibuat dan tidak
+  // berubah. Profil lama (sebelum field ini ada) boleh mendapatkannya sekali, dengan waktu server.
+  function disetujuiSaatDibuat() {
+    return request.resource.data.get("disetujui_pada", null) == request.time;
+  }
+
+  function disetujuiTetap() {
+    return ("disetujui_pada" in resource.data)
+        ? request.resource.data.get("disetujui_pada", null) == resource.data.disetujui_pada
+        : (!("disetujui_pada" in request.resource.data) || request.resource.data.disetujui_pada == request.time);
   }
 
   // users/{uid}/meta/notifikasi: token FCM perangkat. Terpisah dari profil penelitian supaya
@@ -236,9 +252,13 @@ service cloud.firestore {
   // MENUNGGU VALIDASI PAKAR: cakupan udzur adalah keputusan fiqih. Tilawah saat
   // haid masih khilafiyah; posisi netral sementara = tidak dibuatkan baris apa pun.
   // Sinkron dengan ResearchSchema.JENIS_BOLEH_UDZUR.
+  // "tidak" untuk puasa & sholat sunnah/qadha hanya sebagai pengakuan lewat tombol Tertinggal
+  // (jam + sumber wajib, lihat validJamDanSumber); tidak pernah hasil penyimpulan.
   function validStatus(data) {
     return data.status == "dikerjakan"
         || (data.status == "tidak" && data.jenis_ibadah in ["sholat_wajib", "dzikir"])
+        || (data.status == "tidak" && data.jenis_ibadah in ["sholat_sunnah", "qadha_sholat", "puasa"]
+            && data.sumber_pencatatan != null)
         || (data.status == "udzur" && data.jenis_ibadah in ["sholat_wajib", "puasa"]);
   }
 
@@ -257,7 +277,8 @@ service cloud.firestore {
            && data.sumber_pencatatan in ["dari_notifikasi", "dari_notifikasi_dibuka", "buka_aplikasi",
                                          "tidak_diketahui"])
         : (data.jam_pencatatan == null && data.sumber_pencatatan == null)
-          || (data.status == "tidak" && data.jenis_ibadah == "sholat_wajib"
+          || (data.status == "tidak"
+              && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "qadha_sholat", "puasa"]
               && data.jam_pencatatan is timestamp
               && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi"]);
   }
@@ -446,10 +467,12 @@ service cloud.firestore {
       allow read, delete: if isOwner(userId);
       allow create: if isOwner(userId)
                     && validDokumenUser(request.resource.data)
-                    && request.resource.data.tanggal_mulai == request.time;
+                    && request.resource.data.tanggal_mulai == request.time
+                    && disetujuiSaatDibuat();
       allow update: if isOwner(userId)
                     && validDokumenUser(request.resource.data)
-                    && request.resource.data.tanggal_mulai == resource.data.tanggal_mulai;
+                    && request.resource.data.tanggal_mulai == resource.data.tanggal_mulai
+                    && disetujuiTetap();
     }
 
     // Jadwal pengingat 7 hari yang disusun HP (server tidak menghitung waktu sholat,

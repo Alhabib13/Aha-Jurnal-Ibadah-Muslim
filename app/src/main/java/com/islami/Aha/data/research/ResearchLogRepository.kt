@@ -74,6 +74,7 @@ class ResearchLogRepository @Inject constructor(
         private const val KEY_RESTORED_PREFIX = "research_logs_restored_"
         /** Sumber yang sah untuk "Tertinggal" (sama dengan validJamDanSumber di firestore.rules). */
         val SUMBER_TERTINGGAL = setOf(ResearchSchema.Sumber.DARI_NOTIFIKASI, ResearchSchema.Sumber.BUKA_APLIKASI)
+        const val KEY_KODE_RESPONDEN = "research_kode_responden"
         /** Isi profil penelitian terakhir yang berhasil dikirim, per akun. */
         private const val KEY_PROFIL_TERKIRIM_PREFIX = "research_profil_terkirim_"
 
@@ -177,7 +178,7 @@ class ResearchLogRepository @Inject constructor(
     ): Boolean {
         if (sumber !in SUMBER_TERTINGGAL) return false
         ref ?: return false
-        if (ref.slot.jenisIbadah != ResearchSchema.Jenis.SHOLAT_WAJIB) return false
+        if (ref.slot.jenisIbadah !in ResearchSchema.JENIS_BOLEH_TERTINGGAL) return false
         val key = slotKeyOrNull(ref, tanggal) ?: return false
         if (researchLogDao.getBySlotKey(key)?.status == ResearchSchema.Status.DIKERJAKAN) return false
         researchLogDao.upsert(
@@ -225,6 +226,12 @@ class ResearchLogRepository @Inject constructor(
     fun observeSemuaStatus(tanggal: String, jenis: String): Flow<List<ResearchLogEntity>> =
         researchLogDao.observeSemuaStatus(tanggal, jenis)
 
+    /** Semua baris pada [tanggal], semua jenis; kartu puasa & sunnah di Beranda. */
+    fun observeHari(tanggal: String): Flow<List<ResearchLogEntity>> = researchLogDao.observeHari(tanggal)
+
+    /** slotKey lokal [ref] pada [tanggal] (null bila tidak sah), untuk mencocokkan status di UI. */
+    fun slotKey(ref: SlotRef?, tanggal: String): String? = ref?.let { slotKeyOrNull(it, tanggal) }
+
     /** Centang dibatalkan (keputusan C): baris dihapus, bukan diubah jadi "tidak". */
     suspend fun remove(ref: SlotRef?, tanggal: String) {
         ref ?: return
@@ -263,13 +270,28 @@ class ResearchLogRepository @Inject constructor(
     }
 
     /**
+     * Keputusan di layar persetujuan beserta kode responden opsional. Kode hanya disimpan bila
+     * setuju dan formatnya sah; tidak setuju / kosong = kode dihapus.
+     */
+    fun setResearchConsent(setuju: Boolean, kodeResponden: String?) {
+        val kode = if (setuju) ResearchSchema.Profil.normalisasiKodeResponden(kodeResponden) else null
+        sharedPreferences.edit().apply {
+            if (kode != null) putString(KEY_KODE_RESPONDEN, kode) else remove(KEY_KODE_RESPONDEN)
+        }.apply()
+        setResearchConsent(setuju)
+    }
+
+    fun kodeResponden(): String? = sharedPreferences.getString(KEY_KODE_RESPONDEN, null)
+
+    /**
      * "Hapus data penelitianku": hapus semua dokumen `logs` dan profil `users/{uid}` milik akun ini di server
      * (termasuk manufaktur; token FCM di meta/notifikasi tidak tersentuh),
      * berhenti ikut penelitian, dan tandai catatan lokal belum terkirim (catatan ibadah di HP
      * tetap ada; bila kelak setuju lagi, catatan itu ikut terkirim sesuai keputusan pemilik proyek).
      */
     suspend fun deleteMyResearchData(): CloudSyncStatus {
-        setResearchConsent(false)
+        // Kode responden ikut dihapus dari HP.
+        setResearchConsent(false, null)
         val uid = currentUid() ?: run {
             researchLogDao.markAllUnsynced()
             return CloudSyncStatus.success()
@@ -542,6 +564,12 @@ class ResearchLogRepository @Inject constructor(
     }
 
     /** Akun berganti tanpa lewat logout: buang baris milik akun lain. */
+    /**
+     * Akun anonim baru dibuat: catatan tamu sebelumnya (tanpa pemilik) menjadi miliknya. Kalau
+     * kelak tamu itu masuk ke akun lain, catatan ini tidak ikut terkirim atas nama akun itu.
+     */
+    suspend fun klaimCatatanTamu(uid: String) = researchLogDao.klaimTanpaPemilik(uid)
+
     suspend fun clearRowsNotOwnedBy(uid: String) {
         researchLogDao.deleteNotOwnedBy(uid)
         deletedSyncDao.deleteByType(RECORD_TYPE)
@@ -582,7 +610,8 @@ class ResearchLogRepository @Inject constructor(
         // Merek HP untuk mengukur keandalan notifikasi per merek; ikut sidik supaya profil yang
         // sudah terkirim sebelum field ini ada dikirim ulang sekali.
         val manufaktur = manufakturPerangkat()
-        if (sharedPreferences.getString(kunci, null) == sidikProfil(awal, manufaktur)) return
+        val kode = kodeResponden()
+        if (sharedPreferences.getString(kunci, null) == sidikProfil(awal, manufaktur, kode)) return
         val db = firestore ?: return
         val ref = db.collection(ResearchSchema.COLLECTION_USERS).document(uid)
         val sidik = withTimeout(WRITE_TIMEOUT_MS) {
@@ -595,20 +624,29 @@ class ResearchLogRepository @Inject constructor(
                 )
             }
             val isi = isiProfilPenelitian() ?: return@withTimeout null
-            val tulis = isi + (ResearchSchema.Profil.MANUFAKTUR to manufaktur)
-            // tanggal_mulai hanya diisi sekali, saat dokumen pertama kali dibuat.
-            if (snap.contains(ResearchSchema.Profil.TANGGAL_MULAI)) {
-                ref.set(tulis, SetOptions.merge()).await()
-            } else {
-                ref.set(tulis + (ResearchSchema.Profil.TANGGAL_MULAI to FieldValue.serverTimestamp()), SetOptions.merge()).await()
+            val tulis = buildMap<String, Any?> {
+                // Kunci profil wajib ada walau bernilai null (rules: hasAll).
+                putAll(isi)
+                // manufaktur null tidak dikirim (rules: string 1-64 bila ada).
+                if (manufaktur != null) put(ResearchSchema.Profil.MANUFAKTUR, manufaktur)
+                // Kode responden opsional: kosong di HP = dihapus dari server bila pernah ada.
+                when {
+                    kode != null -> put(ResearchSchema.Profil.KODE_RESPONDEN, kode)
+                    snap.contains(ResearchSchema.Profil.KODE_RESPONDEN) -> put(ResearchSchema.Profil.KODE_RESPONDEN, FieldValue.delete())
+                }
+                // tanggal_mulai & disetujui_pada hanya diisi sekali (waktu server). Profil lama yang
+                // dibuat sebelum disetujui_pada ada mendapatkannya di pengiriman berikutnya.
+                if (!snap.contains(ResearchSchema.Profil.TANGGAL_MULAI)) put(ResearchSchema.Profil.TANGGAL_MULAI, FieldValue.serverTimestamp())
+                if (!snap.contains(ResearchSchema.Profil.DISETUJUI_PADA)) put(ResearchSchema.Profil.DISETUJUI_PADA, FieldValue.serverTimestamp())
             }
-            sidikProfil(isi, manufaktur)
+            ref.set(tulis, SetOptions.merge()).await()
+            sidikProfil(isi, manufaktur, kode)
         } ?: return
         sharedPreferences.edit().putString(kunci, sidik).apply()
     }
 
-    private fun sidikProfil(isi: Map<String, Any?>, manufaktur: String?): String =
-        (isi.values + manufaktur).joinToString("|")
+    private fun sidikProfil(isi: Map<String, Any?>, manufaktur: String?, kode: String?): String =
+        (isi.values + manufaktur + kode).joinToString("|")
 
     /** Build.MANUFACTURER apa adanya (dipangkas, maks 64 huruf), null bila kosong. */
     private fun manufakturPerangkat(): String? =

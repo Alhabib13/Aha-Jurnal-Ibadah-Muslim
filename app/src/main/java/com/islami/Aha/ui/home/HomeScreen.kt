@@ -247,6 +247,8 @@ fun HomeScreen(
             onToggleHabitCompletion = viewModel::toggleHabitCompletion,
             onTandaiTertinggal = viewModel::tandaiTertinggal,
             onBatalkanTertinggal = viewModel::batalkanTertinggal,
+            onTandaiTertinggalSunnah = viewModel::tandaiTertinggalSunnah,
+            onBatalkanTertinggalSunnah = viewModel::batalkanTertinggalSunnah,
             onGantiTengahHari = viewModel::gantiTengahHari,
             onToggleHabitReminder = viewModel::toggleReminderEnabled,
             onNavigateToAddHabit = onNavigateToAddHabit,
@@ -310,7 +312,7 @@ fun HomeScreen(
 
         if (uiState.showResearchNotice) {
             com.islami.Aha.ui.consent.ResearchConsentDialog(
-                onAccept = { viewModel.decideResearchConsent(true) },
+                onAccept = { kode -> viewModel.decideResearchConsent(true, kode) },
                 onDecline = { viewModel.decideResearchConsent(false) },
                 onOpenPrivacyPolicy = {
                     context.startActivity(
@@ -482,6 +484,8 @@ fun HomeScreenContent(
     onToggleHabitCompletion: (Habit) -> Unit,
     onTandaiTertinggal: (Habit) -> Unit = {},
     onBatalkanTertinggal: (Habit) -> Unit = {},
+    onTandaiTertinggalSunnah: (com.islami.Aha.domain.model.SunnahHabit) -> Unit = {},
+    onBatalkanTertinggalSunnah: (com.islami.Aha.domain.model.SunnahHabit) -> Unit = {},
     onGantiTengahHari: (Habit, Boolean) -> Unit = { _, _ -> },
     onToggleHabitReminder: (Habit) -> Unit,
     onNavigateToAddHabit: () -> Unit,
@@ -696,7 +700,11 @@ fun HomeScreenContent(
                             null
                         },
                         onToggleHabitCompletion = onToggleHabitCompletion,
-                        onToggleHabitReminder = onToggleHabitReminder
+                        onToggleHabitReminder = onToggleHabitReminder,
+                        currentTime = uiState.currentTime,
+                        puasaTertinggal = uiState.ramadanPuasaHabit?.let { uiState.tertinggal(it) } == true,
+                        onTertinggal = onTandaiTertinggal,
+                        onBatalTertinggal = onBatalkanTertinggal
                     )
                 }
             } else if (uiState.filteredHabits.isEmpty() && uiState.filteredSunnahHabits.isEmpty()) {
@@ -730,7 +738,11 @@ fun HomeScreenContent(
                         sunnahHabit = sunnahHabit,
                         onToggleComplete = { onToggleSunnahCompletion(sunnahHabit.id) },
                         onToggleReminder = { onToggleSunnahReminder(sunnahHabit.id) },
-                        onDelete = { onDeleteSunnah(sunnahHabit.id) }
+                        onDelete = { onDeleteSunnah(sunnahHabit.id) },
+                        currentTime = uiState.currentTime,
+                        tertinggal = uiState.tertinggal(sunnahHabit),
+                        onTertinggal = if (uiState.bisaTertinggal(sunnahHabit)) ({ onTandaiTertinggalSunnah(sunnahHabit) }) else null,
+                        onBatalTertinggal = { onBatalkanTertinggalSunnah(sunnahHabit) }
                     )
                 }
             }

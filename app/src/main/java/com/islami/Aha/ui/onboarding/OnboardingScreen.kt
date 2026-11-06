@@ -146,8 +146,8 @@ fun OnboardingScreen(
             }
             HAL_PERSETUJUAN -> Kerangka(halaman) {
                 ResearchConsentContent(
-                    onAccept = { viewModel.simpanPersetujuan(true); lanjut() },
-                    onDecline = { viewModel.simpanPersetujuan(false); lanjut() },
+                    onAccept = { kode -> viewModel.simpanPersetujuan(true, kode); lanjut() },
+                    onDecline = { viewModel.simpanPersetujuan(false, null); lanjut() },
                     onOpenPrivacyPolicy = {
                         context.startActivity(
                             Intent(context, LegalDocumentActivity::class.java)

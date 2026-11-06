@@ -18,6 +18,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var sinkronJadwal: SinkronJadwalPengingat
+    @Inject lateinit var authRepository: com.islami.Aha.data.repository.AuthRepository
+    @Inject lateinit var researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,6 +30,17 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AhaApp()
+        }
+
+        // Tamu yang belum pernah login di HP ini masuk anonim tanpa penghalang (lihat
+        // AuthRepository.masukAnonimBilaPerlu); gagal = aplikasi tetap jalan sebagai tamu.
+        lifecycleScope.launch {
+            runCatching {
+                if (authRepository.masukAnonimBilaPerlu()) {
+                    authRepository.currentUser?.uid?.let { researchLogRepository.klaimCatatanTamu(it) }
+                    researchLogRepository.scheduleUpload()
+                }
+            }
         }
 
         // Data untuk notifikasi server (Tahap 1): token FCM + jadwal 7 hari, selama aplikasi tampil.

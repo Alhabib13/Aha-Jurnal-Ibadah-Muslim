@@ -39,8 +39,8 @@ class OnboardingViewModel @Inject constructor(
         UserPreferencesManager.setStatusAktivitas(status)
     }
 
-    fun simpanPersetujuan(setuju: Boolean) {
-        researchLogRepository.setResearchConsent(setuju)
+    fun simpanPersetujuan(setuju: Boolean, kodeResponden: String?) {
+        researchLogRepository.setResearchConsent(setuju, kodeResponden)
     }
 
     /**

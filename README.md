@@ -7,29 +7,29 @@ Notifikasi Pintar pada Aplikasi Habit Tracker Ibadah*.
 Dokumen terkait: `HANDOFF_Konteks_Skripsi_AI_Habit_Tracker.md` (konteks skripsi),
 `FITUR_DZIKIR_README.md` (fitur dzikir), `PLAY_DATA_SAFETY_v1.2.0.md` (Data Safety Play Console).
 
-## Keputusan yang dikunci, pengerjaannya ditunda
+## Keputusan yang dikunci
 
-### Anonymous Auth (diputuskan 2026-10-18)
+### Anonymous Auth (diputuskan 2026-10-18, dikerjakan 2026-11-06 untuk v1.2.0)
 
-**Status: DITUNDA seluruhnya sampai v1.2.0 tayang di Play Store dan data mulai mengalir.**
-Penyedia "Anonymous" di Firebase Console juga JANGAN diaktifkan sebelum aplikasi memakainya.
+Semula ditunda sampai v1.2.0 tayang; pemilik proyek memutuskan memasukkannya ke v1.2.0.
+Penyedia "Anonymous" di Firebase Console harus diaktifkan sebelum rilis (dikerjakan pemilik
+proyek). Selama belum aktif, aplikasi tetap berjalan sebagai tamu tanpa error.
 
-Alasan: responden penelitian direkrut langsung dan bisa membuat akun, jadi Anonymous Auth tidak
-melayani mereka. Sesuai keputusan 2026-10-09, Anonymous Auth sengaja ditaruh paling akhir supaya
-tidak dibundel dengan rilis fitur (jalur pergantian UID berisiko menghapus data lokal).
+1. **Masuk anonim otomatis HANYA untuk HP yang belum pernah login akun sungguhan**
+   (`AuthRepository.masukAnonimBilaPerlu`). Catatan tamu sebelumnya diadopsi UID anonim itu.
+2. **Tamu mendaftar akun baru** (email atau Google) → akun anonim ditautkan
+   (`linkWithCredential`). UID tetap, semua data ikut.
+3. **Tamu login ke akun yang SUDAH ADA** → peringatan SEBELUM login yang menyebutkan habit yang
+   akan hilang dari HP (`DialogPindahAkun`), lalu data tamu yang tertunda dikirim dulu. Data
+   selama menjadi tamu tetap di dataset dengan UID anonimnya.
+4. **Setelah logout** → TIDAK dibuatkan akun anonim baru; data penelitian berhenti terkirim
+   sampai login lagi. Satu orang dengan dua UID mencemari dataset dan tidak bisa dibersihkan,
+   sedangkan data yang tidak terkirim hanya hilang. Prinsip proyek: **data hilang lebih baik
+   daripada data salah.**
+5. Tamu anonim BUKAN "login" untuk tampilan (`AuthRepository.isLoggedIn` = akun sungguhan);
+   Profil/Pengaturan tetap mode tamu.
+6. `users/{uid}` wajib berisi `disetujui_pada` (waktu server) sejak dibuat: persetujuan
+   penelitian tercatat di dataset dan ditolak server bila tidak ada.
 
-Saat dikerjakan nanti, aturannya:
-
-1. **Tamu mendaftar akun baru** → tautkan akun anonim ke akun baru (`linkWithCredential`).
-   UID tetap, semua data ikut.
-2. **Tamu login ke akun yang SUDAH ADA** → jangan mengganti data lokal diam-diam. Tampilkan
-   peringatan SEBELUM login yang menyebutkan habit apa saja yang akan hilang dari HP, dan minta
-   pengguna menegaskan. Data selama menjadi tamu tetap di dataset dengan UID anonimnya.
-3. **Setelah logout** → aplikasi BERHENTI mengirim data penelitian sampai pengguna login lagi.
-   JANGAN membuat akun anonim baru secara otomatis: satu orang dengan dua UID mencemari dataset
-   dan tidak bisa dibersihkan belakangan, sedangkan data yang tidak terkirim hanya hilang.
-   Prinsip proyek: **data hilang lebih baik daripada data salah.**
-
-Yang juga harus ikut saat dikerjakan: periksa semua tempat yang menganggap "ada `currentUser`"
-sama dengan "sudah login" (Profil, sinkron habit, hapus akun, Splash), serta perbarui kebijakan
-privasi dan Data Safety.
+Masih harus dikerjakan sebelum rilis: perbarui kebijakan privasi (dua salinan) dan Data Safety
+(data kini terkirim tanpa login, dengan ID acak).

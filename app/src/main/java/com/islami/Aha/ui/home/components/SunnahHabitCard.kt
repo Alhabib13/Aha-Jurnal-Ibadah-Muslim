@@ -48,7 +48,12 @@ fun SunnahHabitCard(
     sunnahHabit: SunnahHabit,
     onToggleComplete: () -> Unit = {},
     onToggleReminder: () -> Unit = {},
-    onDelete: () -> Unit = {}
+    onDelete: () -> Unit = {},
+    currentTime: String = "",
+    tertinggal: Boolean = false,
+    /** null = kartu tanpa tombol Tertinggal. */
+    onTertinggal: (() -> Unit)? = null,
+    onBatalTertinggal: () -> Unit = {}
 ) {
     val completionStateDescription = if (sunnahHabit.isCompletedToday) {
         stringResource(R.string.home_completed_cd)
@@ -117,6 +122,16 @@ fun SunnahHabitCard(
                         text = pluralStringResource(R.plurals.home_rakaat_format, rakaat, rakaat),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (onTertinggal != null) {
+                    AksiTertinggal(
+                        selesai = sunnahHabit.isCompletedToday,
+                        waktu = sunnahHabit.reminderTime,
+                        currentTime = currentTime,
+                        tertinggal = tertinggal,
+                        onTertinggal = onTertinggal,
+                        onBatal = onBatalTertinggal
                     )
                 }
                 if (sunnahHabit.reminderEnabled && sunnahHabit.reminderTime != null) {

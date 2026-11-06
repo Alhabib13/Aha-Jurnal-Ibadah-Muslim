@@ -102,6 +102,10 @@ data class HomeUiState(
     val jamSholatDicatat: Map<String, String> = emptyMap(),
     /** Sholat fardhu hari ini: nama_detail -> status ("dikerjakan" / "tidak" / "udzur"). */
     val statusSholatHariIni: Map<String, String> = emptyMap(),
+    /** Semua catatan hari ini: slotKey -> status; kartu puasa & sunnah (Tertinggal). */
+    val statusSlotHariIni: Map<String, String> = emptyMap(),
+    /** Tanggal milik [statusSlotHariIni] (yyyy-MM-dd). */
+    val tanggalStatus: String = "",
     /** Slot tengah hari hari ini: "jumat" (laki-laki di hari Jumat) atau "dzuhur". */
     val detailTengahHariIni: String = com.islami.Aha.data.research.ResearchSchema.Detail.DZUHUR,
     val tilawahJenisDipilih: String = com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN,
@@ -140,12 +144,35 @@ data class HomeUiState(
     val hitungMundur: String
         get() = if (nextPrayerMenit < 0) "" else "%02d:%02d".format(nextPrayerMenit / 60, nextPrayerMenit % 60)
 
-    /** Sholat fardhu yang ditandai "Tertinggal" hari ini (dan belum dicentang). */
+    /** Habit bawaan (sholat wajib, puasa Ramadan) yang ditandai "Tertinggal" hari ini (dan belum dicentang). */
     fun tertinggal(habit: com.islami.Aha.data.model.Habit): Boolean {
         if (habit.isCompleted) return false
         val slot = com.islami.Aha.data.research.ResearchMapping.fromDefaultHabit(habit.name, habit.category) ?: return false
-        if (slot.jenisIbadah != com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB) return false
-        return statusSholatHariIni[slot.namaDetail] == com.islami.Aha.data.research.ResearchSchema.Status.TIDAK
+        if (slot.jenisIbadah == com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB) {
+            return statusSholatHariIni[slot.namaDetail] == com.islami.Aha.data.research.ResearchSchema.Status.TIDAK
+        }
+        return statusSlot(com.islami.Aha.data.research.SlotRef(slot, null)) == com.islami.Aha.data.research.ResearchSchema.Status.TIDAK
+    }
+
+    /** Habit sunnah/puasa buatan pengguna yang ditandai "Tertinggal" hari ini. */
+    fun tertinggal(habit: com.islami.Aha.domain.model.SunnahHabit): Boolean {
+        if (habit.isCompletedToday) return false
+        val ref = com.islami.Aha.data.research.ResearchLogRepository
+            .slotForSunnahHabit(habit.id, habit.name, habit.category.name) ?: return false
+        return statusSlot(ref) == com.islami.Aha.data.research.ResearchSchema.Status.TIDAK
+    }
+
+    /** Kartu habit sunnah/puasa ini punya tombol Tertinggal. */
+    fun bisaTertinggal(habit: com.islami.Aha.domain.model.SunnahHabit): Boolean =
+        com.islami.Aha.data.research.ResearchLogRepository.slotForSunnahHabit(habit.id, habit.name, habit.category.name)
+            ?.slot?.jenisIbadah in com.islami.Aha.data.research.ResearchSchema.JENIS_BOLEH_TERTINGGAL
+
+    private fun statusSlot(ref: com.islami.Aha.data.research.SlotRef): String? {
+        if (tanggalStatus.isEmpty()) return null
+        val key = runCatching {
+            com.islami.Aha.data.research.ResearchSchema.slotKey(tanggalStatus, ref.slot.jenisIbadah, ref.slot.namaDetail, ref.localId)
+        }.getOrNull() ?: return null
+        return statusSlotHariIni[key]
     }
 
     /** Kartu sholat wajib (yang punya tombol Tertinggal). */

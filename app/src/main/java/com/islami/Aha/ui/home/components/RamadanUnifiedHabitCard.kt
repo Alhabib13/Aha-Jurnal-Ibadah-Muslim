@@ -38,7 +38,12 @@ fun RamadanUnifiedHabitCard(
     puasaHabit: Habit?,
     tarawihHabit: Habit?,
     onToggleHabitCompletion: (Habit) -> Unit,
-    onToggleHabitReminder: (Habit) -> Unit
+    onToggleHabitReminder: (Habit) -> Unit,
+    currentTime: String = "",
+    /** Puasa Ramadan yang ditandai Tertinggal hari ini. */
+    puasaTertinggal: Boolean = false,
+    onTertinggal: (Habit) -> Unit = {},
+    onBatalTertinggal: (Habit) -> Unit = {}
 ) {
     val habits = buildList {
         puasaHabit?.let { add(it) }
@@ -81,6 +86,19 @@ fun RamadanUnifiedHabitCard(
                     onToggleHabitCompletion = { onToggleHabitCompletion(habit) },
                     onToggleHabitReminder = { onToggleHabitReminder(habit) }
                 )
+                // Tombol Tertinggal hanya untuk puasa (Tarawih = sunnah bawaan, bukan buatan pengguna).
+                if (habit.category == CATEGORY_PUASA_WAJIB) {
+                    Box(modifier = Modifier.padding(start = 48.dp)) {
+                        AksiTertinggal(
+                            selesai = habit.isCompleted,
+                            waktu = habit.time,
+                            currentTime = currentTime,
+                            tertinggal = puasaTertinggal,
+                            onTertinggal = { onTertinggal(habit) },
+                            onBatal = { onBatalTertinggal(habit) }
+                        )
+                    }
+                }
                 if (index < habits.lastIndex) {
                     Spacer(modifier = Modifier.height(8.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))

@@ -26,6 +26,12 @@ import javax.inject.Singleton
 sealed class AuthResult {
     data class Success(val user: FirebaseUser, val isProfileIncomplete: Boolean = false) : AuthResult()
     data class Error(val message: String) : AuthResult()
+    /**
+     * Tamu (akun anonim) mencoba masuk ke akun yang SUDAH ADA: UID akan berganti dan data tamu
+     * hilang dari HP. Belum ada yang diubah; UI harus menampilkan peringatan dan meminta
+     * penegasan, lalu memanggil ulang dengan izinkanPindahAkun = true (README, keputusan 2).
+     */
+    object PerluKonfirmasiPindahAkun : AuthResult()
 }
 
 class ReAuthRequiredException : Exception("Re-authentication required")
@@ -50,6 +56,11 @@ class AuthRepository @Inject constructor(
         // harus dipulihkan (users/{uid} tidak bisa dipulihkan dengan tanggal_mulai aslinya).
         private const val RECENT_LOGIN_MAX_AGE_MS = 4 * 60 * 1000L
         const val MAX_AVATAR_BASE64_LENGTH = 900_000
+        /** Pernah login dengan akun sungguhan di HP ini (bukan anonim). */
+        const val KEY_PERNAH_LOGIN = "pernah_login_akun"
+        /** Prefiks kunci yang dulu hanya ditulis untuk akun sungguhan (sebelum Anonymous Auth ada). */
+        private val JEJAK_LOGIN_LAMA = listOf("research_logs_restored_", "research_profil_terkirim_")
+        private const val BATAS_ANONIM_MS = 15_000L
     }
 
     private data class CloudSunnahBackup(
@@ -69,12 +80,52 @@ class AuthRepository @Inject constructor(
 
     val currentUser: FirebaseUser? get() = firebaseAuth.currentUser
 
-    val isLoggedIn: Boolean get() = firebaseAuth.currentUser != null
+    /** Masuk dengan akun sungguhan (Google/email). Tamu anonim BUKAN "login" untuk UI. */
+    val isLoggedIn: Boolean get() = firebaseAuth.currentUser?.let { !it.isAnonymous } ?: false
+
+    /** Sedang memakai akun anonim (tamu yang datanya ikut tercatat dengan UID anonim). */
+    val isAnonim: Boolean get() = firebaseAuth.currentUser?.isAnonymous == true
+
+    /**
+     * Pernah login akun sungguhan di HP ini. Termasuk instalasi lama (sebelum v1.2.0) yang
+     * meninggalkan jejak kunci per akun: mereka tidak boleh dibuatkan akun anonim.
+     */
+    fun pernahLogin(): Boolean =
+        sharedPreferences.getBoolean(KEY_PERNAH_LOGIN, false) ||
+            sharedPreferences.getBoolean(KEY_IS_LOGGED_IN, false) ||
+            sharedPreferences.all.keys.any { k -> JEJAK_LOGIN_LAMA.any { k.startsWith(it) } }
+
+    /**
+     * Saat aplikasi dibuka: tamu yang BELUM PERNAH login di HP ini masuk anonim, supaya
+     * catatannya (bila setuju penelitian) bisa terkirim dengan UID tetap. Setelah logout tidak
+     * dibuatkan akun anonim baru (README, keputusan 3: satu orang dua UID mencemari dataset).
+     * Gagal (offline, penyedia Anonymous belum diaktifkan) = diam, dicoba lagi saat dibuka lagi.
+     * @return true bila akun anonim baru dibuat.
+     */
+    suspend fun masukAnonimBilaPerlu(): Boolean {
+        if (firebaseAuth.currentUser != null || pernahLogin()) return false
+        return runCatching {
+            kotlinx.coroutines.withTimeout(BATAS_ANONIM_MS) { firebaseAuth.signInAnonymously().await() }
+        }.onFailure { e ->
+            // Penyedia belum diaktifkan = keadaan yang diketahui, bukan crash.
+            if ((e as? FirebaseAuthException)?.errorCode != "ERROR_OPERATION_NOT_ALLOWED") {
+                com.islami.Aha.util.logCrashlyticsSafe(e)
+            }
+        }.getOrNull()?.user?.let { user ->
+            sharedPreferences.edit().putString(KEY_LAST_ACTIVE_USER_UID, user.uid).apply()
+            true
+        } ?: false
+    }
     private val firestore: FirebaseFirestore? by lazy {
         runCatching { FirebaseFirestore.getInstance() }.getOrNull()
     }
 
-    suspend fun login(email: String, password: String): AuthResult {
+    /**
+     * Login email ke akun yang sudah ada. Untuk tamu anonim ini selalu berarti pindah UID, jadi
+     * tanpa [izinkanPindahAkun] tidak ada yang dicoba dan hasilnya [AuthResult.PerluKonfirmasiPindahAkun].
+     */
+    suspend fun login(email: String, password: String, izinkanPindahAkun: Boolean = false): AuthResult {
+        if (isAnonim && !izinkanPindahAkun) return AuthResult.PerluKonfirmasiPindahAkun
         return try {
             val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
             val user = result.user ?: return AuthResult.Error("Login gagal")
@@ -89,9 +140,18 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    /**
+     * Daftar akun email. Tamu anonim: akun anonimnya DITAUTKAN (linkWithCredential), UID dan
+     * seluruh riwayatnya tetap (README, keputusan 1).
+     */
     suspend fun register(name: String, email: String, password: String): AuthResult {
         return try {
-            val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
+            val anonim = firebaseAuth.currentUser?.takeIf { it.isAnonymous }
+            val result = if (anonim != null) {
+                anonim.linkWithCredential(EmailAuthProvider.getCredential(email, password)).await()
+            } else {
+                firebaseAuth.createUserWithEmailAndPassword(email, password).await()
+            }
             val user = result.user ?: return AuthResult.Error("Registrasi gagal")
 
             val profileUpdates = UserProfileChangeRequest.Builder()
@@ -110,11 +170,38 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    suspend fun loginWithGoogleIdToken(idToken: String): AuthResult {
+    /**
+     * Login/daftar Google. Tamu anonim: akun Google DITAUTKAN ke UID anonim (linkWithCredential),
+     * jadi riwayatnya tetap. Bila akun Google itu sudah terdaftar di Aha, penautan mustahil:
+     * tanpa [izinkanPindahAkun] hasilnya [AuthResult.PerluKonfirmasiPindahAkun] (belum ada yang
+     * berubah); dengan izin, masuk ke akun lama itu.
+     */
+    suspend fun loginWithGoogleIdToken(idToken: String, izinkanPindahAkun: Boolean = false): AuthResult {
         return try {
             val credential = GoogleAuthProvider.getCredential(idToken, null)
-            val result = firebaseAuth.signInWithCredential(credential).await()
+            val anonim = firebaseAuth.currentUser?.takeIf { it.isAnonymous }
+            val result = if (anonim != null && !izinkanPindahAkun) {
+                try {
+                    anonim.linkWithCredential(credential).await()
+                } catch (e: com.google.firebase.auth.FirebaseAuthUserCollisionException) {
+                    return AuthResult.PerluKonfirmasiPindahAkun
+                }
+            } else {
+                firebaseAuth.signInWithCredential(credential).await()
+            }
             val user = result.user ?: return AuthResult.Error("Login gagal")
+            // Setelah penautan, nama/foto Google belum tentu terisi di profil akun.
+            if (user.displayName.isNullOrBlank()) {
+                val google = user.providerData.firstOrNull { it.providerId == GoogleAuthProvider.PROVIDER_ID }
+                val nama = google?.displayName
+                if (!nama.isNullOrBlank()) {
+                    runCatching {
+                        user.updateProfile(
+                            UserProfileChangeRequest.Builder().setDisplayName(nama).setPhotoUri(google.photoUrl).build()
+                        ).await()
+                    }
+                }
+            }
             syncToPreferences(user)
             repoScope.launch {
                 runCatching {
@@ -618,7 +705,7 @@ class AuthRepository @Inject constructor(
     
     suspend fun restoreSessionFromFirebase() {
         val user = firebaseAuth.currentUser
-        if (user != null) {
+        if (user != null && !user.isAnonymous) {
             syncToPreferences(user)
             repoScope.launch {
                 runCatching { syncProfileFromCloud(user.uid) }
@@ -628,9 +715,12 @@ class AuthRepository @Inject constructor(
     }
 
     private fun syncToPreferences(user: FirebaseUser, displayName: String? = null) {
+        // Akun anonim tidak dianggap login (tampilan tetap mode tamu).
+        if (user.isAnonymous) return
         val name = displayName ?: user.displayName ?: user.email?.substringBefore("@") ?: "Pengguna"
         val editor = sharedPreferences.edit()
             .putBoolean(KEY_IS_LOGGED_IN, true)
+            .putBoolean(KEY_PERNAH_LOGIN, true)
             .putString(KEY_LAST_ACTIVE_USER_UID, user.uid)
             .putString(KEY_USER_NAME, name)
             .putString(KEY_USER_EMAIL, user.email ?: "")

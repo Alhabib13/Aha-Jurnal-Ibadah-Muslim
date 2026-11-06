@@ -23,6 +23,19 @@ object ResearchSchema {
         const val PILIHAN_AWAL = "pilihan_awal"
         /** Build.MANUFACTURER; untuk mengukur keandalan notifikasi per merek HP. Opsional. */
         const val MANUFAKTUR = "manufaktur"
+        /**
+         * Kode dari peneliti untuk responden yang direkrut langsung (opsional). Memisahkan
+         * responden dari pengguna umum Play Store saat menarik data.
+         */
+        const val KODE_RESPONDEN = "kode_responden"
+        /** Waktu server saat profil pertama dikirim setelah pengguna menyetujui penelitian. */
+        const val DISETUJUI_PADA = "disetujui_pada"
+        /** 4-20 huruf/angka/tanda hubung; sama dengan firestore.rules. */
+        val KODE_RESPONDEN_POLA = Regex("^[A-Za-z0-9-]{4,20}$")
+
+        /** Kode yang diketik pengguna: dipangkas; kosong = null; tidak sah = null. */
+        fun normalisasiKodeResponden(teks: String?): String? =
+            teks?.trim()?.takeIf { it.isNotEmpty() && KODE_RESPONDEN_POLA.matches(it) }
 
         const val LAKI_LAKI = "laki_laki"
         const val PEREMPUAN = "perempuan"
@@ -196,6 +209,13 @@ object ResearchSchema {
 
     /** Slot harian tetap: satu-satunya jenis yang boleh punya baris status "tidak". */
     val JENIS_BOLEH_TIDAK = setOf(Jenis.SHOLAT_WAJIB, Jenis.DZIKIR)
+
+    /**
+     * Jenis yang punya tombol "Tertinggal" (pengakuan pengguna, jam + sumber wajib): sholat wajib,
+     * dan sejak v1.2.0 juga puasa serta habit sunnah buatan pengguna. Untuk jenis selain
+     * [JENIS_BOLEH_TIDAK], "tidak" HANYA ada sebagai pengakuan, tidak pernah hasil penyimpulan.
+     */
+    val JENIS_BOLEH_TERTINGGAL = setOf(Jenis.SHOLAT_WAJIB, Jenis.SHOLAT_SUNNAH, Jenis.QADHA_SHOLAT, Jenis.PUASA)
 
     /**
      * Ibadah yang gugur saat Mode Cuti: satu-satunya jenis yang boleh berstatus "udzur".

@@ -52,12 +52,17 @@ import androidx.compose.ui.window.DialogProperties
  */
 @Composable
 fun ResearchConsentContent(
-    onAccept: () -> Unit,
+    /** Setuju, dengan kode responden yang diketik (null bila dikosongkan). */
+    onAccept: (kodeResponden: String?) -> Unit,
     onDecline: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var lengkap by rememberSaveable { mutableStateOf(false) }
+    var kode by rememberSaveable { mutableStateOf("") }
+    // Kolom opsional: kosong boleh; terisi harus 4-20 huruf/angka/tanda hubung.
+    val kodeTakSah = kode.isNotBlank() &&
+        com.islami.Aha.data.research.ResearchSchema.Profil.normalisasiKodeResponden(kode) == null
     Column(modifier = modifier.fillMaxSize()) {
         if (lengkap) {
             Row(
@@ -98,8 +103,9 @@ fun ResearchConsentContent(
                 )
                 Bagian(
                     "Di mana disimpan",
-                    "Di Google Firebase. Data baru dikirim bila kamu masuk ke akun; dalam mode tamu catatan " +
-                        "hanya tersimpan di HP. Bila kamu setuju, catatan yang sudah ada di HP ikut dikirim."
+                    "Di Google Firebase. Tanpa masuk akun pun catatan dikirim dengan ID acak (tanpa nama " +
+                        "atau email). Bila kamu kemudian mendaftar akun, ID itu dipertahankan. Bila kamu " +
+                        "setuju, catatan yang sudah ada di HP ikut dikirim."
                 )
                 Bagian(
                     "Hakmu",
@@ -144,6 +150,20 @@ fun ResearchConsentContent(
                     Text("Baca penjelasan lengkap", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                     Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
                 }
+                androidx.compose.material3.OutlinedTextField(
+                    value = kode,
+                    onValueChange = { kode = it.take(20) },
+                    label = { Text("Kode responden (kalau kamu diberi kode oleh peneliti)") },
+                    supportingText = {
+                        Text(
+                            if (kodeTakSah) "4-20 huruf, angka, atau tanda hubung."
+                            else "Boleh dikosongkan. Aplikasi tetap bisa dipakai seperti biasa."
+                        )
+                    },
+                    isError = kodeTakSah,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
         Column(
@@ -159,7 +179,8 @@ fun ResearchConsentContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Button(
-                onClick = onAccept,
+                onClick = { onAccept(com.islami.Aha.data.research.ResearchSchema.Profil.normalisasiKodeResponden(kode)) },
+                enabled = !kodeTakSah,
                 shape = RoundedCornerShape(28.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -204,7 +225,7 @@ private fun Bagian(judul: String, isi: String) {
 /** Layar penuh untuk pengguna yang belum memutuskan (mis. pembaruan dari v1.1.1). Tidak bisa ditutup tanpa memilih. */
 @Composable
 fun ResearchConsentDialog(
-    onAccept: () -> Unit,
+    onAccept: (kodeResponden: String?) -> Unit,
     onDecline: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit
 ) {
