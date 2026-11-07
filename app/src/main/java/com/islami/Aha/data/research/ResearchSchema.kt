@@ -33,6 +33,17 @@ object ResearchSchema {
         /** 4-20 huruf/angka/tanda hubung; sama dengan firestore.rules. */
         val KODE_RESPONDEN_POLA = Regex("^[A-Za-z0-9-]{4,20}$")
 
+        /**
+         * Nilai [PILIHAN_AWAL] yang dikirim. null ("Lewati" = tidak menjawab) TETAP null dan []
+         * ("Belum ada yang rutin") tetap []. Kode yang tidak dikenal dibuang; bila semuanya tidak
+         * dikenal hasilnya null, bukan [] — jangan sampai jawaban berubah jadi "belum ada yang rutin".
+         */
+        fun normalisasiPilihanAwal(pilihan: Set<String>?): List<String>? {
+            if (pilihan == null) return null
+            if (pilihan.isEmpty()) return emptyList()
+            return pilihan.filter { it in PILIHAN_AWAL_VALUES }.sorted().ifEmpty { null }
+        }
+
         /** Kode yang diketik pengguna: dipangkas; kosong = null; tidak sah = null. */
         fun normalisasiKodeResponden(teks: String?): String? =
             teks?.trim()?.takeIf { it.isNotEmpty() && KODE_RESPONDEN_POLA.matches(it) }

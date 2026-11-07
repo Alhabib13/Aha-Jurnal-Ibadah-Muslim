@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -101,13 +102,26 @@ fun OnboardingScreen(
     val butuhIzinNotifikasi = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     // Halaman notifikasi punya dua tahap: izin notifikasi, lalu izin alarm tepat waktu.
     var tahapAlarm by rememberSaveable { mutableStateOf(false) }
+    // Tahap ketiga (HP Xiaomi/Oppo/Vivo/Huawei dkk.): panduan Autostart & baterai, sekali saja.
+    var tahapPanduan by rememberSaveable { mutableStateOf(false) }
+    val prefsPerangkat = remember { com.islami.Aha.util.SecurePrefsProvider.get(context) }
+
+    /** Akhir langkah Notifikasi: panduan dulu bila HP membutuhkannya, lalu onboarding selesai. */
+    fun selesai() {
+        if (com.islami.Aha.util.PanduanPengingat.perluDitampilkan(prefsPerangkat)) {
+            tahapPanduan = true
+            halaman = HAL_NOTIFIKASI
+        } else {
+            onFinish()
+        }
+    }
 
     fun lanjut() {
         val berikut = halaman + 1
         when {
-            berikut >= JUMLAH_HAL -> onFinish()
+            berikut >= JUMLAH_HAL -> selesai()
             berikut == HAL_NOTIFIKASI && !butuhIzinNotifikasi -> {
-                if (NotificationScheduler.canScheduleExactAlarms(context)) onFinish()
+                if (NotificationScheduler.canScheduleExactAlarms(context)) selesai()
                 else { tahapAlarm = true; halaman = berikut }
             }
             else -> halaman = berikut
@@ -115,13 +129,13 @@ fun OnboardingScreen(
     }
 
     fun setelahIzinNotifikasi() {
-        if (NotificationScheduler.canScheduleExactAlarms(context)) onFinish() else tahapAlarm = true
+        if (NotificationScheduler.canScheduleExactAlarms(context)) selesai() else tahapAlarm = true
     }
 
     val izinLokasi = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { lanjut() }
     val izinNotifikasi = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { setelahIzinNotifikasi() }
-    // Pengaturan sistem tidak mengembalikan hasil; apa pun pilihannya, onboarding selesai.
-    val izinAlarm = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { onFinish() }
+    // Pengaturan sistem tidak mengembalikan hasil; apa pun pilihannya, lanjut ke akhir.
+    val izinAlarm = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { selesai() }
 
     Box(
         modifier = Modifier
@@ -177,7 +191,12 @@ fun OnboardingScreen(
                     onNanti = { lanjut() }
                 )
             }
-            HAL_NOTIFIKASI -> if (tahapAlarm) Kerangka(halaman) {
+            HAL_NOTIFIKASI -> if (tahapPanduan) Kerangka(halaman) {
+                PanduanPengingatLayar(labelLanjut = "Lanjut ke Aha") {
+                    com.islami.Aha.util.PanduanPengingat.tandaiDitampilkan(prefsPerangkat)
+                    onFinish()
+                }
+            } else if (tahapAlarm) Kerangka(halaman) {
                 LayarIzin(
                     icon = Icons.Rounded.Alarm,
                     warnaIcon = Emas,
@@ -188,9 +207,9 @@ fun OnboardingScreen(
                     tombolNanti = "Nanti saja",
                     onIzinkan = {
                         val intent = NotificationScheduler.exactAlarmSettingsIntent(context)
-                        if (intent == null || runCatching { izinAlarm.launch(intent) }.isFailure) onFinish()
+                        if (intent == null || runCatching { izinAlarm.launch(intent) }.isFailure) selesai()
                     },
-                    onNanti = { onFinish() }
+                    onNanti = { selesai() }
                 )
             } else Kerangka(halaman) {
                 LayarIzin(

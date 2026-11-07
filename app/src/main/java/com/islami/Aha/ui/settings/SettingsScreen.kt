@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.*
+import com.islami.Aha.ui.onboarding.PanduanPengingatLayar
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -63,6 +64,8 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // Panduan Autostart & baterai (HP Xiaomi/Oppo/Vivo/Huawei dkk.), sama dengan di onboarding.
+    var panduanDibuka by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -167,20 +170,28 @@ fun SettingsScreen(
         onShowGenderDialog = viewModel::showGenderDialog,
         onHideGenderDialog = viewModel::hideGenderDialog,
         onSetGenderProfile = viewModel::setGenderProfile,
-        onFixNotificationClick = {
-            if (!com.islami.Aha.util.AutoStartHelper.isIgnoringBatteryOptimizations(context)) {
-                android.widget.Toast.makeText(context, context.getString(R.string.settings_battery_opt_prompt), android.widget.Toast.LENGTH_LONG).show()
-                com.islami.Aha.util.AutoStartHelper.requestIgnoreBatteryOptimizations(context)
-            } else {
-                val success = com.islami.Aha.util.AutoStartHelper.openAutoStartSettings(context)
-                if (!success) {
-                    android.widget.Toast.makeText(context, context.getString(R.string.settings_battery_already_optimal), android.widget.Toast.LENGTH_LONG).show()
-                } else {
-                    android.widget.Toast.makeText(context, context.getString(R.string.settings_autostart_prompt), android.widget.Toast.LENGTH_LONG).show()
-                }
+        onFixNotificationClick = { panduanDibuka = true }
+    )
+    if (panduanDibuka) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { panduanDibuka = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
+                androidx.compose.material3.TextButton(
+                    onClick = { panduanDibuka = false },
+                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                ) { Text("Tutup") }
+                PanduanPengingatLayar(labelLanjut = "Selesai") { panduanDibuka = false }
             }
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -263,6 +274,17 @@ fun SettingsScreenContent(
                 val profilTerkunci = uiState.genderProfile != com.islami.Aha.util.GenderProfile.UNSPECIFIED &&
                     com.islami.Aha.util.UserPreferencesManager.isGenderLocked
                 SettingsGroup {
+                    if (com.islami.Aha.util.PanduanPengingat.berlaku()) {
+                        SettingsClickableItem(
+                            icon = Icons.Outlined.NotificationsActive,
+                            iconBackground = WarningAmber.copy(alpha = 0.14f),
+                            iconTint = WarningAmber,
+                            title = "Agar pengingat tidak terlewat",
+                            subtitle = "Autostart & penghemat baterai HP ini",
+                            onClick = onFixNotificationClick
+                        )
+                        SettingsDivider()
+                    }
                     SettingsClickableItem(
                         icon = Icons.Outlined.Schedule,
                         iconBackground = WarningAmber.copy(alpha = 0.14f),

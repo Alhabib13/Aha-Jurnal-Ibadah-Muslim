@@ -593,8 +593,7 @@ class ResearchLogRepository @Inject constructor(
             ResearchSchema.Profil.RENTANG_UMUR to UserPreferencesManager.ageRange.value?.code
                 ?.takeIf { it in ResearchSchema.Profil.RENTANG_UMUR_VALUES },
             ResearchSchema.Profil.STATUS_AKTIVITAS to UserPreferencesManager.statusAktivitas.value?.code,
-            ResearchSchema.Profil.PILIHAN_AWAL to UserPreferencesManager.pilihanAwal.value
-                ?.filter { it in ResearchSchema.Profil.PILIHAN_AWAL_VALUES }?.sorted()
+            ResearchSchema.Profil.PILIHAN_AWAL to ResearchSchema.Profil.normalisasiPilihanAwal(UserPreferencesManager.pilihanAwal.value)
         )
     }
 

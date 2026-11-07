@@ -12,6 +12,7 @@ import com.islami.Aha.app.AhaApp
 import com.islami.Aha.data.notifikasi.SinkronJadwalPengingat
 import com.islami.Aha.util.NotifikasiSesi
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -40,6 +41,11 @@ class MainActivity : ComponentActivity() {
                     authRepository.currentUser?.uid?.let { researchLogRepository.klaimCatatanTamu(it) }
                     researchLogRepository.scheduleUpload()
                 }
+            }
+            // meta/profile awal akun anonim: setelah onboarding selesai (menunggu bila belum).
+            runCatching {
+                com.islami.Aha.util.UserPreferencesManager.hasSeenOnboarding.first { it }
+                authRepository.kirimProfilAwalBilaPerlu()
             }
         }
 

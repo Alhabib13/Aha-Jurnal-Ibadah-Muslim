@@ -25,4 +25,15 @@ class PilihanAwalTest {
             assertEquals(opsi.label, opsi.kode, slot?.namaDetail)
         }
     }
+
+    @Test
+    fun `Lewati (null) tetap null, Belum ada yang rutin tetap kosong, tidak pernah tertukar`() {
+        val n = com.islami.Aha.data.research.ResearchSchema.Profil::normalisasiPilihanAwal
+        org.junit.Assert.assertNull(n(null))
+        assertEquals(emptyList<String>(), n(emptySet()))
+        assertEquals(listOf("dhuha", "tahajud"), n(setOf("tahajud", "dhuha")))
+        // Kode tak dikenal dibuang; bila semuanya tak dikenal: null (tidak menjawab), bukan [].
+        assertEquals(listOf("dhuha"), n(setOf("dhuha", "kode_lama")))
+        org.junit.Assert.assertNull(n(setOf("kode_lama")))
+    }
 }

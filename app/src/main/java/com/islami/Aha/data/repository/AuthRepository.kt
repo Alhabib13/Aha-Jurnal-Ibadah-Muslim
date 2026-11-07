@@ -61,6 +61,8 @@ class AuthRepository @Inject constructor(
         /** Prefiks kunci yang dulu hanya ditulis untuk akun sungguhan (sebelum Anonymous Auth ada). */
         private val JEJAK_LOGIN_LAMA = listOf("research_logs_restored_", "research_profil_terkirim_")
         private const val BATAS_ANONIM_MS = 15_000L
+        /** meta/profile awal akun anonim sudah diterima server, per UID. */
+        private const val KEY_PROFIL_AWAL_PREFIX = "meta_profile_awal_terkirim_"
     }
 
     private data class CloudSunnahBackup(
@@ -343,6 +345,33 @@ class AuthRepository @Inject constructor(
         }.onFailure { error ->
             com.islami.Aha.util.logCrashlyticsSafe(error)
         }
+    }
+
+    /**
+     * Akun anonim: kirim `users/{uid}/meta/profile` SEKALI setelah onboarding selesai, tanpa
+     * menunggu perubahan Mode Cuti atau jenis kelamin. Begitu `rentangUsia` tersimpan di server,
+     * aturan Firestore ikut mengunci jenis kelamin sejak awal. Ditandai per UID hanya bila server
+     * menerima; gagal/offline = dicoba lagi saat aplikasi dibuka berikutnya.
+     * Akun sungguhan tidak lewat sini (sinkron saat login sudah mendorong profilnya).
+     */
+    suspend fun kirimProfilAwalBilaPerlu(): Boolean {
+        val user = firebaseAuth.currentUser ?: return false
+        if (!user.isAnonymous) return false
+        if (!com.islami.Aha.util.UserPreferencesManager.hasSeenOnboarding.value) return false
+        val kunci = KEY_PROFIL_AWAL_PREFIX + user.uid
+        if (sharedPreferences.getBoolean(kunci, false)) return false
+        val terkirim = kotlinx.coroutines.withTimeoutOrNull(BATAS_ANONIM_MS) {
+            syncUserPreferences(
+                gender = com.islami.Aha.util.UserPreferencesManager.gender.value.name,
+                isHaidhMode = com.islami.Aha.util.UserPreferencesManager.isHaidhMode.value,
+                haidhDates = com.islami.Aha.util.UserPreferencesManager.getHaidhDates().toList()
+            ).isSuccess
+        } == true
+        if (terkirim) {
+            sharedPreferences.edit().putBoolean(kunci, true).apply()
+            com.islami.Aha.util.UserPreferencesManager.genderTerkirim()
+        }
+        return terkirim
     }
 
     suspend fun fetchUserPreferences(): Result<Map<String, Any>?> {
