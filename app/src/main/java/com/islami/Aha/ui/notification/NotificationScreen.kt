@@ -54,11 +54,9 @@ import com.islami.Aha.ui.notification.components.SunnahHabitReminderCard
 import com.islami.Aha.ui.notification.components.EmptyNotificationState
 import com.islami.Aha.ui.notification.components.EditSunnahHabitDialog
 import com.islami.Aha.ui.notification.components.DeleteConfirmationDialog
-import com.islami.Aha.ui.notification.components.SuaraSholatSheet
 import com.islami.Aha.util.SuaraSholat
 import com.islami.Aha.util.NotificationScheduler
 import com.islami.Aha.ui.settings.components.NotificationSettingsSheet
-import com.islami.Aha.ui.settings.components.NotificationSoundSelectionDialog
 import androidx.compose.ui.platform.LocalContext
 
 
@@ -126,8 +124,6 @@ fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
             onEditSunnahClick = viewModel::showEditSunnahDialog,
             onDismissEditSunnah = viewModel::hideEditSunnahDialog,
             onSaveEditSunnah = viewModel::updateSunnahHabit,
-            onSetNotificationSound = viewModel::setNotificationSound,
-            onToggleVibration = viewModel::toggleVibration
         )
 
         AhaToastHost(
@@ -166,9 +162,7 @@ fun NotificationScreenContent(
     onDeleteSunnahClick: (SunnahHabit) -> Unit,
     onEditSunnahClick: (SunnahHabit) -> Unit,
     onDismissEditSunnah: () -> Unit,
-    onSaveEditSunnah: (String, String?, String, Int?) -> Unit,
-    onSetNotificationSound: (NotificationScheduler.NotificationSoundOption) -> Unit = {},
-    onToggleVibration: () -> Unit = {}
+    onSaveEditSunnah: (String, String?, String, Int?) -> Unit
 ) {
     val sholatFardhu = uiState.habits.filter { it.category == "Sholat Fardhu" }
     val sholatSunnah = uiState.habits.filter {
@@ -183,10 +177,10 @@ fun NotificationScreenContent(
     val jumlahTotal = habitTerlihat.size + uiState.sunnahHabits.size
     val jumlahAktif = habitTerlihat.count { it.isReminderEnabled } + uiState.sunnahHabits.count { it.reminderEnabled }
     val context = LocalContext.current
-    var slugSuaraDibuka by remember { mutableStateOf<String?>(null) }
-    var versiSuara by remember { mutableIntStateOf(0) }
-    val ringkasanSuara = remember(versiSuara) {
-        SuaraSholat.WAKTU.keys.associateWith { SuaraSholat.ringkasan(context, it) }
+    // Nada tiap jenis pengingat diatur di Pengaturan Android (ID channel permanen); tidak ada
+    // pemilih suara di aplikasi.
+    fun bukaKanal(id: String) {
+        runCatching { context.startActivity(com.islami.Aha.util.KanalNotifikasi.intentPengaturan(context, id)) }
     }
     var pengaturanDibuka by remember { mutableStateOf(false) }
     // Dicek ulang setiap layar kembali tampil (mis. setelah pengguna mengizinkan di pengaturan HP).
@@ -201,37 +195,10 @@ fun NotificationScreenContent(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    var suaraLainnyaDibuka by remember { mutableStateOf(false) }
-    slugSuaraDibuka?.let { slug ->
-        SuaraSholatSheet(
-            slug = slug,
-            onChanged = { versiSuara++ },
-            onDismiss = { slugSuaraDibuka = null }
-        )
-    }
-    if (suaraLainnyaDibuka) {
-        NotificationSoundSelectionDialog(
-            currentOption = uiState.notificationSound,
-            onSelect = {
-                onSetNotificationSound(it)
-                suaraLainnyaDibuka = false
-            },
-            onDismiss = { suaraLainnyaDibuka = false }
-        )
-    }
-    // Lembar pengaturan kembali muncul setelah lembar suara yang dibuka darinya ditutup.
-    if (pengaturanDibuka && slugSuaraDibuka == null && !suaraLainnyaDibuka) {
+    if (pengaturanDibuka) {
         NotificationSettingsSheet(
-            ringkasanSuaraSholat = ringkasanSuara,
             namaWaktu = SuaraSholat.WAKTU,
-            suaraLainnya = uiState.notificationSound,
-            getarAktif = uiState.vibrationEnabled,
-            onWaktuClick = { slugSuaraDibuka = it },
-            onSuaraLainnyaClick = { suaraLainnyaDibuka = true },
-            onToggleGetar = {
-                onToggleVibration()
-                versiSuara++
-            },
+            onBukaKanal = { bukaKanal(it) },
             onPengaturanHpClick = {
                 val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -333,8 +300,8 @@ fun NotificationScreenContent(
                                         habit = habit,
                                         globalEnabled = uiState.globalNotificationEnabled && !isHaidhMode,
                                         onToggle = { onToggleReminder(habit) },
-                                        suara = slug?.let { ringkasanSuara[it] },
-                                        onSuaraClick = slug?.let { s -> { slugSuaraDibuka = s } }
+                                        suara = slug?.let { "Atur suara" },
+                                        onSuaraClick = slug?.let { s -> { bukaKanal(com.islami.Aha.util.KanalNotifikasi.sholatWajib(s)) } }
                                     )
                                 }
                             }

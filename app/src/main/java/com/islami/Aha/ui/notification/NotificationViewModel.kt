@@ -311,25 +311,6 @@ class NotificationViewModel @Inject constructor(
 
     // === Pengaturan notifikasi (dipindah dari layar Pengaturan) ===
 
-    fun setNotificationSound(option: NotificationScheduler.NotificationSoundOption) {
-        sharedPreferences.edit()
-            .putString(NotificationScheduler.KEY_NOTIFICATION_SOUND, option.value)
-            .apply()
-        _uiState.update { it.copy(notificationSound = option) }
-        NotificationScheduler.applyChannelSettings(context)
-        showSnackbar("Suara pengingat lainnya diperbarui")
-    }
-
-    fun toggleVibration() {
-        val enabled = !_uiState.value.vibrationEnabled
-        sharedPreferences.edit()
-            .putBoolean(NotificationScheduler.KEY_NOTIFICATION_VIBRATION, enabled)
-            .apply()
-        _uiState.update { it.copy(vibrationEnabled = enabled) }
-        // Ikut membangun ulang channel tiap waktu sholat.
-        NotificationScheduler.applyChannelSettings(context)
-        showSnackbar(if (enabled) "Getar notifikasi diaktifkan" else "Getar notifikasi dimatikan")
-    }
 
     fun clearSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }

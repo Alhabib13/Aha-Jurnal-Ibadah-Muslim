@@ -117,48 +117,16 @@ object NotificationScheduler {
         return hash and 0x7FFFFFFF
     }
 
-    private const val PREFS_CHANNEL = "notification_channel_state"
-    private const val KEY_CHANNEL_VERSION = "version"
+    /**
+     * Menyiapkan channel notifikasi (dan memigrasikan channel versi lama). Lihat [KanalNotifikasi].
+     * Nama dipertahankan karena dipanggil dari AhaApplication & BootCompletedReceiver.
+     */
+    fun createNotificationChannel(context: Context) = KanalNotifikasi.pastikan(context)
 
     /**
-     * Id channel umum yang sedang dipakai. Android memulihkan setelan lama bila channel
-     * dihapus lalu dibuat ulang dengan id yang sama, jadi setiap perubahan suara/getar
-     * menaikkan versi (versi 0 = id lama, supaya pengguna lama tidak dapat channel ganda).
+     * Pilihan suara/getar umum versi lama. Hanya dibaca sekali saat migrasi channel; tidak ada
+     * lagi pemilih suara di aplikasi (diatur per channel di Pengaturan Android).
      */
-    fun channelId(context: Context): String {
-        val version = context.getSharedPreferences(PREFS_CHANNEL, Context.MODE_PRIVATE)
-            .getInt(KEY_CHANNEL_VERSION, 0)
-        return if (version == 0) CHANNEL_ID else "${CHANNEL_ID}_v$version"
-    }
-
-    fun createNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val notificationManager = context.getSystemService(NotificationManager::class.java)
-            val id = channelId(context)
-            if (notificationManager.getNotificationChannel(id) != null) {
-                return
-            }
-
-            val channel = buildNotificationChannel(id, getChannelSettings(context))
-            notificationManager.createNotificationChannel(channel)
-            debugLog("Notification channel created: $id")
-        }
-    }
-
-    fun applyChannelSettings(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val notificationManager = context.getSystemService(NotificationManager::class.java)
-            notificationManager.deleteNotificationChannel(channelId(context))
-            val prefs = context.getSharedPreferences(PREFS_CHANNEL, Context.MODE_PRIVATE)
-            prefs.edit().putInt(KEY_CHANNEL_VERSION, prefs.getInt(KEY_CHANNEL_VERSION, 0) + 1).commit()
-            val id = channelId(context)
-            notificationManager.createNotificationChannel(buildNotificationChannel(id, getChannelSettings(context)))
-            // Getar juga berlaku untuk channel per waktu sholat.
-            SuaraSholat.bangunUlangSemua(context)
-            debugLog("Notification channel recreated with latest settings: $id")
-        }
-    }
-
     fun getChannelSettings(context: Context): NotificationChannelSettings {
         val prefs = SecurePrefsProvider.get(context)
         return NotificationChannelSettings(
@@ -215,45 +183,12 @@ object NotificationScheduler {
             ) {
                 return@runCatching NotificationCapability.PERMISSION_DENIED
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val notificationManager = context.getSystemService(NotificationManager::class.java)
-                val channel = notificationManager.getNotificationChannel(channelId(context))
-                if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
-                    return@runCatching NotificationCapability.CHANNEL_DISABLED
-                }
-            }
+            // Channel yang dimatikan pengguna ditangani Android per channel (notifikasinya tidak
+            // tampil); yang lain tetap berjalan, jadi tidak ada satu channel umum yang dicek.
             NotificationCapability.AVAILABLE
         }.getOrDefault(NotificationCapability.AVAILABLE)
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun buildNotificationChannel(
-        id: String,
-        settings: NotificationChannelSettings
-    ): NotificationChannel {
-        val importance = when (settings.soundOption) {
-            NotificationSoundOption.SYSTEM_DEFAULT -> NotificationManager.IMPORTANCE_HIGH
-            NotificationSoundOption.GENTLE -> NotificationManager.IMPORTANCE_DEFAULT
-            NotificationSoundOption.SILENT -> NotificationManager.IMPORTANCE_LOW
-        }
-
-        return NotificationChannel(id, CHANNEL_NAME, importance).apply {
-            description = "Pengingat untuk ibadah harian"
-            setSound(
-                getSoundUri(settings.soundOption),
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-            enableVibration(settings.vibrationEnabled)
-            if (settings.vibrationEnabled) {
-                vibrationPattern = longArrayOf(0, 180, 80, 180)
-            } else {
-                vibrationPattern = longArrayOf(0)
-            }
-        }
-    }
 
     fun scheduleHabitReminder(
         context: Context,

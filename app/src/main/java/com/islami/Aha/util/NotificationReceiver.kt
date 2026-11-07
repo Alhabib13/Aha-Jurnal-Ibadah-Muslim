@@ -34,6 +34,7 @@ class NotificationReceiver : BroadcastReceiver() {
     interface ReceiverEntryPoint {
         fun habitDao(): HabitDao
         fun defaultHabitCompletion(): DefaultHabitCompletionRepository
+        fun userHabitDao(): com.islami.Aha.data.local.UserHabitDao
     }
 
     companion object {
@@ -115,7 +116,7 @@ class NotificationReceiver : BroadcastReceiver() {
                         showActionableReminder(context, defaultHabitDbId, habitId, habitName, hour, minute, isSnooze, tanggal, prefs)
                     }.onFailure { e ->
                         Log.e(TAG, "Actionable reminder failed, falling back to plain notification", e)
-                        showPlainReminder(context, habitId, habitName, prefs)
+                        showPlainReminder(context, habitId, habitName, prefs, KanalNotifikasi.Jenis.SHOLAT_SUNNAH)
                     }
                     reschedule()
                 } finally {
@@ -125,8 +126,26 @@ class NotificationReceiver : BroadcastReceiver() {
             return
         }
 
-        showPlainReminder(context, habitId, habitName, prefs)
-        reschedule()
+        // Habit buatan pengguna / pengingat Mode Cuti: channel menurut jenisnya (perlu baca database).
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val jenis = if (habitId == "haidh_reminder") {
+                    KanalNotifikasi.Jenis.MODE_CUTI
+                } else {
+                    val kategori = runCatching {
+                        EntryPointAccessors.fromApplication(context.applicationContext, ReceiverEntryPoint::class.java)
+                            .userHabitDao().getHabitById(habitId)?.category
+                    }.getOrNull()
+                    KanalNotifikasi.jenisHabitSunnah(kategori)
+                }
+                runCatching { showPlainReminder(context, habitId, habitName, prefs, jenis) }
+                    .onFailure { Log.e(TAG, "Plain reminder failed", it) }
+                reschedule()
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     private suspend fun showActionableReminder(
@@ -142,7 +161,7 @@ class NotificationReceiver : BroadcastReceiver() {
     ) {
         val entryPoint = EntryPointAccessors.fromApplication(context.applicationContext, ReceiverEntryPoint::class.java)
         val habit: Habit = entryPoint.habitDao().getHabitById(habitDbId) ?: run {
-            showPlainReminder(context, habitId, habitName, prefs)
+            showPlainReminder(context, habitId, habitName, prefs, KanalNotifikasi.Jenis.SHOLAT_SUNNAH)
             return
         }
         if (entryPoint.defaultHabitCompletion().isCompletedOn(habitDbId, tanggal)) {
@@ -166,12 +185,9 @@ class NotificationReceiver : BroadcastReceiver() {
             tanggal = tanggal
         )
 
-        val channelId = if (slug != null) {
-            SuaraSholat.pastikanFileMasihAda(context, slug)
-            SuaraSholat.channelId(context, slug)
-        } else {
-            NotificationScheduler.channelId(context)
-        }
+        val jenis = KanalNotifikasi.jenisHabitBawaan(habit.category)
+        val channelId = KanalNotifikasi.idUntuk(jenis, slug)
+        val alarm = jenis == KanalNotifikasi.Jenis.PUASA
 
         val jam = if (hour >= 0 && minute >= 0) String.format(Locale.ROOT, "%02d.%02d", hour, minute) else null
         val title = when {
@@ -190,10 +206,12 @@ class NotificationReceiver : BroadcastReceiver() {
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            // Puasa & sahur berkarakter alarm: kategori alarm ikut dihormati mode Jangan Ganggu
+            // (bersama jalur volume alarm di channelnya).
+            .setCategory(if (alarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(openAppIntent(context, notificationId, habitId, tanggal))
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(if (alarm) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .addAction(0, "Sudah", ReminderActionReceiver.pendingIntent(context, ReminderActionReceiver.ACTION_SUDAH, payload))
         // Penundaan cukup sekali: pengingat ulang hanya menawarkan Sudah / Tertinggal.
         if (!isSnooze) {
@@ -205,14 +223,18 @@ class NotificationReceiver : BroadcastReceiver() {
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             // Tanpa channel: suara & getar diatur di notifikasinya.
-            val uri = if (slug != null) SuaraSholat.soundUri(context, slug)
-            else NotificationScheduler.getSoundUri(NotificationScheduler.getChannelSettings(context).soundOption)
+            val uri = when {
+                slug != null -> KanalNotifikasi.suaraSholat(context, slug)
+                alarm -> android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
+                else -> android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+            }
             @Suppress("DEPRECATION")
-            if (uri != null) builder.setSound(uri, android.media.AudioManager.STREAM_ALARM) else builder.setSilent(true)
-            builder.setVibrate(
-                if (NotificationScheduler.getChannelSettings(context).vibrationEnabled) longArrayOf(0, 180, 80, 180)
-                else longArrayOf(0)
-            )
+            if (uri != null) {
+                builder.setSound(uri, if (slug != null || alarm) android.media.AudioManager.STREAM_ALARM else android.media.AudioManager.STREAM_NOTIFICATION)
+            } else {
+                builder.setSilent(true)
+            }
+            builder.setVibrate(longArrayOf(0, 180, 80, 180))
         }
 
         context.getSystemService(NotificationManager::class.java).notify(notificationId, builder.build())
@@ -254,7 +276,8 @@ class NotificationReceiver : BroadcastReceiver() {
         context: Context,
         habitId: String,
         habitName: String,
-        prefs: android.content.SharedPreferences
+        prefs: android.content.SharedPreferences,
+        jenis: KanalNotifikasi.Jenis
     ) {
         val contentPendingIntent = openAppIntent(
             context,
@@ -262,8 +285,8 @@ class NotificationReceiver : BroadcastReceiver() {
             habitId.takeIf { it != "haidh_reminder" },
             DateUtils.getTodayKey()
         )
-        val channelSettings = NotificationScheduler.getChannelSettings(context)
-        val channelId = NotificationScheduler.channelId(context)
+        val channelId = KanalNotifikasi.idUntuk(jenis)
+        val alarm = jenis == KanalNotifikasi.Jenis.PUASA
 
         val isJumatEnabled = prefs.getBoolean("jumat_enabled", false)
         val isFriday = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.FRIDAY
@@ -284,28 +307,20 @@ class NotificationReceiver : BroadcastReceiver() {
             .setContentIntent(contentPendingIntent)
             .setAutoCancel(true)
 
-        when (channelSettings.soundOption) {
-            NotificationScheduler.NotificationSoundOption.SYSTEM_DEFAULT -> {
-                notificationBuilder
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setSound(NotificationScheduler.getSoundUri(channelSettings.soundOption))
-            }
-            NotificationScheduler.NotificationSoundOption.GENTLE -> {
-                notificationBuilder
-                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                    .setSound(NotificationScheduler.getSoundUri(channelSettings.soundOption))
-            }
-            NotificationScheduler.NotificationSoundOption.SILENT -> {
-                notificationBuilder
-                    .setPriority(NotificationCompat.PRIORITY_LOW)
-                    .setSilent(true)
-            }
-        }
-
-        if (channelSettings.vibrationEnabled) {
-            notificationBuilder.setVibrate(longArrayOf(0, 180, 80, 180))
-        } else {
-            notificationBuilder.setVibrate(longArrayOf(0))
+        // Android 8+: suara & getar dari channel (diatur pengguna di Pengaturan Android).
+        // Android 7 ke bawah: nilai bawaan per jenis.
+        notificationBuilder
+            .setCategory(if (alarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(if (alarm) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
+            .setVibrate(longArrayOf(0, 180, 80, 180))
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            @Suppress("DEPRECATION")
+            notificationBuilder.setSound(
+                android.media.RingtoneManager.getDefaultUri(
+                    if (alarm) android.media.RingtoneManager.TYPE_ALARM else android.media.RingtoneManager.TYPE_NOTIFICATION
+                ),
+                if (alarm) android.media.AudioManager.STREAM_ALARM else android.media.AudioManager.STREAM_NOTIFICATION
+            )
         }
 
         val notification = notificationBuilder.build()

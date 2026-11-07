@@ -216,83 +216,24 @@ fun TimeFormatSelectionDialog(
 
 // ---------------------------------------------------------------- Suara notifikasi
 
-@Composable
-fun NotificationSoundSelectionDialog(
-    currentOption: NotificationScheduler.NotificationSoundOption,
-    onSelect: (NotificationScheduler.NotificationSoundOption) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    PilihanSheet("Suara notifikasi", "Suara saat pengingat ibadah muncul.", onDismiss) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            NotificationScheduler.NotificationSoundOption.entries.forEach { option ->
-                val dipilih = option == currentOption
-                val ikon: ImageVector = when (option) {
-                    NotificationScheduler.NotificationSoundOption.SYSTEM_DEFAULT -> Icons.Rounded.VolumeUp
-                    NotificationScheduler.NotificationSoundOption.GENTLE -> Icons.Rounded.VolumeDown
-                    NotificationScheduler.NotificationSoundOption.SILENT -> Icons.Rounded.VolumeOff
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .kartuPilihan(
-                            dipilih,
-                            if (dipilih) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                        ) { onSelect(option) }
-                        .background(if (dipilih) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
-                        contentAlignment = Alignment.Center
-                    ) { Icon(ikon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(option.displayName, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(option.description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    val uri = NotificationScheduler.getSoundUri(option)
-                    if (uri != null) {
-                        TextButton(onClick = {
-                            runCatching { RingtoneManager.getRingtone(context, uri)?.play() }
-                        }) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(2.dp))
-                            Text("Dengar")
-                        }
-                    }
-                    if (dipilih) TandaDipilih()
-                }
-            }
-        }
-    }
-}
 
 // ---------------------------------------------------------------- Pengaturan notifikasi
 
 /**
- * Dibuka dari ikon gear di halaman Notifikasi. Satu-satunya tempat mengatur suara & getar
- * (menu lama di Pengaturan sudah dihapus).
+ * Dibuka dari ikon gear di halaman Notifikasi. Suara, getar, dan Jangan Ganggu tiap jenis
+ * pengingat diatur di Pengaturan Android (channel notifikasi permanen); baris di sini hanya
+ * membuka halaman channel yang tepat. Tidak ada pemilih suara di aplikasi.
  */
 @Composable
 fun NotificationSettingsSheet(
-    ringkasanSuaraSholat: Map<String, String>,
     namaWaktu: Map<String, String>,
-    suaraLainnya: NotificationScheduler.NotificationSoundOption,
-    getarAktif: Boolean,
-    onWaktuClick: (String) -> Unit,
-    onSuaraLainnyaClick: () -> Unit,
-    onToggleGetar: () -> Unit,
+    onBukaKanal: (String) -> Unit,
     onPengaturanHpClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    PilihanSheet("Pengaturan notifikasi", "Suara dan getar untuk pengingat ibadah.", onDismiss) {
+    PilihanSheet("Pengaturan notifikasi", "Nada, getar, dan Jangan Ganggu diatur di Pengaturan HP untuk tiap jenis pengingat.", onDismiss) {
         Text(
-            "SUARA TIAP WAKTU SHOLAT",
+            "SHOLAT WAJIB",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.5.sp,
@@ -309,14 +250,14 @@ fun NotificationSettingsSheet(
                 BarisPengaturan(
                     ikon = Icons.Rounded.Mosque,
                     judul = nama,
-                    nilai = ringkasanSuaraSholat[slug].orEmpty(),
-                    onClick = { onWaktuClick(slug) }
+                    nilai = if (slug == "subuh") "Adzan Subuh" else "Adzan",
+                    onClick = { onBukaKanal(com.islami.Aha.util.KanalNotifikasi.sholatWajib(slug)) }
                 )
             }
         }
         Spacer(Modifier.height(10.dp))
         Text(
-            "LAINNYA",
+            "PENGINGAT LAIN",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.5.sp,
@@ -330,29 +271,31 @@ fun NotificationSettingsSheet(
         ) {
             BarisPengaturan(
                 ikon = Icons.AutoMirrored.Rounded.VolumeUp,
-                judul = "Suara pengingat lainnya",
-                keterangan = "Sholat sunnah, puasa, dan pengingat lain",
-                nilai = suaraLainnya.displayName,
-                onClick = onSuaraLainnyaClick
+                judul = "Sholat sunnah",
+                keterangan = "Termasuk qadha dan Tarawih",
+                nilai = "",
+                onClick = { onBukaKanal(com.islami.Aha.util.KanalNotifikasi.SHOLAT_SUNNAH) }
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onToggleGetar)
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-            ) {
-                IkonBulat(Icons.Rounded.Vibration)
-                Text("Getar", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Switch(checked = getarAktif, onCheckedChange = { onToggleGetar() })
-            }
+            BarisPengaturan(
+                ikon = Icons.AutoMirrored.Rounded.VolumeUp,
+                judul = "Puasa dan sahur",
+                keterangan = "Berbunyi seperti alarm, juga saat Jangan Ganggu",
+                nilai = "",
+                onClick = { onBukaKanal(com.islami.Aha.util.KanalNotifikasi.PUASA_SAHUR) }
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            BarisPengaturan(
+                ikon = Icons.AutoMirrored.Rounded.VolumeUp,
+                judul = "Dzikir dan tilawah",
+                nilai = "",
+                onClick = { onBukaKanal(com.islami.Aha.util.KanalNotifikasi.DZIKIR_TILAWAH) }
+            )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             BarisPengaturan(
                 ikon = Icons.Rounded.Settings,
                 judul = "Pengaturan notifikasi HP",
-                keterangan = "Izin, layar kunci, dan mode Jangan Ganggu",
+                keterangan = "Izin, layar kunci, dan semua jenis pengingat",
                 nilai = "",
                 onClick = onPengaturanHpClick
             )
