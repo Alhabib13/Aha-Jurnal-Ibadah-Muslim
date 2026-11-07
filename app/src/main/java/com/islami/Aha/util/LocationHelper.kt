@@ -32,6 +32,11 @@ object LocationHelper {
     private const val KEY_LAST_LON = "last_location_lon"
     private const val KEY_LAST_CITY = "last_location_city"
     private const val CURRENT_LOCATION_TIMEOUT_MS = 3500L
+    /**
+     * HP yang belum pernah punya lokasi sama sekali (baru dipasang / baru di-flash) tidak punya
+     * lokasi terakhir: tunggu fix GPS selama ini sebelum menyerah ke jadwal bawaan.
+     */
+    private const val PRECISE_LOCATION_TIMEOUT_MS = 30_000L
 
     private fun debugLog(message: String) {
         if (Log.isLoggable(TAG, Log.DEBUG)) {
@@ -101,7 +106,20 @@ object LocationHelper {
                 if (callbackDelivered.get()) return@Runnable
                 cancellationTokenSource.cancel()
                 Log.w(TAG, "Current location request timed out, falling back to last known/cached")
-                fallbackToLastKnownOrCache("Lokasi sedang lambat, memakai lokasi terakhir")
+                emitLastKnownOrCached(
+                    context = context,
+                    onResult = { emitResultSafely(it) },
+                    onError = {
+                        // Tidak ada lokasi terakhir maupun cache: jangan langsung menyerah.
+                        Log.w(TAG, "No last known/cached location, waiting for a precise fix")
+                        requestPreciseLocation(
+                            context = context,
+                            onResult = { emitResultSafely(it) },
+                            onError = { emitErrorSafely("Lokasi belum ditemukan, jadwal memakai bawaan. Ketuk muat ulang di tempat terbuka.") }
+                        )
+                    },
+                    errorMessage = "Lokasi sedang lambat, memakai lokasi terakhir"
+                )
             }
             timeoutHandler.postDelayed(timeoutRunnable, CURRENT_LOCATION_TIMEOUT_MS)
 
@@ -135,6 +153,58 @@ object LocationHelper {
                 onError = onError,
                 errorMessage = "Layanan lokasi tidak tersedia"
             )
+        }
+    }
+
+    /** Fix akurat (GPS) dengan batas [PRECISE_LOCATION_TIMEOUT_MS]; satu kali hasil atau galat. */
+    @Suppress("MissingPermission")
+    private fun requestPreciseLocation(
+        context: Context,
+        onResult: (LocationResult) -> Unit,
+        onError: () -> Unit
+    ) {
+        if (!hasLocationPermission(context)) {
+            onError()
+            return
+        }
+        val selesai = AtomicBoolean(false)
+        val token = CancellationTokenSource()
+        val handler = Handler(Looper.getMainLooper())
+        val batas = Runnable {
+            if (selesai.compareAndSet(false, true)) {
+                token.cancel()
+                Log.w(TAG, "Precise location request timed out")
+                onError()
+            }
+        }
+        handler.postDelayed(batas, PRECISE_LOCATION_TIMEOUT_MS + 2_000L)
+        val request = com.google.android.gms.location.CurrentLocationRequest.Builder()
+            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setDurationMillis(PRECISE_LOCATION_TIMEOUT_MS)
+            .build()
+        runCatching {
+            LocationServices.getFusedLocationProviderClient(context)
+                .getCurrentLocation(request, token.token)
+                .addOnSuccessListener { location ->
+                    if (!selesai.compareAndSet(false, true)) return@addOnSuccessListener
+                    handler.removeCallbacks(batas)
+                    if (location != null) {
+                        onResult(resolveLocationResult(context, location.latitude, location.longitude))
+                    } else {
+                        onError()
+                    }
+                }
+                .addOnFailureListener { e ->
+                    if (!selesai.compareAndSet(false, true)) return@addOnFailureListener
+                    handler.removeCallbacks(batas)
+                    Log.e(TAG, "Failed to get precise location", e)
+                    onError()
+                }
+        }.onFailure {
+            if (selesai.compareAndSet(false, true)) {
+                handler.removeCallbacks(batas)
+                onError()
+            }
         }
     }
 

@@ -117,7 +117,20 @@ fun SuaraSholatSheet(
 
     fun putar(uri: Uri?) {
         runCatching { sedangDiputar?.stop() }
-        sedangDiputar = uri?.let { u -> runCatching { RingtoneManager.getRingtone(context, u)?.also { it.play() } }.getOrNull() }
+        sedangDiputar = uri?.let { u ->
+            runCatching {
+                RingtoneManager.getRingtone(context, u)?.also {
+                    // Jalur volume yang sama dengan kanal notifikasi sholat (ALARM). Tanpa ini
+                    // Ringtone memakai jalur dering, yang bisu saat HP dalam mode senyap/getar,
+                    // sehingga tombol putar diam padahal notifikasinya sendiri tetap berbunyi.
+                    it.audioAttributes = android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                    it.play()
+                }
+            }.getOrNull()
+        }
     }
 
     ModalBottomSheet(
