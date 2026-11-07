@@ -56,9 +56,18 @@ object DateUtils {
         LocalDate.from(HijrahChronology.INSTANCE.date(tahunRamadan, 9, 1)) to tahunRamadan
     }.getOrNull()
 
+    /**
+     * Sumber "hari ini" untuk pencatatan & kartu Beranda. Di aplikasi selalu jam sistem; hanya tes
+     * yang menggantinya (mis. memalsukan tanggal ke hari Jumat) lalu mengembalikannya.
+     */
+    @Volatile
+    var jam: java.time.Clock = java.time.Clock.systemDefaultZone()
+
+    fun hariIni(): LocalDate = LocalDate.now(jam)
+
     fun getTodayKey(): String {
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ROOT)
-        return LocalDate.now().format(formatter)
+        return hariIni().format(formatter)
     }
 
     fun isToday(dateKey: String?): Boolean {

@@ -294,10 +294,7 @@ data class HomeUiState(
         get() = selectedMainCategory in comingSoonCategories
 
     val isFriday: Boolean
-        get() {
-            val calendar = Calendar.getInstance()
-            return calendar.get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY
-        }
+        get() = com.islami.Aha.util.DateUtils.hariIni().dayOfWeek == java.time.DayOfWeek.FRIDAY
 
     val filteredHabits: List<Habit>
         get() {
