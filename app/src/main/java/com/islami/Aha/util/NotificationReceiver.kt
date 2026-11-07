@@ -187,7 +187,7 @@ class NotificationReceiver : BroadcastReceiver() {
 
         val jenis = KanalNotifikasi.jenisHabitBawaan(habit.category)
         val channelId = KanalNotifikasi.idUntuk(jenis, slug)
-        val alarm = jenis == KanalNotifikasi.Jenis.PUASA
+        val alarm = KanalNotifikasi.berkarakterAlarm(jenis)
 
         val jam = if (hour >= 0 && minute >= 0) String.format(Locale.ROOT, "%02d.%02d", hour, minute) else null
         val title = when {
@@ -206,7 +206,7 @@ class NotificationReceiver : BroadcastReceiver() {
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            // Puasa & sahur berkarakter alarm: kategori alarm ikut dihormati mode Jangan Ganggu
+            // Sahur berkarakter alarm: kategori alarm ikut dihormati mode Jangan Ganggu
             // (bersama jalur volume alarm di channelnya).
             .setCategory(if (alarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(openAppIntent(context, notificationId, habitId, tanggal))
@@ -286,7 +286,7 @@ class NotificationReceiver : BroadcastReceiver() {
             DateUtils.getTodayKey()
         )
         val channelId = KanalNotifikasi.idUntuk(jenis)
-        val alarm = jenis == KanalNotifikasi.Jenis.PUASA
+        val alarm = KanalNotifikasi.berkarakterAlarm(jenis)
 
         val isJumatEnabled = prefs.getBoolean("jumat_enabled", false)
         val isFriday = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.FRIDAY

@@ -31,13 +31,15 @@ class KanalNotifikasiMigrasiTest {
         nm.createNotificationChannel(NotificationChannel("habit_reminder_channel_v2", "Pengingat Ibadah", NotificationManager.IMPORTANCE_HIGH))
         nm.createNotificationChannel(NotificationChannel("sholat_subuh_v7", "Waktu Subuh", NotificationManager.IMPORTANCE_HIGH).apply { group = "waktu_sholat" })
         nm.createNotificationChannel(NotificationChannel("sholat_isya_v3", "Waktu Isya", NotificationManager.IMPORTANCE_HIGH).apply { group = "waktu_sholat" })
+        // Build uji sebelum channel puasa dipecah.
+        nm.createNotificationChannel(NotificationChannel("puasa_sahur", "Puasa dan sahur", NotificationManager.IMPORTANCE_HIGH))
     }
 
     @Test
     fun channelLamaDanGrupLamaHilang_channelBaruLengkap() {
         KanalNotifikasi.pastikan(context)
         val ada = nm.notificationChannels.map { it.id }.toSet()
-        listOf("habit_reminder_channel_v2", "sholat_subuh_v7", "sholat_isya_v3").forEach {
+        listOf("habit_reminder_channel_v2", "sholat_subuh_v7", "sholat_isya_v3", "puasa_sahur").forEach {
             assertFalse("channel lama $it masih ada", it in ada)
         }
         assertFalse(nm.notificationChannelGroups.any { it.id == "waktu_sholat" })
@@ -49,15 +51,17 @@ class KanalNotifikasiMigrasiTest {
     }
 
     @Test
-    fun sholatWajibDanSahurDiJalurAlarm_sunnahDiJalurNotifikasi() {
+    fun sholatWajibDanSahurDiJalurAlarm_sunnahDanPuasaSunnahDiJalurNotifikasi() {
         KanalNotifikasi.pastikan(context)
         val subuh = nm.getNotificationChannel("sholat_wajib_subuh")
         assertEquals(AudioAttributes.USAGE_ALARM, subuh.audioAttributes.usage)
         assertNotNull(subuh.sound)
-        val sahur = nm.getNotificationChannel(KanalNotifikasi.PUASA_SAHUR)
+        val sahur = nm.getNotificationChannel(KanalNotifikasi.SAHUR)
         assertEquals(AudioAttributes.USAGE_ALARM, sahur.audioAttributes.usage)
         assertTrue(sahur.importance >= NotificationManager.IMPORTANCE_HIGH)
         assertEquals(AudioAttributes.USAGE_NOTIFICATION, nm.getNotificationChannel(KanalNotifikasi.SHOLAT_SUNNAH).audioAttributes.usage)
+        // Pengingat puasa sunnah yang disetel malam hari tidak berbunyi seperti alarm.
+        assertEquals(AudioAttributes.USAGE_NOTIFICATION, nm.getNotificationChannel(KanalNotifikasi.PUASA_SUNNAH).audioAttributes.usage)
     }
 
     @Test

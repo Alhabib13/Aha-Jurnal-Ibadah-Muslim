@@ -19,19 +19,23 @@ import androidx.annotation.RequiresApi
  *  - Grup "Sholat wajib": satu channel per waktu (sholat_wajib_subuh … sholat_wajib_isya), karena
  *    suara melekat di channel dan Subuh memakai adzan Subuh. Jalur volume alarm.
  *  - sholat_sunnah   : sholat sunnah & qadha (termasuk Tarawih).
- *  - puasa_sahur     : puasa sunnah, puasa Ramadan, dan (nanti) pengingat sahur. Berkarakter
- *                      alarm: prioritas tertinggi, jalur volume alarm, kategori alarm.
+ *  - puasa_sunnah    : pengingat puasa yang disetel pengguna (puasa sunnah, juga habit puasa
+ *                      Ramadan). Notifikasi biasa: pengingat malam hari tidak berbunyi seperti alarm.
+ *  - sahur           : pengingat sahur (fitur Ramadan, belum ada pengirimnya). Berkarakter alarm:
+ *                      prioritas tertinggi, jalur volume alarm, kategori alarm.
  *  - dzikir_tilawah  : dzikir dan tilawah.
  *  - mode_cuti       : pengingat untuk mengakhiri Mode Cuti (bukan pengingat ibadah).
  *  - aha_konfirmasi  : konfirmasi setelah "Sudah" di notifikasi (ID lama, tidak berubah).
  *
- * Migrasi dari channel lama (habit_reminder_channel[_vN], sholat_{waktu}_vN, grup waktu_sholat):
+ * Migrasi dari channel lama (habit_reminder_channel[_vN], sholat_{waktu}_vN, grup waktu_sholat,
+ * dan puasa_sahur dari build uji sebelum channel puasa dipecah):
  * lihat [pastikan].
  */
 object KanalNotifikasi {
     const val GRUP_SHOLAT_WAJIB = "grup_sholat_wajib"
     const val SHOLAT_SUNNAH = "sholat_sunnah"
-    const val PUASA_SAHUR = "puasa_sahur"
+    const val PUASA_SUNNAH = "puasa_sunnah"
+    const val SAHUR = "sahur"
     const val DZIKIR_TILAWAH = "dzikir_tilawah"
     const val MODE_CUTI = "mode_cuti"
     const val KONFIRMASI = "aha_konfirmasi"
@@ -43,20 +47,25 @@ object KanalNotifikasi {
 
     /** Semua ID channel milik versi ini; channel lain milik Aha dianggap peninggalan versi lama. */
     val SEMUA: Set<String> = WAKTU_SHOLAT.map(::sholatWajib).toSet() +
-        setOf(SHOLAT_SUNNAH, PUASA_SAHUR, DZIKIR_TILAWAH, MODE_CUTI, KONFIRMASI)
+        setOf(SHOLAT_SUNNAH, PUASA_SUNNAH, SAHUR, DZIKIR_TILAWAH, MODE_CUTI, KONFIRMASI)
 
-    enum class Jenis { SHOLAT_WAJIB, SHOLAT_SUNNAH, PUASA, DZIKIR_TILAWAH, MODE_CUTI }
+    enum class Jenis { SHOLAT_WAJIB, SHOLAT_SUNNAH, PUASA_SUNNAH, SAHUR, DZIKIR_TILAWAH, MODE_CUTI }
+
+    /** Jenis yang berbunyi seperti alarm (kategori alarm, prioritas maksimum). */
+    fun berkarakterAlarm(jenis: Jenis): Boolean = jenis == Jenis.SAHUR
 
     /** Habit bawaan (tabel `habits`) menurut kategorinya. */
     fun jenisHabitBawaan(kategori: String): Jenis = when (kategori) {
         "Sholat Fardhu" -> Jenis.SHOLAT_WAJIB
-        "Puasa Wajib", "Puasa Sunnah" -> Jenis.PUASA
+        // Pengingat habit puasa (termasuk puasa Ramadan) disetel pengguna: notifikasi biasa.
+        // Sahur punya jenis sendiri (fitur pengingat sahur).
+        "Puasa Wajib", "Puasa Sunnah" -> Jenis.PUASA_SUNNAH
         else -> Jenis.SHOLAT_SUNNAH
     }
 
     /** Habit buatan pengguna (`user_habits`): "SHOLAT" / "PUASA"; dzikir & tilawah disiapkan. */
     fun jenisHabitSunnah(kategori: String?): Jenis = when (kategori?.uppercase()) {
-        "PUASA" -> Jenis.PUASA
+        "PUASA" -> Jenis.PUASA_SUNNAH
         "DZIKIR", "TILAWAH" -> Jenis.DZIKIR_TILAWAH
         else -> Jenis.SHOLAT_SUNNAH
     }
@@ -65,7 +74,8 @@ object KanalNotifikasi {
     fun idUntuk(jenis: Jenis, slug: String? = null): String = when (jenis) {
         Jenis.SHOLAT_WAJIB -> sholatWajib(slug?.takeIf { it in WAKTU_SHOLAT } ?: "dzuhur")
         Jenis.SHOLAT_SUNNAH -> SHOLAT_SUNNAH
-        Jenis.PUASA -> PUASA_SAHUR
+        Jenis.PUASA_SUNNAH -> PUASA_SUNNAH
+        Jenis.SAHUR -> SAHUR
         Jenis.DZIKIR_TILAWAH -> DZIKIR_TILAWAH
         Jenis.MODE_CUTI -> MODE_CUTI
     }
@@ -73,6 +83,7 @@ object KanalNotifikasi {
     /** Channel lama yang diganti versi ini (dipakai migrasi dan tes). */
     fun termasukChannelLama(id: String): Boolean =
         id !in SEMUA && (id == "habit_reminder_channel" || id.startsWith("habit_reminder_channel_v") ||
+            id == "puasa_sahur" ||
             Regex("^sholat_(subuh|dzuhur|ashar|maghrib|isya)_v\\d+$").matches(id))
 
     private const val TAG = "KanalNotifikasi"
@@ -99,6 +110,7 @@ object KanalNotifikasi {
         val nm = context.getSystemService(NotificationManager::class.java)
         val lama = nm.notificationChannels.filter { termasukChannelLama(it.id) }
         val umumLamaMati = lama.any { it.id.startsWith("habit_reminder_channel") && it.importance == NotificationManager.IMPORTANCE_NONE }
+        val puasaLamaMati = umumLamaMati || lama.any { it.id == "puasa_sahur" && it.importance == NotificationManager.IMPORTANCE_NONE }
         val prefs = SecurePrefsProvider.get(context)
         val umumSenyap = prefs.getString(NotificationScheduler.KEY_NOTIFICATION_SOUND, null) == "silent"
         val getar = prefs.getBoolean(NotificationScheduler.KEY_NOTIFICATION_VIBRATION, true)
@@ -121,11 +133,15 @@ object KanalNotifikasi {
         buatBila(nm, SHOLAT_SUNNAH, "Sholat sunnah", "Pengingat sholat sunnah dan qadha yang kamu atur",
             if (umumLamaMati) NotificationManager.IMPORTANCE_NONE else NotificationManager.IMPORTANCE_HIGH,
             if (umumSenyap) null else RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), atributNotifikasi(), getar)
+        // Pengingat puasa yang disetel pengguna (sering malam hari): notifikasi biasa.
+        buatBila(nm, PUASA_SUNNAH, "Puasa sunnah", "Pengingat puasa yang kamu atur",
+            if (puasaLamaMati) NotificationManager.IMPORTANCE_NONE else NotificationManager.IMPORTANCE_HIGH,
+            if (umumSenyap) null else RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), atributNotifikasi(), getar)
         // Sahur jam 3 pagi tidak boleh kalah oleh mode Jangan Ganggu: karakter alarm (prioritas
         // tertinggi yang boleh dipakai aplikasi, suara alarm di jalur volume alarm). Notifikasinya
         // juga diberi kategori alarm (lihat NotificationReceiver).
-        buatBila(nm, PUASA_SAHUR, "Puasa dan sahur", "Pengingat puasa dan sahur. Berbunyi seperti alarm.",
-            if (umumLamaMati) NotificationManager.IMPORTANCE_NONE else NotificationManager.IMPORTANCE_HIGH,
+        buatBila(nm, SAHUR, "Sahur", "Pengingat sahur di bulan Ramadan. Berbunyi seperti alarm.",
+            NotificationManager.IMPORTANCE_HIGH,
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
             atributAlarm(musik = false), getarAlarm = true, getar = true)

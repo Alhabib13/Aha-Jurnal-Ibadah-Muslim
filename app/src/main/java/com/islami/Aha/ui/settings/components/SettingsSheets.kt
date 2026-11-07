@@ -279,10 +279,18 @@ fun NotificationSettingsSheet(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             BarisPengaturan(
                 ikon = Icons.AutoMirrored.Rounded.VolumeUp,
-                judul = "Puasa dan sahur",
+                judul = "Puasa sunnah",
+                keterangan = "Pengingat puasa yang kamu atur",
+                nilai = "",
+                onClick = { onBukaKanal(com.islami.Aha.util.KanalNotifikasi.PUASA_SUNNAH) }
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            BarisPengaturan(
+                ikon = Icons.AutoMirrored.Rounded.VolumeUp,
+                judul = "Sahur",
                 keterangan = "Berbunyi seperti alarm, juga saat Jangan Ganggu",
                 nilai = "",
-                onClick = { onBukaKanal(com.islami.Aha.util.KanalNotifikasi.PUASA_SAHUR) }
+                onClick = { onBukaKanal(com.islami.Aha.util.KanalNotifikasi.SAHUR) }
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             BarisPengaturan(
