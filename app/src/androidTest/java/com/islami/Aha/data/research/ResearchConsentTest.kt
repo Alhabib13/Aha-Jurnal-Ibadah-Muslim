@@ -70,13 +70,51 @@ class ResearchConsentTest {
         assertEquals(2, db.researchLogDao().count())
     }
 
+    private val prefsTes get() = context.getSharedPreferences("research-consent-test", Context.MODE_PRIVATE)
+
     @Test
-    fun persetujuanLamaMengertiDibacaSetuju_laluBisaDiubah() {
-        context.getSharedPreferences("research-consent-test", Context.MODE_PRIVATE).edit()
-            .putBoolean(ResearchLogRepository.KEY_RESEARCH_NOTICE_ACK, true).commit()
+    fun mengertiLama_bukanPersetujuan_layarBaruMunculSekali() {
+        prefsTes.edit().putBoolean(ResearchLogRepository.KEY_RESEARCH_NOTICE_ACK, true).commit()
+        // Belum memutuskan: Beranda menampilkan layar persetujuan baru, tidak ada yang diunggah.
+        assertNull(repo.researchConsent())
+        assertFalse(repo.hasDecidedConsent())
+        // Setelah menjawab di layar itu keputusannya tersimpan, kunci lama hilang, layar tidak muncul lagi.
+        repo.setResearchConsent(true, null)
         assertEquals(true, repo.researchConsent())
-        repo.setResearchConsent(false)
+        assertTrue(repo.hasDecidedConsent())
+        assertFalse(prefsTes.contains(ResearchLogRepository.KEY_RESEARCH_NOTICE_ACK))
+    }
+
+    @Test
+    fun mengertiLama_laluMenolak_tetapTidakDitanyaLagi() {
+        prefsTes.edit().putBoolean(ResearchLogRepository.KEY_RESEARCH_NOTICE_ACK, true).commit()
+        repo.setResearchConsent(false, null)
         assertEquals(false, repo.researchConsent())
+        assertTrue(repo.hasDecidedConsent())
+        assertFalse(prefsTes.contains(ResearchLogRepository.KEY_RESEARCH_NOTICE_ACK))
+    }
+
+    @Test
+    fun berhentiIkut_menandaiPenarikan_setujuLagiMembatalkannya() {
+        // Penandaan butuh akun yang sedang masuk (UID); tanpa akun tidak ada dokumen yang ditandai.
+        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        org.junit.Assume.assumeTrue("Dilewati: tidak ada akun yang masuk", uid != null)
+        repo.setResearchConsent(true)
+        assertNull(repo.penarikanTertunda())
+        repo.setResearchConsent(false)
+        assertEquals(uid, repo.penarikanTertunda())
+        repo.setResearchConsent(true)
+        assertNull(repo.penarikanTertunda())
+    }
+
+    @Test
+    fun tanpaAkun_menolakTidakMenyisakanPenarikanTertunda() {
+        org.junit.Assume.assumeTrue(
+            "Dilewati: perangkat sedang memakai akun",
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null
+        )
+        repo.setResearchConsent(false)
+        assertNull(repo.penarikanTertunda())
     }
 
     @Test

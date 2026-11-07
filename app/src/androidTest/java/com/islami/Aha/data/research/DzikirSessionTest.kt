@@ -27,7 +27,7 @@ class DzikirSessionTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         val prefs = context.getSharedPreferences("dzikir-session-test", Context.MODE_PRIVATE)
-        prefs.edit().clear().putBoolean(ResearchLogRepository.KEY_RESEARCH_NOTICE_ACK, true).commit()
+        prefs.edit().clear().putString(ResearchLogRepository.KEY_RESEARCH_CONSENT, ResearchLogRepository.CONSENT_SETUJU).commit()
         repo = ResearchLogRepository(
             context, db.researchLogDao(), db.deletedSyncDao(), prefs, db.habitDao(), TilawahStateRepository(prefs),
             db.dzikirHabitDao()

@@ -65,7 +65,11 @@ class ResearchLogRepository @Inject constructor(
         private const val UPLOAD_FAILED_NOTICE = "Sinkronisasi log ibadah ke cloud belum berhasil."
         private const val RESTORE_TIMEOUT_MS = 30_000L
 
-        /** v1.2.0 awal: dialog "Mengerti" tanpa pilihan menolak. Dibaca sekali sebagai "setuju". */
+        /**
+         * v1.2.0 awal: dialog "Mengerti" tanpa pilihan menolak. TIDAK dihitung sebagai persetujuan:
+         * pemiliknya dianggap belum memutuskan sampai menjawab layar persetujuan yang baru.
+         * Kunci ini dihapus begitu keputusan disimpan.
+         */
         const val KEY_RESEARCH_NOTICE_ACK = "research_notice_ack_v1"
         /** Keputusan pengguna atas penelitian: [CONSENT_SETUJU] / [CONSENT_TOLAK]; tidak ada = belum memutuskan. */
         const val KEY_RESEARCH_CONSENT = "research_consent_v2"
@@ -77,6 +81,12 @@ class ResearchLogRepository @Inject constructor(
         const val KEY_KODE_RESPONDEN = "research_kode_responden"
         /** Isi profil penelitian terakhir yang berhasil dikirim, per akun. */
         private const val KEY_PROFIL_TERKIRIM_PREFIX = "research_profil_terkirim_"
+        /**
+         * UID yang penarikan persetujuannya belum tercatat di server (ditarik_pada). Tidak ikut
+         * dihapus saat logout, supaya penarikan yang belum terkirim tetap terkirim begitu akun
+         * yang sama masuk lagi; dibersihkan saat terkirim atau saat pengguna setuju lagi.
+         */
+        const val KEY_PENARIKAN_TERTUNDA = "research_penarikan_tertunda_uid"
 
 
         private fun prefixSesiDzikir(tanggal: String, slug: String, idHabit: String) =
@@ -252,7 +262,8 @@ class ResearchLogRepository @Inject constructor(
     fun researchConsent(): Boolean? = when (sharedPreferences.getString(KEY_RESEARCH_CONSENT, null)) {
         CONSENT_SETUJU -> true
         CONSENT_TOLAK -> false
-        else -> if (sharedPreferences.getBoolean(KEY_RESEARCH_NOTICE_ACK, false)) true else null
+        // Termasuk pemilik KEY_RESEARCH_NOTICE_ACK lama: belum pernah menyetujui di layar baru.
+        else -> null
     }
 
     fun hasDecidedConsent(): Boolean = researchConsent() != null
@@ -260,14 +271,28 @@ class ResearchLogRepository @Inject constructor(
     /**
      * Simpan keputusan pengguna. Setuju = catatan di HP (termasuk yang dibuat sebelumnya)
      * mulai diunggah; menolak = tidak ada yang diunggah, aplikasi tetap berfungsi penuh.
+     *
+     * Menolak / berhenti saat sedang masuk akun = `ditarik_pada` dicatat di users/{uid} (bila
+     * dokumennya ada) lewat worker unggah. Setuju lagi = penarikan tertunda dibatalkan dan profil
+     * dikirim ulang supaya `ditarik_pada` dihapus dari server.
      */
     fun setResearchConsent(setuju: Boolean) {
-        sharedPreferences.edit()
-            .putString(KEY_RESEARCH_CONSENT, if (setuju) CONSENT_SETUJU else CONSENT_TOLAK)
-            .remove(KEY_RESEARCH_NOTICE_ACK)
-            .apply()
-        if (setuju) scheduleUpload()
+        val uid = currentUid()
+        sharedPreferences.edit().apply {
+            putString(KEY_RESEARCH_CONSENT, if (setuju) CONSENT_SETUJU else CONSENT_TOLAK)
+            remove(KEY_RESEARCH_NOTICE_ACK)
+            if (setuju) {
+                remove(KEY_PENARIKAN_TERTUNDA)
+                if (uid != null) remove(KEY_PROFIL_TERKIRIM_PREFIX + uid)
+            } else if (uid != null) {
+                putString(KEY_PENARIKAN_TERTUNDA, uid)
+            }
+        }.apply()
+        if (setuju || uid != null) scheduleUpload()
     }
+
+    /** UID yang penarikannya belum tercatat di server, atau null. */
+    fun penarikanTertunda(): String? = sharedPreferences.getString(KEY_PENARIKAN_TERTUNDA, null)
 
     /**
      * Keputusan di layar persetujuan beserta kode responden opsional. Kode hanya disimpan bila
@@ -312,7 +337,9 @@ class ResearchLogRepository @Inject constructor(
             withTimeout(WRITE_TIMEOUT_MS) {
                 db.collection(ResearchSchema.COLLECTION_USERS).document(uid).delete().await()
             }
+            // Dokumennya sudah tidak ada: tidak ada lagi yang perlu ditandai ditarik.
             sharedPreferences.edit().remove(KEY_PROFIL_TERKIRIM_PREFIX + uid).apply()
+            if (penarikanTertunda() == uid) sharedPreferences.edit().remove(KEY_PENARIKAN_TERTUNDA).apply()
             researchLogDao.markAllUnsynced()
             deletedSyncDao.deleteByType(RECORD_TYPE)
             CloudSyncStatus.success(docs.size)
@@ -510,6 +537,13 @@ class ResearchLogRepository @Inject constructor(
             }
         }
 
+        if (!bolehUnggah && penarikanTertunda() == uid) {
+            runCatching { catatPenarikan(uid) }.onFailure { error ->
+                if (error.isRetryable()) return failure(changed, retry = true, error)
+                firstIssue = firstIssue ?: failure(changed, retry = false, error)
+            }
+        }
+
         if (bolehUnggah) {
             runCatching { syncProfilPenelitian(uid) }.onFailure { error ->
                 if (error.isRetryable()) return failure(changed, retry = true, error)
@@ -637,11 +671,38 @@ class ResearchLogRepository @Inject constructor(
                 // dibuat sebelum disetujui_pada ada mendapatkannya di pengiriman berikutnya.
                 if (!snap.contains(ResearchSchema.Profil.TANGGAL_MULAI)) put(ResearchSchema.Profil.TANGGAL_MULAI, FieldValue.serverTimestamp())
                 if (!snap.contains(ResearchSchema.Profil.DISETUJUI_PADA)) put(ResearchSchema.Profil.DISETUJUI_PADA, FieldValue.serverTimestamp())
+                // Profil hanya dikirim saat setuju: tanda penarikan sebelumnya dibatalkan. Selalu
+                // dikirim (bukan hanya bila snap memuatnya): penarikan yang masih antre offline
+                // sampai lebih dulu di server, lalu dihapus oleh tulisan ini (urutan tulisan dijaga SDK).
+                put(ResearchSchema.Profil.DITARIK_PADA, FieldValue.delete())
             }
             ref.set(tulis, SetOptions.merge()).await()
             sidikProfil(isi, manufaktur, kode)
         } ?: return
         sharedPreferences.edit().putString(kunci, sidik).apply()
+    }
+
+    /**
+     * Tulis `ditarik_pada` (waktu server) di users/{uid}. Dokumen belum ada (tidak pernah ikut,
+     * atau sudah dihapus) = tidak ada data penelitian yang perlu ditandai: selesai.
+     */
+    private suspend fun catatPenarikan(uid: String) {
+        val db = firestore ?: return
+        val ref = db.collection(ResearchSchema.COLLECTION_USERS).document(uid)
+        try {
+            withTimeout(WRITE_TIMEOUT_MS) {
+                ref.update(ResearchSchema.Profil.DITARIK_PADA, FieldValue.serverTimestamp()).await()
+            }
+        } catch (e: FirebaseFirestoreException) {
+            // Dokumen yang tidak ada bisa dilaporkan NOT_FOUND atau PERMISSION_DENIED (rules dinilai
+            // sebagai create). Pastikan dari server bahwa memang tidak ada; selain itu = gagal sungguhan.
+            if (e.code != FirebaseFirestoreException.Code.NOT_FOUND &&
+                e.code != FirebaseFirestoreException.Code.PERMISSION_DENIED) throw e
+            val ada = withTimeout(WRITE_TIMEOUT_MS) { ref.get(Source.SERVER).await().exists() }
+            if (ada) throw e
+        }
+        // Hanya dibersihkan bila belum berubah (mis. pengguna sudah setuju lagi sementara itu).
+        if (penarikanTertunda() == uid) sharedPreferences.edit().remove(KEY_PENARIKAN_TERTUNDA).apply()
     }
 
     private fun sidikProfil(isi: Map<String, Any?>, manufaktur: String?, kode: String?): String =

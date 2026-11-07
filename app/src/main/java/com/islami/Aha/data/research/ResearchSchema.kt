@@ -30,6 +30,12 @@ object ResearchSchema {
         const val KODE_RESPONDEN = "kode_responden"
         /** Waktu server saat profil pertama dikirim setelah pengguna menyetujui penelitian. */
         const val DISETUJUI_PADA = "disetujui_pada"
+        /**
+         * Waktu server saat pengguna berhenti ikut penelitian (sakelar dimatikan / menolak).
+         * Dihapus lagi bila ia kembali setuju. Data lama tidak dihapus; ekspor dataset
+         * mengeluarkan dokumen yang memiliki field ini.
+         */
+        const val DITARIK_PADA = "ditarik_pada"
         /** 4-20 huruf/angka/tanda hubung; sama dengan firestore.rules. */
         val KODE_RESPONDEN_POLA = Regex("^[A-Za-z0-9-]{4,20}$")
 

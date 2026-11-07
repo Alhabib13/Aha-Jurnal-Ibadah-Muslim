@@ -135,8 +135,9 @@ service cloud.firestore {
   // manufaktur (merek HP, untuk keandalan notifikasi per merek) ikut profil, opsional.
   //   kode_responden: kode dari peneliti untuk responden yang direkrut langsung (opsional).
   //   disetujui_pada: waktu server saat profil pertama dikirim setelah menyetujui penelitian.
+  //   ditarik_pada: waktu server saat pemiliknya berhenti ikut penelitian (lihat ditarikSah).
   function validDokumenUser(data) {
-    return data.keys().hasOnly(profilFields().concat(["manufaktur", "kode_responden", "disetujui_pada"]))
+    return data.keys().hasOnly(profilFields().concat(["manufaktur", "kode_responden", "disetujui_pada", "ditarik_pada"]))
         && validProfilPenelitian(data)
         && (!("manufaktur" in data)
             || (data.manufaktur is string && data.manufaktur.size() >= 1 && data.manufaktur.size() <= 64))
@@ -148,6 +149,15 @@ service cloud.firestore {
   // berubah. Profil lama (sebelum field ini ada) boleh mendapatkannya sekali, dengan waktu server.
   function disetujuiSaatDibuat() {
     return request.resource.data.get("disetujui_pada", null) == request.time;
+  }
+
+  // ditarik_pada: tidak ada saat dibuat; sesudahnya hanya boleh diisi dengan waktu server,
+  // dibiarkan, atau dihapus (pemiliknya setuju lagi). Tidak bisa dipalsukan ke waktu lain.
+  function ditarikSah() {
+    return !("ditarik_pada" in request.resource.data)
+        || request.resource.data.ditarik_pada == request.time
+        || (("ditarik_pada" in resource.data)
+            && request.resource.data.ditarik_pada == resource.data.ditarik_pada);
   }
 
   function disetujuiTetap() {
@@ -468,11 +478,13 @@ service cloud.firestore {
       allow create: if isOwner(userId)
                     && validDokumenUser(request.resource.data)
                     && request.resource.data.tanggal_mulai == request.time
-                    && disetujuiSaatDibuat();
+                    && disetujuiSaatDibuat()
+                    && !("ditarik_pada" in request.resource.data);
       allow update: if isOwner(userId)
                     && validDokumenUser(request.resource.data)
                     && request.resource.data.tanggal_mulai == resource.data.tanggal_mulai
-                    && disetujuiTetap();
+                    && disetujuiTetap()
+                    && ditarikSah();
     }
 
     // Jadwal pengingat 7 hari yang disusun HP (server tidak menghitung waktu sholat,

@@ -397,6 +397,56 @@ describe("users/{uid}: kode responden & persetujuan penelitian", () => {
   });
 });
 
+describe("users/{uid}: ditarik_pada (berhenti ikut penelitian)", () => {
+  const ref = (who = ALICE) => doc(db(who), "users", ALICE);
+  const LAMA = Timestamp.fromDate(new Date("2026-10-01T00:00:00Z"));
+  const peserta = () => seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA }));
+
+  test("pemilik boleh menandai ditarik_pada dengan waktu server (update seperti aplikasi)", async () => {
+    await peserta();
+    await assertSucceeds(updateDoc(ref(), { ditarik_pada: serverTimestamp() }));
+  });
+
+  test("ditarik_pada tidak boleh jam HP atau waktu lain", async () => {
+    await peserta();
+    await assertFails(updateDoc(ref(), { ditarik_pada: Timestamp.now() }));
+    await assertFails(updateDoc(ref(), { ditarik_pada: LAMA }));
+  });
+
+  test("ditarik_pada yang tersimpan tidak bisa digeser, tapi boleh dibiarkan saat profil diperbarui", async () => {
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA, ditarik_pada: LAMA }));
+    await assertFails(updateDoc(ref(), { ditarik_pada: Timestamp.fromDate(new Date("2026-10-02T00:00:00Z")) }));
+    await assertSucceeds(setDoc(ref(), { kode_responden: "R-0001" }, { merge: true }));
+  });
+
+  test("setuju lagi: pemilik boleh menghapus ditarik_pada", async () => {
+    const { deleteField } = await import("firebase/firestore");
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA, ditarik_pada: LAMA }));
+    await assertSucceeds(setDoc(ref(), { ditarik_pada: deleteField() }, { merge: true }));
+  });
+
+  test("orang lain tidak bisa menandai atau menghapus ditarik_pada", async () => {
+    const { deleteField } = await import("firebase/firestore");
+    await peserta();
+    await assertFails(updateDoc(ref(BOB), { ditarik_pada: serverTimestamp() }));
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA, ditarik_pada: LAMA }));
+    await assertFails(setDoc(ref(BOB), { ditarik_pada: deleteField() }, { merge: true }));
+  });
+
+  test("dokumen baru tidak boleh langsung berisi ditarik_pada", () =>
+    assertFails(setDoc(ref(), profil({ ditarik_pada: serverTimestamp() }))));
+
+  test("pengiriman profil aplikasi (merge + hapus ditarik_pada) lolos untuk dokumen baru maupun lama", async () => {
+    const { deleteField } = await import("firebase/firestore");
+    await assertSucceeds(setDoc(ref(), profil({ ditarik_pada: deleteField() }), { merge: true }));
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA, ditarik_pada: LAMA }));
+    await assertSucceeds(setDoc(ref(), { rentang_umur: "26-35", ditarik_pada: deleteField() }, { merge: true }));
+  });
+
+  test("menandai ditarik_pada pada dokumen yang tidak ada ditolak (aplikasi menganggapnya selesai)", () =>
+    assertFails(updateDoc(ref(), { ditarik_pada: serverTimestamp() })));
+});
+
 describe("logs: Tertinggal untuk puasa & ibadah sunnah", () => {
   const tt = (o = {}) => ({ status: "tidak", sumber_pencatatan: "buka_aplikasi", nama_detail_asli: null, ...o });
 
