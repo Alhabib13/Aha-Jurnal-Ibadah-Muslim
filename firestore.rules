@@ -567,6 +567,17 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
+    // Permintaan penghapusan akun anonim yang ditolak dihapus langsung oleh Firebase (login
+    // terakhir terlalu lama). Data pengguna sudah terhapus; peneliti menghapus akun auth-nya.
+    // Hanya pemiliknya yang bisa mengajukan, sekali, tanpa bisa membaca atau mengubahnya.
+    match /permintaan_hapus/{userId} {
+      allow create: if isOwner(userId)
+                    && request.resource.data.keys().hasOnly(["diminta_pada"])
+                    && request.resource.data.keys().hasAll(["diminta_pada"])
+                    && request.resource.data.diminta_pada == request.time;
+      allow read, update, delete: if false;
+    }
+
     // Deny all other paths by default.
     match /{document=**} {
       allow read, write: if false;

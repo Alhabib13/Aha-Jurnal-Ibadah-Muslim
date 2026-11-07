@@ -61,6 +61,8 @@ class AuthRepository @Inject constructor(
         /** Prefiks kunci yang dulu hanya ditulis untuk akun sungguhan (sebelum Anonymous Auth ada). */
         private val JEJAK_LOGIN_LAMA = listOf("research_logs_restored_", "research_profil_terkirim_")
         private const val BATAS_ANONIM_MS = 15_000L
+        /** Akun anonim yang datanya sudah terhapus tetapi akun Firebase-nya ditolak dihapus dari HP. */
+        const val KOLEKSI_PERMINTAAN_HAPUS = "permintaan_hapus"
         /** meta/profile awal akun anonim sudah diterima server, per UID. */
         private const val KEY_PROFIL_AWAL_PREFIX = "meta_profile_awal_terkirim_"
     }
@@ -372,6 +374,45 @@ class AuthRepository @Inject constructor(
             com.islami.Aha.util.UserPreferencesManager.genderTerkirim()
         }
         return terkirim
+    }
+
+    /**
+     * Pengunduran diri penuh untuk akun ANONIM (syarat persetujuan penelitian: responden berhak
+     * mundur sepenuhnya). Menghapus di server, lewat jalur yang sama dengan hapus akun biasa:
+     * users/{uid}, semua logs miliknya, meta/profile, meta/notifikasi (token FCM), jadwal_pengingat,
+     * sunnah_habits, habit_completions, dzikir_habits, penanda, target; lalu akun Firebase-nya.
+     *
+     * Tidak ada pemulihan bila gagal di tengah: yang sudah terhapus tetap terhapus (berbeda dengan
+     * hapus akun biasa), karena tujuannya mundur, bukan berganti akun. Bila penghapusan data gagal
+     * (mis. offline), tidak ada yang dihapus dan hasilnya galat.
+     *
+     * Firebase dapat menolak menghapus akun yang login terakhirnya sudah lama, dan akun anonim
+     * tidak bisa login ulang. Dalam hal itu seluruh data sudah terhapus, permintaan penghapusan
+     * akun dicatat di [KOLEKSI_PERMINTAAN_HAPUS]/{uid} untuk diproses peneliti, lalu keluar.
+     * Setelahnya HP ini tidak dibuatkan akun anonim baru.
+     *
+     * @return true bila akun Firebase ikut terhapus; false bila menunggu diproses peneliti.
+     */
+    suspend fun hapusAkunAnonim(): Result<Boolean> {
+        val user = firebaseAuth.currentUser ?: return Result.failure(IllegalStateException("Tidak ada akun di HP ini"))
+        if (!user.isAnonymous) return Result.failure(IllegalStateException("Bukan akun anonim"))
+        val uid = user.uid
+        return runCatching {
+            deleteCloudDataWithBackup(uid)
+            val akunTerhapus = runCatching { user.delete().await() }.isSuccess
+            if (!akunTerhapus) {
+                runCatching {
+                    firestore?.collection(KOLEKSI_PERMINTAAN_HAPUS)?.document(uid)
+                        ?.set(mapOf("diminta_pada" to FieldValue.serverTimestamp()))?.await()
+                }.onFailure { com.islami.Aha.util.logCrashlyticsSafe(it) }
+                firebaseAuth.signOut()
+            }
+            runCatching { com.google.firebase.messaging.FirebaseMessaging.getInstance().deleteToken().await() }
+            clearSession()
+            // Responden yang mundur tidak dibuatkan akun anonim baru di HP ini.
+            sharedPreferences.edit().putBoolean(KEY_PERNAH_LOGIN, true).apply()
+            akunTerhapus
+        }.onFailure { com.islami.Aha.util.logCrashlyticsSafe(it) }
     }
 
     suspend fun fetchUserPreferences(): Result<Map<String, Any>?> {

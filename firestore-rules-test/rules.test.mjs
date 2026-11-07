@@ -468,6 +468,32 @@ describe("Anonymous Auth: tamu anonim", () => {
     assertFails(setDoc(doc(anon(), "logs", logId()), log())));
 });
 
+describe("permintaan_hapus/{uid}: akun anonim yang menolak dihapus langsung", () => {
+  const ANON = "anonUid789";
+  const ref = (who = ANON, uid = ANON) => doc(dbAnonim(who), `permintaan_hapus/${uid}`);
+
+  test("pemilik mengajukan sekali dengan waktu server", async () => {
+    await assertSucceeds(setDoc(ref(), { diminta_pada: serverTimestamp() }));
+    await assertFails(setDoc(ref(), { diminta_pada: serverTimestamp() }));
+  });
+
+  test("waktu harus waktu server dan tidak boleh ada field lain", async () => {
+    await assertFails(setDoc(ref(), { diminta_pada: Timestamp.now() }));
+    await assertFails(setDoc(ref(), { diminta_pada: serverTimestamp(), alasan: "x" }));
+    await assertFails(setDoc(ref(), {}));
+  });
+
+  test("tidak bisa dibaca, diubah, atau dihapus dari aplikasi", async () => {
+    await seed(`permintaan_hapus/${ANON}`, { diminta_pada: Timestamp.now() });
+    await assertFails(getDoc(ref()));
+    await assertFails(updateDoc(ref(), { diminta_pada: serverTimestamp() }));
+    await assertFails(deleteDoc(ref()));
+  });
+
+  test("tidak bisa mengajukan atas nama UID lain", () =>
+    assertFails(setDoc(ref(ANON, ALICE), { diminta_pada: serverTimestamp() })));
+});
+
 describe("logs: struktur & kepemilikan", () => {
   test("log sholat wajib dikerjakan yang valid", () => assertSucceeds(tulisLog()));
 

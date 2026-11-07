@@ -123,4 +123,16 @@ class AuthRepositoryTest {
         assertEquals(AuthResult.PerluKonfirmasiPindahAkun, repository.login("a@b.c", "rahasia1"))
         verify(exactly = 0) { mockAuth.signInWithEmailAndPassword(any(), any()) }
     }
+
+    @Test
+    fun `hapus akun anonim ditolak bila tidak ada akun atau akunnya bukan anonim`() = runTest {
+        every { mockAuth.currentUser } returns null
+        assertTrue(repository.hapusAkunAnonim().isFailure)
+        val akunSungguhan = mockk<FirebaseUser>()
+        every { akunSungguhan.isAnonymous } returns false
+        every { akunSungguhan.uid } returns "uid-asli"
+        every { mockAuth.currentUser } returns akunSungguhan
+        assertTrue(repository.hapusAkunAnonim().isFailure)
+        verify(exactly = 0) { akunSungguhan.delete() }
+    }
 }

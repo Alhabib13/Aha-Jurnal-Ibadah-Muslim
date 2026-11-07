@@ -81,6 +81,13 @@ class ResearchConsentTest {
 
     @Test
     fun hapusDataTanpaLogin_berhentiIkut_catatanHpTetapAda() = runBlocking {
+        // Tes ini memanggil penghapusan data penelitian DI SERVER untuk akun yang sedang masuk.
+        // Di perangkat yang sedang memakai akun (termasuk anonim) tes dilewati, supaya data asli
+        // di Firestore produksi tidak ikut terhapus.
+        org.junit.Assume.assumeTrue(
+            "Dilewati: perangkat sedang memakai akun, penghapusan akan mengenai data asli di server",
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null
+        )
         repo.setResearchConsent(true)
         catatDzikir()
         repo.deleteMyResearchData()
