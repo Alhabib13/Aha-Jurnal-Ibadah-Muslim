@@ -14,6 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -122,15 +125,27 @@ fun CategoryCardsRow(
                     Text(text = card.icon.orEmpty(), fontSize = 24.sp)
                 }
                 Text(card.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = card.contentColor, maxLines = 1)
+                // Label kecil di bawah nama. Teks panjang ("Belum dicatat") mengecil sendiri agar muat
+                // di kartu sempit/huruf besar, bukan terpotong. Latarnya rona tipis yang seragam:
+                // putih di kartu bertulisan putih, rona warna tulisan di kartu bertulisan gelap (Tilawah).
+                var ukuranLabel by remember(badge) { mutableStateOf(10f) }
                 Text(
                     badge,
-                    fontSize = 10.sp,
+                    fontSize = ukuranLabel.sp,
                     fontWeight = FontWeight.Bold,
                     color = card.contentColor,
                     maxLines = 1,
+                    softWrap = false,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    onTextLayout = { hasil ->
+                        if (hasil.didOverflowWidth && ukuranLabel > 7f) ukuranLabel -= 0.5f
+                    },
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = if (card.contentColor == Color.White) 0.18f else 0.32f))
+                        .background(
+                            if (card.contentColor == Color.White) Color.White.copy(alpha = 0.18f)
+                            else card.contentColor.copy(alpha = 0.12f)
+                        )
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 )
             }
