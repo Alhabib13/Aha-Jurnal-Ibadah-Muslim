@@ -83,12 +83,18 @@ fun ResearchConsentContent(
             ) {
                 Bagian(
                     "Apa yang dicatat",
-                    "• Ibadah yang kamu catat (mis. sholat Subuh, dzikir pagi) dan statusnya.\n" +
-                        "• Tanggal ibadah, jam kamu mencatat, dan zona waktu HP.\n" +
+                    "• Ibadah yang kamu catat (mis. sholat Subuh, dzikir pagi) dan statusnya: dikerjakan, " +
+                        "tertinggal, atau udzur.\n" +
+                        "• Tanggal ibadah, jam kamu mencatat, zona waktu HP, dan cara mencatat (dari notifikasi " +
+                        "atau dengan membuka aplikasi).\n" +
+                        "• Mode Cuti (perempuan): pada hari Mode Cuti aktif, sholat wajib (dan puasa Ramadan) " +
+                        "dicatat \"udzur\" agar tidak terhitung tertinggal. Tanggal haid itu sendiri tidak dikirim " +
+                        "untuk penelitian, tetapi status udzur menunjukkan hari Mode Cuti.\n" +
                         "• Tilawah: jumlah ayat, halaman, dan juz. Iqro: jilid dan halaman.\n" +
                         "• Dzikir: cara mencatat dan target hitungan bila kamu mengaturnya.\n" +
                         "• Selisih menit antara jam mencatat dan waktu adzan, dihitung di HP.\n" +
-                        "• Profil ibadah (laki-laki/perempuan), rentang usia, kesibukan utama, dan ibadah yang kamu centang sebagai kebiasaan di awal."
+                        "• Profil ibadah (laki-laki/perempuan), rentang usia, kesibukan utama, dan ibadah yang kamu centang sebagai kebiasaan di awal.\n" +
+                        "• Merek HP (untuk mengukur keandalan pengingat per merek) dan kode responden bila kamu mengisinya."
                 )
                 Bagian(
                     "Apa yang tidak dicatat",
@@ -138,7 +144,12 @@ fun ResearchConsentContent(
                         .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(20.dp))
                         .padding(horizontal = 18.dp, vertical = 6.dp)
                 ) {
-                    Poin(Icons.Rounded.Checklist, "Yang dicatat:", " jenis ibadah, tanggal, dan jam kamu mencatat")
+                    Poin(
+                        Icons.Rounded.Checklist,
+                        "Yang dicatat:",
+                        " ibadah yang kamu catat beserta tanggal, jam, dan caranya; hari Mode Cuti; " +
+                            "profil singkat (jenis kelamin, usia, kesibukan); merek HP; kode responden bila diisi"
+                    )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Poin(Icons.Rounded.Insights, "Untuk:", " penelitian skripsi agar pengingat lebih pas dengan kebiasaanmu")
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

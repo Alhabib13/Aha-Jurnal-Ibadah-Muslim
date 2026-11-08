@@ -79,11 +79,13 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
     companion object {
         /**
-         * Kartu "Lengkapi profil penelitian" tampil bila: login, setuju ikut penelitian, usia atau
-         * kesibukan masih kosong, dan tidak sedang ditunda ("Nanti" = 7 hari).
+         * Kartu "Lengkapi profil penelitian" tampil bila: setuju ikut penelitian (dengan atau tanpa
+         * login), jenis kelamin / usia / kesibukan masih kosong, dan tidak sedang ditunda ("Nanti" =
+         * 7 hari). Tanpa jenis kelamin profil penelitian tidak bisa dibuat, sehingga catatannya
+         * tertahan di HP dan responden tidak masuk dataset.
          */
         fun perluLengkapiProfil(
-            isLoggedIn: Boolean,
+            genderKosong: Boolean,
             setujuPenelitian: Boolean?,
             usia: com.islami.Aha.util.AgeRange?,
             status: com.islami.Aha.util.StatusAktivitas?,
@@ -93,7 +95,7 @@ class HomeViewModel @Inject constructor(
         ): Boolean = hariIni >= ditundaSampai && (
             // Pengguna dari v1.1.1: jenis kelamin ditegaskan sekali sebelum dikunci.
             perluKonfirmasiGender ||
-                (isLoggedIn && setujuPenelitian == true && (usia == null || status == null))
+                (setujuPenelitian == true && (genderKosong || usia == null || status == null))
             )
 
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
@@ -170,6 +172,22 @@ class HomeViewModel @Inject constructor(
                 UserPreferencesManager.statusAktivitas,
                 UserPreferencesManager.gender
             ) { _, _, _ -> }.collect { hitungLengkapiProfil() }
+        }
+
+        // Mode Cuti -> baris "udzur" (Tahap 5): disamakan setiap tanggal haid atau jenis kelamin
+        // berubah, termasuk saat aplikasi dibuka (tanggal haid diperpanjang otomatis per hari).
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                UserPreferencesManager.haidhDates,
+                UserPreferencesManager.gender
+            ) { tanggal, gender -> tanggal to (gender == GenderProfile.FEMALE) }
+                .collect { (tanggal, perempuan) ->
+                    runCatching {
+                        if (researchLogRepository.sinkronUdzur(tanggal, perempuan) > 0) {
+                            researchLogRepository.scheduleUpload()
+                        }
+                    }.onFailure { runCatching { com.islami.Aha.util.logCrashlyticsSafe(it) } }
+                }
         }
 
         // showGenderPrompt logic removed as requested
@@ -869,8 +887,9 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun hitungLengkapiProfil() {
+        val genderKosong = UserPreferencesManager.gender.value == GenderProfile.UNSPECIFIED
         val tampil = perluLengkapiProfil(
-            isLoggedIn = _uiState.value.isLoggedIn,
+            genderKosong = genderKosong,
             setujuPenelitian = researchLogRepository.researchConsent(),
             usia = UserPreferencesManager.ageRange.value,
             status = UserPreferencesManager.statusAktivitas.value,
@@ -879,7 +898,15 @@ class HomeViewModel @Inject constructor(
             perluKonfirmasiGender = UserPreferencesManager.perluKonfirmasiGender
         )
         val konfirmasi = UserPreferencesManager.gender.value.takeIf { UserPreferencesManager.perluKonfirmasiGender }
-        _uiState.update { it.copy(tampilLengkapiProfil = tampil, konfirmasiGender = konfirmasi) }
+        _uiState.update {
+            it.copy(
+                tampilLengkapiProfil = tampil,
+                konfirmasiGender = konfirmasi,
+                pilihGender = genderKosong,
+                usiaLengkap = UserPreferencesManager.ageRange.value != null &&
+                    UserPreferencesManager.statusAktivitas.value != null
+            )
+        }
     }
 
     /**
@@ -897,6 +924,21 @@ class HomeViewModel @Inject constructor(
         if (gender != null) UserPreferencesManager.konfirmasiGender(gender, belumTerkirim = login)
         UserPreferencesManager.setAgeRange(usia, izinWali)
         UserPreferencesManager.setStatusAktivitas(status)
+        selesaiSimpanProfil(login)
+    }
+
+    /**
+     * Kartu "Lengkapi profil" untuk yang dulu melewati "Profil ibadahmu" (usia & kesibukan sudah
+     * terisi): cukup simpan jenis kelamin. Setelah itu profil penelitian bisa dibuat dan catatan
+     * yang tertahan ikut terkirim.
+     */
+    fun simpanJenisKelamin(gender: GenderProfile) {
+        val login = authRepository.currentUser != null
+        UserPreferencesManager.konfirmasiGender(gender, belumTerkirim = login)
+        selesaiSimpanProfil(login)
+    }
+
+    private fun selesaiSimpanProfil(login: Boolean) {
         researchLogRepository.scheduleUpload()
         hitungLengkapiProfil()
         if (!login) return

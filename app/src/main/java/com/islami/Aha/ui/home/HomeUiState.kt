@@ -68,6 +68,10 @@ data class HomeUiState(
     val genderProfile: GenderProfile = GenderProfile.UNSPECIFIED,
     /** Pengguna dari v1.1.1: jenis kelamin yang perlu ditegaskan di kartu "Lengkapi profil"; null = tidak perlu. */
     val konfirmasiGender: GenderProfile? = null,
+    /** Jenis kelamin belum diisi (dilewati di onboarding): kartu Lengkapi profil menanyakannya. */
+    val pilihGender: Boolean = false,
+    /** Usia & kesibukan sudah terisi: setelah memilih jenis kelamin kartu langsung selesai. */
+    val usiaLengkap: Boolean = false,
     val puasaWajibRamadanEnabled: Boolean = true,
     val ramadanScheduleByLocationEnabled: Boolean = true,
     val sholatTarawihEnabled: Boolean = true,

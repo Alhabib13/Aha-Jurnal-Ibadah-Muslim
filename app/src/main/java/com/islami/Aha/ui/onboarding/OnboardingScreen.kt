@@ -402,7 +402,7 @@ private fun KartuFitur(icon: ImageVector, warna: Color, judul: String, isi: Stri
 }
 
 @Composable
-private fun ColumnScope.PilihProfil(onSimpan: (GenderProfile) -> Unit, onNanti: () -> Unit) {
+internal fun ColumnScope.PilihProfil(onSimpan: (GenderProfile) -> Unit, onNanti: () -> Unit) {
     var pilihan by rememberSaveable { mutableStateOf<GenderProfile?>(null) }
     var konfirmasi by rememberSaveable { mutableStateOf(false) }
     Column(

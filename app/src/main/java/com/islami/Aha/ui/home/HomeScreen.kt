@@ -97,6 +97,7 @@ import com.islami.Aha.util.rememberLocationPermissionState
 import com.islami.Aha.util.rememberNotificationPermissionState
 import com.islami.Aha.ui.home.components.*
 import com.islami.Aha.ui.onboarding.KonfirmasiProfilIbadah
+import com.islami.Aha.ui.onboarding.PilihProfil
 import com.islami.Aha.ui.onboarding.PilihUsia
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -291,10 +292,23 @@ fun HomeScreen(
                         modifier = Modifier.padding(start = 8.dp, top = 4.dp)
                     ) { Text("Tutup") }
                     // Pengguna dari v1.1.1: jenis kelamin ditegaskan dulu, baru usia & kesibukan.
+                    // Yang dulu melewati "Profil ibadahmu": jenis kelamin dipilih dulu.
                     val perluKonfirmasi = uiState.konfirmasiGender
                     var genderDitegaskan by rememberSaveable { mutableStateOf<String?>(null) }
                     if (perluKonfirmasi != null && genderDitegaskan == null) {
                         KonfirmasiProfilIbadah(awal = perluKonfirmasi, onBenar = { genderDitegaskan = it.name })
+                    } else if (uiState.pilihGender && genderDitegaskan == null) {
+                        PilihProfil(
+                            onSimpan = { gender ->
+                                if (uiState.usiaLengkap) {
+                                    viewModel.simpanJenisKelamin(gender)
+                                    lengkapiProfilDibuka = false
+                                } else {
+                                    genderDitegaskan = gender.name
+                                }
+                            },
+                            onNanti = { lengkapiProfilDibuka = false }
+                        )
                     } else {
                         PilihUsia(onLanjut = { usia, izinWali, status ->
                             val gender = genderDitegaskan?.let { com.islami.Aha.util.GenderProfile.valueOf(it) }

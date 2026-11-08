@@ -496,11 +496,23 @@ service cloud.firestore {
 
     // Log ibadah penelitian. Kepemilikan lewat field user_id; query klien
     // wajib menyertakan where("user_id", "==", uid).
+    // Log hanya boleh ditulis oleh PESERTA AKTIF: users/{uid} ada, berisi disetujui_pada, dan
+    // tidak berisi ditarik_pada. Dataset di server dengan sendirinya hanya memuat orang yang
+    // menyetujui (aplikasi juga menahan unggahan sampai profilnya terkirim). Hapus tetap boleh.
+    function pesertaAktif(database) {
+      let p = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(p)
+          && ("disetujui_pada" in get(p).data)
+          && !("ditarik_pada" in get(p).data);
+    }
+
     match /logs/{logId} {
       allow read, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
       allow create: if isSignedIn() && validLog(request.resource.data, logId)
+                    && pesertaAktif(database)
                     && tengahHariTunggal(database, request.resource.data);
       allow update: if isSignedIn()
+                    && pesertaAktif(database)
                     && resource.data.user_id == request.auth.uid
                     && validLog(request.resource.data, logId)
                     && tengahHariTunggal(database, request.resource.data)

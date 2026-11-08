@@ -24,6 +24,10 @@ interface ResearchLogDao {
     @Query("SELECT * FROM research_logs WHERE tanggal = :tanggal AND jenisIbadah = :jenis")
     fun observeSemuaStatus(tanggal: String, jenis: String): kotlinx.coroutines.flow.Flow<List<ResearchLogEntity>>
 
+    /** Baris berstatus [status] dengan tanggal di antara [sejak]..[sampai] (yyyy-MM-dd, inklusif). */
+    @Query("SELECT * FROM research_logs WHERE status = :status AND tanggal >= :sejak AND tanggal <= :sampai")
+    suspend fun getByStatusBetween(status: String, sejak: String, sampai: String): List<ResearchLogEntity>
+
     @Query("DELETE FROM research_logs WHERE slotKey = :slotKey")
     suspend fun deleteBySlotKey(slotKey: String)
 

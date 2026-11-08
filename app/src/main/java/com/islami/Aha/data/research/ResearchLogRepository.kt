@@ -87,6 +87,14 @@ class ResearchLogRepository @Inject constructor(
          * yang sama masuk lagi; dibersihkan saat terkirim atau saat pengguna setuju lagi.
          */
         const val KEY_PENARIKAN_TERTUNDA = "research_penarikan_tertunda_uid"
+        /** Tanggal Mode Cuti sejauh ini yang disamakan dengan baris udzur (satu siklus + sisa). */
+        const val UDZUR_JENDELA_HARI = 45L
+        private const val KATEGORI_PUASA_WAJIB = "Puasa Wajib"
+        /** Lima slot sholat wajib (perempuan tidak punya slot Jumat). */
+        private val SLOT_SHOLAT_WAJIB = listOf(
+            ResearchSchema.Detail.SUBUH, ResearchSchema.Detail.DZUHUR, ResearchSchema.Detail.ASHAR,
+            ResearchSchema.Detail.MAGHRIB, ResearchSchema.Detail.ISYA
+        ).map { IbadahSlot(ResearchSchema.Jenis.SHOLAT_WAJIB, it, null) }
 
 
         private fun prefixSesiDzikir(tanggal: String, slug: String, idHabit: String) =
@@ -219,6 +227,84 @@ class ResearchLogRepository @Inject constructor(
         deletedSyncDao.deleteByRecordIdAndType(key, RECORD_TYPE)
         return true
     }
+
+    // ---------- Mode Cuti: status udzur (Tahap 5) ----------
+
+    /**
+     * Menyamakan baris "udzur" dengan tanggal Mode Cuti dalam [jendelaHari] hari terakhir.
+     *
+     * - Tiap tanggal haid: slot sholat wajib (dan puasa Ramadan bila tanggalnya di bulan Ramadan
+     *   dan habit Puasa Wajib ada) yang BELUM punya baris mendapat "udzur". Baris yang sudah ada
+     *   ("dikerjakan" sebelum haid mulai, atau "tidak") dibiarkan.
+     * - Baris "udzur" pada tanggal yang bukan lagi tanggal haid (Mode Cuti dimatikan) dihapus,
+     *   termasuk di server. Hanya fungsi ini yang menulis "udzur", jadi udzur selalu = tanggal haid.
+     *
+     * Tanpa ini hari haid tampak seperti "tidak mencatat" dan membiaskan label profil.
+     * Cakupan udzur (sholat wajib & puasa) MENUNGGU VALIDASI PAKAR, sama dengan firestore.rules.
+     * @return jumlah baris yang ditulis atau dihapus.
+     */
+    suspend fun sinkronUdzur(
+        tanggalHaid: Set<String>,
+        perempuan: Boolean,
+        hariIni: java.time.LocalDate = com.islami.Aha.util.DateUtils.hariIni(),
+        jendelaHari: Long = UDZUR_JENDELA_HARI
+    ): Int {
+        val sejak = hariIni.minusDays(jendelaHari)
+        val target = if (!perempuan) emptySet() else tanggalHaid.mapNotNull { t ->
+            runCatching { java.time.LocalDate.parse(t) }.getOrNull()?.takeIf { !it.isBefore(sejak) && !it.isAfter(hariIni) }
+        }.toSet()
+        var berubah = 0
+        // Udzur yang tanggalnya sudah bukan tanggal haid: hapus.
+        researchLogDao.getByStatusBetween(ResearchSchema.Status.UDZUR, sejak.toString(), hariIni.toString())
+            .filter { runCatching { java.time.LocalDate.parse(it.tanggal) }.getOrNull() !in target }
+            .forEach { removeBySlotKey(it.slotKey); berubah++ }
+        if (target.isEmpty()) return berubah
+        val adaPuasaWajib = runCatching {
+            habitDao.getHabitsSnapshot().any { it.category == KATEGORI_PUASA_WAJIB }
+        }.getOrDefault(false)
+        for (tanggal in target.sorted()) {
+            val slots = SLOT_SHOLAT_WAJIB.toMutableList()
+            if (adaPuasaWajib && bulanRamadan(tanggal)) slots += IbadahSlot(ResearchSchema.Jenis.PUASA, ResearchSchema.Detail.RAMADAN, null)
+            for (slot in slots) {
+                val key = slotKeyOrNull(SlotRef(slot, null), tanggal.toString()) ?: continue
+                if (researchLogDao.getBySlotKey(key) != null) continue
+                val sekarang = System.currentTimeMillis()
+                researchLogDao.upsert(
+                    ResearchLogEntity(
+                        slotKey = key,
+                        tanggal = tanggal.toString(),
+                        jenisIbadah = slot.jenisIbadah,
+                        namaDetail = slot.namaDetail,
+                        namaDetailAsli = null,
+                        status = ResearchSchema.Status.UDZUR,
+                        jumlah = null,
+                        jilid = null,
+                        // Hasil penyimpulan aplikasi: tanpa jam & sumber (aturan validJamDanSumber).
+                        jamPencatatan = null,
+                        sumberPencatatan = null,
+                        ownerUid = currentUid(),
+                        isSynced = false,
+                        updatedAt = sekarang,
+                        jumlahAyat = null,
+                        juz = null,
+                        offsetWaktu = ResearchTime.offsetString(sekarang),
+                        selisihMenitDariAdzan = null,
+                        modePencatatan = null,
+                        waktuDzikir = null,
+                        targetHitungan = null,
+                        durasiDetik = null
+                    )
+                )
+                deletedSyncDao.deleteByRecordIdAndType(key, RECORD_TYPE)
+                berubah++
+            }
+        }
+        return berubah
+    }
+
+    private fun bulanRamadan(tanggal: java.time.LocalDate): Boolean = runCatching {
+        java.time.chrono.HijrahDate.from(tanggal).get(java.time.temporal.ChronoField.MONTH_OF_YEAR) == 9
+    }.getOrDefault(false)
 
     /** Status baris slot [ref] pada [tanggal] ("dikerjakan" / "tidak" / "udzur"), null bila belum ada. */
     suspend fun statusSlot(ref: SlotRef?, tanggal: String): String? {
@@ -544,14 +630,18 @@ class ResearchLogRepository @Inject constructor(
             }
         }
 
+        // Log hanya diunggah bila profil penelitian (users/{uid} dengan disetujui_pada) sudah ada di
+        // server: tanpa itu responden tidak masuk dataset, dan aturan Firestore pun menolak lognya.
+        // Profil belum bisa dibuat (mis. jenis kelamin belum diisi) = log menunggu di HP.
+        var profilSiap = false
         if (bolehUnggah) {
-            runCatching { syncProfilPenelitian(uid) }.onFailure { error ->
+            runCatching { profilSiap = syncProfilPenelitian(uid) }.onFailure { error ->
                 if (error.isRetryable()) return failure(changed, retry = true, error)
                 firstIssue = firstIssue ?: failure(changed, retry = false, error)
             }
         }
 
-        val pendingUploads = if (bolehUnggah) researchLogDao.getPendingUploads(uid) else emptyList()
+        val pendingUploads = if (bolehUnggah && profilSiap) researchLogDao.getPendingUploads(uid) else emptyList()
         for (row in pendingUploads) {
             val result = runCatching {
                 withTimeout(WRITE_TIMEOUT_MS) {
@@ -636,16 +726,17 @@ class ResearchLogRepository @Inject constructor(
      * mendapat tanggal_mulai = waktu server; dokumen lama hanya diperbarui (tanggal_mulai tetap).
      * Isian yang kosong di HP (mis. setelah instal ulang lalu login) lebih dulu dipulihkan dari
      * server, supaya jawaban lama tidak tertimpa null.
+     * @return true bila profil penelitian ada di server (baru dikirim atau sudah terkirim sebelumnya).
      */
-    private suspend fun syncProfilPenelitian(uid: String) {
+    private suspend fun syncProfilPenelitian(uid: String): Boolean {
         val kunci = KEY_PROFIL_TERKIRIM_PREFIX + uid
-        val awal = isiProfilPenelitian() ?: return
+        val awal = isiProfilPenelitian() ?: return false
         // Merek HP untuk mengukur keandalan notifikasi per merek; ikut sidik supaya profil yang
         // sudah terkirim sebelum field ini ada dikirim ulang sekali.
         val manufaktur = manufakturPerangkat()
         val kode = kodeResponden()
-        if (sharedPreferences.getString(kunci, null) == sidikProfil(awal, manufaktur, kode)) return
-        val db = firestore ?: return
+        if (sharedPreferences.getString(kunci, null) == sidikProfil(awal, manufaktur, kode)) return true
+        val db = firestore ?: return false
         val ref = db.collection(ResearchSchema.COLLECTION_USERS).document(uid)
         val sidik = withTimeout(WRITE_TIMEOUT_MS) {
             val snap = ref.get(Source.SERVER).await()
@@ -678,8 +769,9 @@ class ResearchLogRepository @Inject constructor(
             }
             ref.set(tulis, SetOptions.merge()).await()
             sidikProfil(isi, manufaktur, kode)
-        } ?: return
+        } ?: return false
         sharedPreferences.edit().putString(kunci, sidik).apply()
+        return true
     }
 
     /**

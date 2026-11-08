@@ -9,8 +9,11 @@ Menarik semua dokumen `logs`, lalu hanya menyimpan log milik responden yang:
   4. tidak ada di AKUN_DIKECUALIKAN (akun uji / akun peneliti).
 
 Keluaran (di folder ekspor/, diabaikan git karena berisi data responden):
-  logs.csv       log yang lolos, satu baris per dokumen
-  ringkasan.txt  jumlah responden lolos/ditolak beserta alasannya
+  logs.csv                   log yang lolos, satu baris per dokumen (apa adanya dari server)
+  logs_dengan_inferensi.csv  logs.csv + baris "tidak" hasil penyimpulan (kolom asal), lihat
+                             inferensi_tidak(): keputusan B dan 4.4
+  ringkasan.txt              responden lolos/ditolak beserta alasannya, kelengkapan
+                             selisih_menit_dari_adzan, dan kode responden yang dipakai >1 ID
 
 Autentikasi: token akses Google dari variabel lingkungan AHA_ACCESS_TOKEN bila ada;
 selain itu memakai login Firebase CLI di komputer ini (`firebase login`).
@@ -112,6 +115,103 @@ def nilai(v):
     return json.dumps(x)
 
 
+# ---------- penyimpulan status "tidak" (keputusan B & 4.4) ----------
+
+SLOT_SHOLAT = ["subuh", "tengah_hari", "ashar", "maghrib", "isya"]
+WAKTU_DZIKIR_BERJENDELA = {"bada_sholat", "pagi", "petang", "sebelum_tidur"}
+
+
+def _tz(offset):
+    """'+07:00' -> datetime.timezone; tidak terbaca = WIB."""
+    try:
+        tanda = -1 if offset[0] == "-" else 1
+        j, m = offset[1:].split(":")
+        return datetime.timezone(tanda * datetime.timedelta(hours=int(j), minutes=int(m)))
+    except Exception:
+        return datetime.timezone(datetime.timedelta(hours=7))
+
+
+def inferensi_tidak(log_lolos, users, dzikir_habits=None):
+    """
+    Baris "tidak" yang disimpulkan, TIDAK pernah ditulis aplikasi:
+      - hanya pada hari yang punya >= 1 catatan apa pun dari responden itu (keputusan B);
+      - sholat wajib: 5 slot; slot tengah hari = jumat bagi laki-laki di hari Jumat, selain itu
+        dzuhur; slot yang sudah punya baris (dikerjakan / tidak / udzur) dilewati, jadi hari
+        Mode Cuti tidak pernah disimpulkan "tidak";
+      - dzikir: hanya habit dzikir buatan pengguna yang waktunya berjendela (bukan "bebas"),
+        mulai hari habit itu dibuat (keputusan 4.4).
+    dzikir_habits: {uid: [ {id, slug, waktu_dzikir, dibuat_pada(ms)} ]}.
+    Hasil: daftar dict log dengan asal="inferensi", jam & sumber kosong.
+    """
+    dzikir_habits = dzikir_habits or {}
+    per_hari = {}
+    for l in log_lolos:
+        per_hari.setdefault((l["user_id"], l.get("tanggal")), []).append(l)
+    hasil = []
+    for (uid, tanggal), baris in sorted(per_hari.items()):
+        if not tanggal:
+            continue
+        hari = datetime.date.fromisoformat(tanggal)
+        ada = {(b.get("jenis_ibadah"), b.get("nama_detail")) for b in baris}
+        laki = users.get(uid, {}).get("jenis_kelamin") == "laki_laki"
+
+        def baru(jenis, detail, id_akhir=None, **lain):
+            id_log = f"inferensi:{uid}_{tanggal}_{jenis}_{detail}" + (f"_{id_akhir}" if id_akhir else "")
+            return {"_id": id_log, "user_id": uid, "tanggal": tanggal, "jenis_ibadah": jenis,
+                    "nama_detail": detail, "status": "tidak", "asal": "inferensi", **lain}
+
+        for slot in SLOT_SHOLAT:
+            if slot == "tengah_hari":
+                if ("sholat_wajib", "dzuhur") in ada or ("sholat_wajib", "jumat") in ada:
+                    continue
+                detail = "jumat" if (laki and hari.weekday() == 4) else "dzuhur"
+            else:
+                if ("sholat_wajib", slot) in ada:
+                    continue
+                detail = slot
+            hasil.append(baru("sholat_wajib", detail))
+
+        tz = _tz(next((b.get("offset_waktu") for b in baris if b.get("offset_waktu")), "+07:00"))
+        for h in dzikir_habits.get(uid, []):
+            if h.get("waktu_dzikir") not in WAKTU_DZIKIR_BERJENDELA:
+                continue
+            try:
+                dibuat = datetime.datetime.fromtimestamp(int(h["dibuat_pada"]) / 1000, tz).date()
+            except Exception:
+                continue
+            if hari < dibuat:
+                continue
+            penanda = f"_dzikir_{h.get('slug')}_{h.get('id')}_"
+            if any(penanda in str(b.get("_id", "")) for b in baris):
+                continue
+            hasil.append(baru("dzikir", h.get("slug"), h.get("id"), waktu_dzikir=h.get("waktu_dzikir")))
+    return hasil
+
+
+def kelengkapan_selisih(log_lolos):
+    """{uid: (jumlah_null, jumlah_relevan)} untuk sholat wajib & dzikir pagi/petang yang dikerjakan."""
+    hasil = {}
+    for l in log_lolos:
+        relevan = l.get("status") == "dikerjakan" and (
+            l.get("jenis_ibadah") == "sholat_wajib"
+            or (l.get("jenis_ibadah") == "dzikir" and l.get("nama_detail") in ("dzikir_pagi", "dzikir_petang")))
+        if not relevan:
+            continue
+        n, t = hasil.get(l["user_id"], (0, 0))
+        hasil[l["user_id"]] = (n + (l.get("selisih_menit_dari_adzan") is None), t + 1)
+    return hasil
+
+
+def kode_ganda(lolos, users):
+    """{kode_responden: [uid, ...]} untuk kode yang dipakai lebih dari satu ID (mis. instal ulang)."""
+    per_kode = {}
+    for u in lolos:
+        kode = users.get(u, {}).get("kode_responden")
+        if kode:
+            per_kode.setdefault(kode.upper(), []).append(u)
+    return {k: sorted(v) for k, v in per_kode.items() if len(v) > 1}
+
+
 # ---------- akses Firestore (baca saja) ----------
 
 def token_akses():
@@ -134,7 +234,7 @@ def token_akses():
 
 
 def ambil_koleksi(koleksi, token):
-    """Semua dokumen satu koleksi tingkat atas, sebagai daftar (id, field)."""
+    """Semua dokumen satu koleksi (boleh subkoleksi, mis. users/{uid}/dzikir_habits), sebagai (id, field)."""
     dasar = f"https://firestore.googleapis.com/v1/projects/{PROJECT}/databases/(default)/documents/{koleksi}"
     hasil, halaman = [], None
     while True:
@@ -143,6 +243,8 @@ def ambil_koleksi(koleksi, token):
         try:
             data = json.load(urllib.request.urlopen(req))
         except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return hasil
             sys.exit(f"Gagal membaca {koleksi}: HTTP {e.code} {e.read().decode()[:200]}")
         for d in data.get("documents", []):
             hasil.append((d["name"].rsplit("/", 1)[-1], {k: nilai(v) for k, v in d.get("fields", {}).items()}))
@@ -153,17 +255,21 @@ def ambil_koleksi(koleksi, token):
 
 # ---------- keluaran ----------
 
-def tulis_csv(path, logs):
-    lain = sorted({k for l in logs for k in l} - set(KOLOM_LOG) - {"_id"})
-    kolom = ["id_log"] + KOLOM_LOG + lain
+def tulis_csv(path, logs, dengan_asal=False):
+    lain = sorted({k for l in logs for k in l} - set(KOLOM_LOG) - {"_id", "asal"})
+    kolom = ["id_log"] + (["asal"] if dengan_asal else []) + KOLOM_LOG + lain
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(kolom)
         for l in logs:
-            w.writerow([l.get("_id")] + ["" if l.get(k) is None else l.get(k) for k in kolom[1:]])
+            baris = dict(l)
+            if dengan_asal:
+                baris.setdefault("asal", "tercatat")
+            w.writerow([l.get("_id")] + ["" if baris.get(k) is None else baris.get(k) for k in kolom[1:]])
 
 
-def tulis_ringkasan(path, waktu, total_log, log_lolos, lolos, ditolak, log_ditolak, tanpa_uid, users, dikecualikan):
+def tulis_ringkasan(path, waktu, total_log, log_lolos, lolos, ditolak, log_ditolak, tanpa_uid, users, dikecualikan,
+                    inferensi=()):
     per_alasan = {}
     for uid, alasan in ditolak.items():
         per_alasan.setdefault(alasan, []).append(uid)
@@ -176,6 +282,7 @@ def tulis_ringkasan(path, waktu, total_log, log_lolos, lolos, ditolak, log_ditol
         f"Log di server            : {total_log}",
         f"Log masuk dataset        : {len(log_lolos)}",
         f"Log tanpa user_id        : {tanpa_uid}",
+        f"Baris 'tidak' disimpulkan: {len(inferensi)} (hanya di logs_dengan_inferensi.csv)",
         "",
         f"Responden lolos          : {len(lolos)}",
         f"  di antaranya tanpa log : {sum(1 for u in lolos if u not in log_per_uid)}",
@@ -191,6 +298,17 @@ def tulis_ringkasan(path, waktu, total_log, log_lolos, lolos, ditolak, log_ditol
     for u in sorted(lolos):
         kode = users.get(u, {}).get("kode_responden") or "-"
         baris.append(f"  {u}  {kode}  {log_per_uid.get(u, 0)}")
+    kel = kelengkapan_selisih(log_lolos)
+    n_null = sum(n for n, _ in kel.values())
+    n_all = sum(t for _, t in kel.values())
+    baris += ["", "Kelengkapan selisih_menit_dari_adzan (sholat wajib & dzikir pagi/petang yang dikerjakan):",
+              f"  total kosong: {n_null} dari {n_all}" + (f" ({100 * n_null / n_all:.0f}%)" if n_all else "")]
+    for u in sorted(kel):
+        n, t = kel[u]
+        baris.append(f"  {u}  kosong {n}/{t}")
+    ganda = kode_ganda(lolos, users)
+    baris += ["", "Kode responden yang dipakai lebih dari satu ID (kemungkinan orang yang sama, mis. instal ulang):"]
+    baris += [f"  {k}: {', '.join(v)}" for k, v in sorted(ganda.items())] or ["  (tidak ada)"]
     baris += ["", "Akun yang dikecualikan (AKUN_DIKECUALIKAN):"]
     baris += [f"  {u}  {k}" for u, k in dikecualikan.items()]
     with open(path, "w", encoding="utf-8") as f:
@@ -211,10 +329,14 @@ def main():
     logs = [{"_id": i, **f} for i, f in ambil_koleksi("logs", token)]
     users = dict(ambil_koleksi("users", token))
     log_lolos, lolos, ditolak, log_ditolak, tanpa_uid = saring(logs, users)
+    dzikir = {u: [{"id": i, **f} for i, f in ambil_koleksi(f"users/{u}/dzikir_habits", token)] for u in lolos}
+    inferensi = inferensi_tidak(log_lolos, users, dzikir)
 
     tulis_csv(os.path.join(keluar, "logs.csv"), log_lolos)
+    gabungan = sorted(log_lolos + inferensi, key=lambda l: (l.get("user_id", ""), l.get("tanggal", ""), l.get("_id", "")))
+    tulis_csv(os.path.join(keluar, "logs_dengan_inferensi.csv"), gabungan, dengan_asal=True)
     tulis_ringkasan(os.path.join(keluar, "ringkasan.txt"), waktu, len(logs), log_lolos, lolos, ditolak,
-                    log_ditolak, tanpa_uid, users, AKUN_DIKECUALIKAN)
+                    log_ditolak, tanpa_uid, users, AKUN_DIKECUALIKAN, inferensi)
     print(f"{len(log_lolos)} log dari {len(lolos)} responden -> {keluar}")
     print(f"{len(ditolak)} responden ditolak; rincian di ringkasan.txt")
 
