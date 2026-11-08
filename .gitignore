@@ -49,3 +49,6 @@ node_modules/
 upload_certificate.pem
 keystor.jpg
 google.jpg
+
+# Hasil ekspor dataset penelitian (berisi data responden) — JANGAN COMMIT
+ekspor/
