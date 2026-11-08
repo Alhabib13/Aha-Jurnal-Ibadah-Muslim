@@ -1,0 +1,196 @@
+PERTANYAAN UNTUK DOSEN — Aplikasi Aha (penelitian skripsi)
+Disusun 8 November 2026
+
+Cara pakai: tiap pertanyaan berisi (1) apa yang dilakukan aplikasi SEKARANG,
+(2) pertanyaannya, dan (3) pilihan jawaban. Cukup catat jawaban dosen di
+baris "Jawaban:", nanti aplikasinya disesuaikan.
+
+Bagian A untuk dosen agama (fiqih). Bagian B untuk dosen pembimbing
+(metodologi & etika penelitian).
+
+
+======================================================================
+BAGIAN A — FIQIH (dosen agama)
+======================================================================
+
+A1. Ibadah apa saja yang dianggap "udzur" saat haid?
+
+  Sekarang: saat Mode Cuti aktif, yang ditandai udzur hanya
+  (a) 5 sholat wajib dan (b) puasa Ramadan.
+  Ibadah lain tidak ditandai apa-apa:
+    - tilawah / membaca Al-Qur'an  -> tidak ada catatan (bukan udzur)
+    - dzikir                       -> tetap bisa dicatat seperti biasa
+    - puasa sunnah                 -> tidak ada catatan
+
+  Pertanyaan: apakah cakupan ini sudah tepat?
+    - Apakah tilawah saat haid perlu ditandai udzur, atau dibiarkan
+      (karena ada perbedaan pendapat ulama soal membaca Al-Qur'an saat haid)?
+    - Apakah dzikir saat haid tetap dihitung normal? (dzikir umumnya boleh)
+    - Apakah puasa sunnah saat haid perlu ditandai udzur?
+
+  Jawaban:
+
+
+A2. Hari PERTAMA haid: sholat yang waktunya sudah lewat sebelum haid datang.
+
+  Sekarang: aplikasi menandai udzur PER HARI. Begitu Mode Cuti dinyalakan,
+  semua sholat hari itu yang belum dicatat ikut menjadi udzur.
+
+  Contoh: haid mulai pukul 13.00. Subuh dan Dzuhur tidak dikerjakan dan
+  tidak dicatat. Aplikasi menandai Subuh & Dzuhur sebagai UDZUR.
+  Padahal waktu Dzuhur sudah masuk sebelum haid, sehingga mungkin
+  seharusnya "tidak dikerjakan" (wajib diqadha), bukan udzur.
+
+  Pertanyaan: bagaimana yang benar?
+    (a) Sederhanakan saja: satu hari Mode Cuti = semua sholat yang belum
+        dicatat menjadi udzur (seperti sekarang; disebut sebagai
+        keterbatasan penelitian).
+    (b) Bedakan berdasarkan jam haid mulai: sholat yang waktunya sudah
+        masuk sebelum haid = "tidak", sesudahnya = udzur.
+        (aplikasi perlu mencatat jam Mode Cuti dinyalakan)
+
+  Jawaban:
+
+
+A3. Hari TERAKHIR haid: sholat sebelum suci.
+
+  Sekarang: saat Mode Cuti dimatikan (sudah suci), SELURUH hari itu
+  dianggap bukan hari haid. Sholat yang belum dicatat pada hari itu,
+  termasuk yang waktunya habis sebelum suci, tidak lagi udzur dan bisa
+  terhitung "tidak dikerjakan" dalam analisis.
+
+  Contoh: suci pukul 16.00. Dzuhur (waktunya habis sebelum suci)
+  seharusnya udzur, tetapi aplikasi menganggapnya bukan udzur.
+  Ada juga pendapat bahwa bila suci di waktu Ashar, Dzuhur ikut wajib.
+
+  Pertanyaan: bagaimana ketentuannya, dan pendapat mana yang dipakai?
+    (a) Sederhanakan (seperti sekarang; disebut sebagai keterbatasan).
+    (b) Bedakan berdasarkan jam suci.
+
+  Jawaban:
+
+
+A4. Acuan waktu dzikir pagi dan petang.
+
+  Sekarang: untuk mengukur "seberapa cepat setelah waktunya" (selisih
+  menit), dzikir pagi diukur dari waktu Subuh dan dzikir petang dari
+  waktu Ashar. Ini hanya ACUAN PENGUKURAN, bukan klaim hukum.
+
+  Pertanyaan: apakah acuan ini bisa diterima? Atau sebaiknya dzikir
+  pagi diukur dari terbit matahari / dzikir petang dari Maghrib?
+
+  Jawaban:
+
+
+A5. Dzikir yang tidak dicatat dianggap "tidak dikerjakan"?
+
+  Sekarang (saat analisis data): bila responden menambahkan habit dzikir
+  yang punya waktu (setelah sholat, pagi, petang, sebelum tidur) dan
+  pada hari itu ia mencatat ibadah lain tetapi tidak mencatat dzikir
+  tersebut, dzikir itu disimpulkan "tidak dikerjakan".
+  Dzikir yang waktunya bebas (istighfar, sholawat, dll.) tidak pernah
+  disimpulkan.
+
+  Pertanyaan: dzikir hukumnya sunnah. Apakah tepat menyebutnya "tidak
+  dikerjakan" untuk keperluan analisis kebiasaan, atau ada istilah yang
+  lebih tepat?
+
+  Jawaban:
+
+
+A6. Sholat Jumat bagi laki-laki.
+
+  Sekarang: setiap Jumat, laki-laki melihat kartu Jumat. Bila tidak
+  sholat Jumat (mis. musafir, sakit, hujan), responden menekan
+  "Ganti Dzuhur" lalu mencatat Dzuhur. Bila hari itu tidak ada yang
+  dicatat sama sekali di slot siang, analisis menyimpulkan "Jumat tidak
+  dikerjakan".
+
+  Pertanyaan:
+    - Apakah perlu membedakan "tidak Jumat karena udzur syar'i"
+      (musafir/sakit) dari "meninggalkan Jumat"? Sekarang keduanya
+      tercatat sama: Dzuhur.
+    - Apakah benar menyimpulkan "Jumat tidak dikerjakan" bila slot
+      siang kosong, atau lebih aman "Dzuhur tidak dikerjakan"?
+
+  Jawaban:
+
+
+A7. Qadha.
+
+  Sekarang: puasa pengganti Ramadan dicatat sebagai "puasa qadha";
+  sholat yang diqadha dicatat terpisah sebagai "qadha sholat" (tidak
+  menimpa catatan sholat aslinya).
+
+  Pertanyaan: apakah pemisahan ini sudah tepat?
+
+  Jawaban:
+
+
+======================================================================
+BAGIAN B — METODOLOGI & ETIKA (dosen pembimbing)
+======================================================================
+
+B1. Responden di bawah umur.
+
+  Sekarang: pilihan usia mencakup "di bawah 15 tahun" dan "15-18 tahun".
+  Untuk di bawah 15 aplikasi meminta konfirmasi izin wali, tetapi
+  persetujuan penelitian diberikan oleh anak itu sendiri di aplikasi.
+
+  Pertanyaan: apakah responden di bawah umur boleh diikutkan? Bila boleh,
+  apakah cukup konfirmasi di aplikasi, atau perlu surat persetujuan
+  orang tua/wali tertulis? Bila tidak boleh, data mereka dikeluarkan
+  saat ekspor.
+
+  Jawaban:
+
+
+B2. Label Random Forest dan baris "udzur".
+
+  Sekarang: hari Mode Cuti ditandai udzur dan TIDAK disimpulkan
+  "tidak dikerjakan".
+
+  Pertanyaan: dalam menghitung profil kebiasaan (label RF), hari udzur
+  sebaiknya
+    (a) dikeluarkan dari perhitungan (penyebut dikurangi), atau
+    (b) diperlakukan dengan cara lain?
+
+  Jawaban:
+
+
+B3. Penyimpulan "tidak dikerjakan".
+
+  Sekarang: "tidak dikerjakan" hanya disimpulkan pada hari yang punya
+  minimal satu catatan (hari tanpa catatan sama sekali dianggap
+  "tidak diketahui", bukan "tidak dikerjakan"), dan hanya untuk sholat
+  wajib serta dzikir yang punya waktu.
+
+  Pertanyaan: apakah aturan ini dapat diterima secara metodologi untuk
+  pembentukan label? Atau hari tanpa catatan juga perlu diperhitungkan?
+
+  Jawaban:
+
+
+B4. Data selisih waktu dari adzan yang kosong.
+
+  Sekarang: selisih menit dari adzan hanya dihitung bila jadwal sholat
+  berasal dari lokasi HP. Responden yang tidak mengizinkan lokasi tidak
+  punya data ini (kosong), dan tidak bisa dihitung ulang.
+
+  Pertanyaan: apakah fitur ini wajib untuk semua responden (sehingga
+  izin lokasi menjadi syarat ikut penelitian), atau cukup dipakai bila
+  tersedia?
+
+  Jawaban:
+
+
+B5. Satu orang, dua ID.
+
+  Sekarang: responden tanpa login yang menginstal ulang aplikasi
+  mendapat ID baru. Penyambungnya hanya kode responden.
+
+  Pertanyaan: apakah semua responden wajib diberi kode responden oleh
+  peneliti (sehingga data bisa disambung), atau ID ganda dibiarkan dan
+  disebut sebagai keterbatasan?
+
+  Jawaban:
