@@ -41,3 +41,11 @@ firebase-debug.log
 # Konfigurasi & cache Firebase CLI lokal (berisi token login, JANGAN di-commit)
 .firebase-config/
 .firebase/
+
+# Dependensi Node (dipasang ulang dengan npm install)
+node_modules/
+
+# Berkas sensitif di akar proyek — JANGAN COMMIT
+upload_certificate.pem
+keystor.jpg
+google.jpg
