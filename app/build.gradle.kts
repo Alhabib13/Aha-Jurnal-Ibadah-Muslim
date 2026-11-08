@@ -151,6 +151,9 @@ dependencies {
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.8.5")
 
+    // Widget layar utama (Jetpack Glance)
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+
     // WorkManager
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 
@@ -174,6 +177,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-messaging")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
     debugImplementation("com.google.firebase:firebase-appcheck-debug")
 

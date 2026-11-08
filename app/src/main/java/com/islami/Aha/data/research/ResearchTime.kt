@@ -53,7 +53,8 @@ object ResearchTime {
     fun habitAcuanAdzan(jenis: String, detail: String?): String? = when (jenis) {
         ResearchSchema.Jenis.SHOLAT_WAJIB -> when (detail) {
             ResearchSchema.Detail.SUBUH -> "Sholat Subuh"
-            ResearchSchema.Detail.DZUHUR -> "Sholat Dzuhur"
+            // Jumat diukur dari adzan Dzuhur (waktunya sama).
+            ResearchSchema.Detail.DZUHUR, ResearchSchema.Detail.JUMAT -> "Sholat Dzuhur"
             ResearchSchema.Detail.ASHAR -> "Sholat Ashar"
             ResearchSchema.Detail.MAGHRIB -> "Sholat Maghrib"
             ResearchSchema.Detail.ISYA -> "Sholat Isya"

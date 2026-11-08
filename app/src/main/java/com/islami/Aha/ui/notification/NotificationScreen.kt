@@ -47,12 +47,17 @@ import com.islami.Aha.util.rememberNotificationPermissionState
 
 import com.islami.Aha.ui.notification.components.NotificationHeader
 import com.islami.Aha.ui.notification.components.NotificationPermissionBanner
+import com.islami.Aha.ui.notification.components.ExactAlarmBanner
 import com.islami.Aha.ui.notification.components.CategorySectionHeader
 import com.islami.Aha.ui.notification.components.HabitReminderCard
 import com.islami.Aha.ui.notification.components.SunnahHabitReminderCard
 import com.islami.Aha.ui.notification.components.EmptyNotificationState
 import com.islami.Aha.ui.notification.components.EditSunnahHabitDialog
 import com.islami.Aha.ui.notification.components.DeleteConfirmationDialog
+import com.islami.Aha.util.SuaraSholat
+import com.islami.Aha.util.NotificationScheduler
+import com.islami.Aha.ui.settings.components.NotificationSettingsSheet
+import androidx.compose.ui.platform.LocalContext
 
 
 @Composable
@@ -118,7 +123,7 @@ fun NotificationScreen(viewModel: NotificationViewModel = hiltViewModel()) {
             onDeleteSunnahClick = viewModel::showSunnahDeleteConfirmation,
             onEditSunnahClick = viewModel::showEditSunnahDialog,
             onDismissEditSunnah = viewModel::hideEditSunnahDialog,
-            onSaveEditSunnah = viewModel::updateSunnahHabit
+            onSaveEditSunnah = viewModel::updateSunnahHabit,
         )
 
         AhaToastHost(
@@ -168,63 +173,102 @@ fun NotificationScreenContent(
     val puasaSunnah = uiState.habits.filter { it.category == "Puasa Sunnah" }
     val sunnahPuasa = uiState.sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
     val isEmpty = uiState.habits.isEmpty() && uiState.sunnahHabits.isEmpty()
+    val habitTerlihat = sholatFardhu + sholatSunnah + puasaWajib + puasaSunnah
+    val jumlahTotal = habitTerlihat.size + uiState.sunnahHabits.size
+    val jumlahAktif = habitTerlihat.count { it.isReminderEnabled } + uiState.sunnahHabits.count { it.reminderEnabled }
+    val context = LocalContext.current
+    // Nada tiap jenis pengingat diatur di Pengaturan Android (ID channel permanen); tidak ada
+    // pemilih suara di aplikasi.
+    fun bukaKanal(id: String) {
+        runCatching { context.startActivity(com.islami.Aha.util.KanalNotifikasi.intentPengaturan(context, id)) }
+    }
+    var pengaturanDibuka by remember { mutableStateOf(false) }
+    // Dicek ulang setiap layar kembali tampil (mis. setelah pengguna mengizinkan di pengaturan HP).
+    var alarmTepatDiizinkan by remember { mutableStateOf(NotificationScheduler.canScheduleExactAlarms(context)) }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                alarmTepatDiizinkan = NotificationScheduler.canScheduleExactAlarms(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    if (pengaturanDibuka) {
+        NotificationSettingsSheet(
+            namaWaktu = SuaraSholat.WAKTU,
+            onBukaKanal = { bukaKanal(it) },
+            onPengaturanHpClick = {
+                val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                } else {
+                    android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                }
+                runCatching { context.startActivity(intent) }
+            },
+            onDismiss = { pengaturanDibuka = false }
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (!uiState.isLoading) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 0.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                     item {
                         NotificationHeader(
                             isEnabled = uiState.globalNotificationEnabled,
-                            onToggle = onToggleGlobalNotification
+                            onToggle = onToggleGlobalNotification,
+                            onSettingsClick = { pengaturanDibuka = true },
+                            aktif = jumlahAktif,
+                            total = jumlahTotal
                         )
                     }
                     if (isHaidhMode) {
                         item {
-                            Card(
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
+                                    .padding(horizontal = 16.dp)
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                                shape = RoundedCornerShape(12.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(androidx.compose.ui.graphics.Color(0xFFFFC1D6).copy(alpha = 0.12f))
+                                    .padding(14.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Info,
-                                        contentDescription = "Info",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = stringResource(R.string.notification_haidh_mode_warning),
-                                        fontSize = 13.sp,
-                                        lineHeight = 18.sp,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
+                                Icon(Icons.Filled.Info, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFFFFC1D6))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = stringResource(R.string.notification_haidh_mode_warning),
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                             }
                         }
-                    }
-                    item {
-                        Text(
-                            text = stringResource(R.string.notification_reminder_title),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Gray700,
-                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 4.dp)
-                        )
                     }
                     if (!notificationPermissionGranted) {
                         item {
                             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                 NotificationPermissionBanner(
                                     onRequestPermission = onRequestNotificationPermission
+                                )
+                            }
+                        }
+                    }
+                    if (notificationPermissionGranted && uiState.globalNotificationEnabled && !alarmTepatDiizinkan) {
+                        item {
+                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                ExactAlarmBanner(
+                                    onAllow = {
+                                        NotificationScheduler.exactAlarmSettingsIntent(context)?.let {
+                                            runCatching { context.startActivity(it) }
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -250,11 +294,14 @@ fun NotificationScreenContent(
                                 }
                             }
                             items(sholatFardhu, key = { "fardhu_${it.id}" }) { habit ->
+                                val slug = SuaraSholat.slugDariNama(habit.name)
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     HabitReminderCard(
                                         habit = habit,
                                         globalEnabled = uiState.globalNotificationEnabled && !isHaidhMode,
-                                        onToggle = { onToggleReminder(habit) }
+                                        onToggle = { onToggleReminder(habit) },
+                                        suara = slug?.let { "Atur suara" },
+                                        onSuaraClick = slug?.let { s -> { bukaKanal(com.islami.Aha.util.KanalNotifikasi.sholatWajib(s)) } }
                                     )
                                 }
                             }
@@ -298,7 +345,8 @@ fun NotificationScreenContent(
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     CategorySectionHeader(
                                         title = stringResource(R.string.notification_category_puasa_wajib),
-                                        count = puasaWajib.size
+                                        count = puasaWajib.size,
+                                        warna = androidx.compose.ui.graphics.Color(0xFFA48BF0)
                                     )
                                 }
                             }
@@ -319,7 +367,8 @@ fun NotificationScreenContent(
                                 Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     CategorySectionHeader(
                                         title = stringResource(R.string.notification_category_puasa_sunnah),
-                                        count = puasaSunnah.size + sunnahPuasa.size
+                                        count = puasaSunnah.size + sunnahPuasa.size,
+                                        warna = androidx.compose.ui.graphics.Color(0xFFA48BF0)
                                     )
                                 }
                             }

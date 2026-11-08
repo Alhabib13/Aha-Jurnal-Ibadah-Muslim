@@ -96,6 +96,11 @@ import com.islami.Aha.util.LocationHelper
 import com.islami.Aha.util.rememberLocationPermissionState
 import com.islami.Aha.util.rememberNotificationPermissionState
 import com.islami.Aha.ui.home.components.*
+import com.islami.Aha.ui.onboarding.KonfirmasiProfilIbadah
+import com.islami.Aha.ui.onboarding.PilihProfil
+import com.islami.Aha.ui.onboarding.PilihUsia
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 
 internal const val CATEGORY_SHOLAT = "Sholat"
 internal const val CATEGORY_PUASA = "Puasa"
@@ -122,6 +127,7 @@ fun HomeScreen(
     var showLocationPermissionBanner by rememberSaveable { mutableStateOf(false) }
     var showLocationPermissionDialog by rememberSaveable { mutableStateOf(false) }
     var showLocationServiceDialog by rememberSaveable { mutableStateOf(false) }
+    var lengkapiProfilDibuka by rememberSaveable { mutableStateOf(false) }
     var hasPromptedLocationPermission by rememberSaveable { mutableStateOf(false) }
     var hasPromptedLocationService by rememberSaveable { mutableStateOf(false) }
     var hasAutoRequestedLocationPermission by rememberSaveable { mutableStateOf(false) }
@@ -240,6 +246,11 @@ fun HomeScreen(
                 }
             },
             onToggleHabitCompletion = viewModel::toggleHabitCompletion,
+            onTandaiTertinggal = viewModel::tandaiTertinggal,
+            onBatalkanTertinggal = viewModel::batalkanTertinggal,
+            onTandaiTertinggalSunnah = viewModel::tandaiTertinggalSunnah,
+            onBatalkanTertinggalSunnah = viewModel::batalkanTertinggalSunnah,
+            onGantiTengahHari = viewModel::gantiTengahHari,
             onToggleHabitReminder = viewModel::toggleReminderEnabled,
             onNavigateToAddHabit = onNavigateToAddHabit,
             onNavigateToAddDzikir = onNavigateToAddDzikir,
@@ -258,16 +269,65 @@ fun HomeScreen(
             onSelectTilawahJenis = viewModel::selectTilawahJenis,
             onSaveTilawahSession = viewModel::saveTilawahSession,
             onSetTilawahPenanda = viewModel::setTilawahPenanda,
-            onSetTilawahTarget = viewModel::setTilawahTarget
+            onSetTilawahTarget = viewModel::setTilawahTarget,
+            onLengkapiProfil = { lengkapiProfilDibuka = true },
+            onTundaLengkapiProfil = viewModel::tundaLengkapiProfil,
+            onJadikanHabitPuasa = viewModel::jadikanHabitPuasa
         )
+
+        if (lengkapiProfilDibuka) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { lengkapiProfilDibuka = false },
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                androidx.compose.foundation.layout.Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                ) {
+                    androidx.compose.material3.TextButton(
+                        onClick = { lengkapiProfilDibuka = false },
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    ) { Text("Tutup") }
+                    // Pengguna dari v1.1.1: jenis kelamin ditegaskan dulu, baru usia & kesibukan.
+                    // Yang dulu melewati "Profil ibadahmu": jenis kelamin dipilih dulu.
+                    val perluKonfirmasi = uiState.konfirmasiGender
+                    var genderDitegaskan by rememberSaveable { mutableStateOf<String?>(null) }
+                    if (perluKonfirmasi != null && genderDitegaskan == null) {
+                        KonfirmasiProfilIbadah(awal = perluKonfirmasi, onBenar = { genderDitegaskan = it.name })
+                    } else if (uiState.pilihGender && genderDitegaskan == null) {
+                        PilihProfil(
+                            onSimpan = { gender ->
+                                if (uiState.usiaLengkap) {
+                                    viewModel.simpanJenisKelamin(gender)
+                                    lengkapiProfilDibuka = false
+                                } else {
+                                    genderDitegaskan = gender.name
+                                }
+                            },
+                            onNanti = { lengkapiProfilDibuka = false }
+                        )
+                    } else {
+                        PilihUsia(onLanjut = { usia, izinWali, status ->
+                            val gender = genderDitegaskan?.let { com.islami.Aha.util.GenderProfile.valueOf(it) }
+                            viewModel.simpanLengkapiProfil(usia, izinWali, status, gender)
+                            lengkapiProfilDibuka = false
+                        })
+                    }
+                }
+            }
+        }
 
         if (uiState.showKhatamDialog) {
             KhatamDialog(onDismiss = viewModel::dismissKhatamDialog)
         }
 
         if (uiState.showResearchNotice) {
-            ResearchNoticeDialog(
-                onAcknowledge = viewModel::acknowledgeResearchNotice,
+            com.islami.Aha.ui.consent.ResearchConsentDialog(
+                onAccept = { kode -> viewModel.decideResearchConsent(true, kode) },
+                onDecline = { viewModel.decideResearchConsent(false) },
                 onOpenPrivacyPolicy = {
                     context.startActivity(
                         android.content.Intent(context, com.islami.Aha.ui.settings.LegalDocumentActivity::class.java).apply {
@@ -436,6 +496,11 @@ fun HomeScreenContent(
     onRefresh: () -> Unit = {},
     onRefreshLocation: () -> Unit = {},
     onToggleHabitCompletion: (Habit) -> Unit,
+    onTandaiTertinggal: (Habit) -> Unit = {},
+    onBatalkanTertinggal: (Habit) -> Unit = {},
+    onTandaiTertinggalSunnah: (com.islami.Aha.domain.model.SunnahHabit) -> Unit = {},
+    onBatalkanTertinggalSunnah: (com.islami.Aha.domain.model.SunnahHabit) -> Unit = {},
+    onGantiTengahHari: (Habit, Boolean) -> Unit = { _, _ -> },
     onToggleHabitReminder: (Habit) -> Unit,
     onNavigateToAddHabit: () -> Unit,
     onNavigateToAddDzikir: () -> Unit = onNavigateToAddHabit,
@@ -454,7 +519,10 @@ fun HomeScreenContent(
     onSelectTilawahJenis: (String) -> Unit = {},
     onSaveTilawahSession: (String, com.islami.Aha.data.quran.AyatPosition, com.islami.Aha.data.quran.AyatPosition) -> Unit = { _, _, _ -> },
     onSetTilawahPenanda: (String, com.islami.Aha.data.quran.AyatPosition) -> Unit = { _, _ -> },
-    onSetTilawahTarget: (Int?) -> Unit = {}
+    onSetTilawahTarget: (Int?) -> Unit = {},
+    onLengkapiProfil: () -> Unit = {},
+    onTundaLengkapiProfil: () -> Unit = {},
+    onJadikanHabitPuasa: (com.islami.Aha.util.PuasaMendatang.Entri) -> Unit = {}
 ) {
     if (uiState.isLoading) {
         return
@@ -467,7 +535,11 @@ fun HomeScreenContent(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
+        val daftarState = androidx.compose.foundation.lazy.rememberLazyListState()
+        // Kepala hijau di bawah status bar: ikon putih selama kepala masih terlihat.
+        com.islami.Aha.ui.theme.IkonStatusBarTerang(aktif = daftarState.firstVisibleItemIndex == 0)
         LazyColumn(
+            state = daftarState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
@@ -476,13 +548,14 @@ fun HomeScreenContent(
                 HomeHeader(
                     isLoggedIn = uiState.isLoggedIn,
                     userName = uiState.userName,
-                    currentTime = uiState.currentTime,
                     gregorianDate = uiState.gregorianDate,
                     hijriDate = uiState.hijriDate,
                     location = uiState.location,
                     nextPrayerName = uiState.nextPrayerName,
-                    nextPrayerTimeRemaining = uiState.nextPrayerTimeRemaining,
+                    nextPrayerJam = uiState.nextPrayerJam,
+                    hitungMundur = uiState.hitungMundur,
                     nextPrayerProgress = uiState.nextPrayerProgress,
+                    jadwal = uiState.jadwalHarian,
                     prayerTimeStatusText = uiState.prayerTimeStatusText,
                     showRamadanSchedule = uiState.showRamadanScheduleCard,
                     ramadanImsakTime = uiState.ramadanImsakTime,
@@ -527,6 +600,16 @@ fun HomeScreenContent(
                 }
             }
 
+            if (uiState.tampilLengkapiProfil) {
+                item {
+                    com.islami.Aha.ui.home.components.LengkapiProfilBanner(
+                        onLengkapi = onLengkapiProfil,
+                        konfirmasiGender = uiState.konfirmasiGender != null,
+                        onNanti = onTundaLengkapiProfil
+                    )
+                }
+            }
+
             item { Spacer(modifier = Modifier.height(16.dp)) }
 
             // Category Cards
@@ -546,7 +629,9 @@ fun HomeScreenContent(
                 HabitSectionHeader(
                     completedCount = uiState.completedHabitsCount,
                     totalCount = uiState.totalHabitsCount,
-                    progressTextOverride = uiState.habitHeaderLabel
+                    progressTextOverride = uiState.habitHeaderLabel,
+                    judul = uiState.judulBagian,
+                    keterangan = uiState.keteranganBagian
                 )
             }
 
@@ -556,7 +641,9 @@ fun HomeScreenContent(
                     SubTabRow(
                         tabs = uiState.subTabDisplayNames,
                         selectedIndex = uiState.selectedSubTabIndex,
-                        onSelectTab = onSelectSubTab
+                        onSelectTab = onSelectSubTab,
+                        accent = androidx.compose.ui.graphics.Color(uiState.warnaSegmen.first),
+                        onAccent = androidx.compose.ui.graphics.Color(uiState.warnaSegmen.second)
                     )
                 }
                 item { Spacer(modifier = Modifier.height(8.dp)) }
@@ -571,7 +658,8 @@ fun HomeScreenContent(
                             habits = uiState.dzikirHabits,
                             onRecord = onRecordDzikir,
                             onUndo = onUndoDzikir,
-                            onDelete = onDeleteDzikirHabit
+                            onDelete = onDeleteDzikirHabit,
+                            onAdd = onNavigateToAddDzikir
                         )
                     } else {
                         // Pintu masuk netral, bukan kartu progres 0/0.
@@ -581,7 +669,7 @@ fun HomeScreenContent(
             } else if (uiState.isTilawahCategory) {
                 if (uiState.isTilawahIqroTab) {
                     // Iqro satu kelompok tampilan dengan Al-Qur'an; data tetap jenis_ibadah "iqro".
-                    item { IqroCard(progress = uiState.iqroProgress, onSave = onSaveIqro) }
+                    item { IqroSection(progress = uiState.iqroProgress, onSave = onSaveIqro) }
                 } else {
                     item {
                         TilawahQuranSection(
@@ -598,17 +686,13 @@ fun HomeScreenContent(
                         )
                     }
                 }
-                item { TanzilAttribution() }
             } else if (uiState.isComingSoon) {
                 item {
                     ComingSoonState(categoryName = uiState.selectedMainCategory)
                 }
             } else if (!uiState.isRamadanMonth && uiState.selectedMainCategory == CATEGORY_PUASA && selectedSubCategory == CATEGORY_PUASA_WAJIB) {
                 item {
-                    ComingSoonState(
-                        categoryName = "Ramadan (Puasa Wajib)",
-                        customMessage = "Fitur pelacakan puasa ini akan otomatis hadir di bulan Ramadan. Mari maksimalkan ibadah dengan Puasa Sunnah dulu ya!"
-                    )
+                    MenungguRamadan()
                 }
             } else if (uiState.showRamadanUnifiedCard) {
                 item {
@@ -630,7 +714,11 @@ fun HomeScreenContent(
                             null
                         },
                         onToggleHabitCompletion = onToggleHabitCompletion,
-                        onToggleHabitReminder = onToggleHabitReminder
+                        onToggleHabitReminder = onToggleHabitReminder,
+                        currentTime = uiState.currentTime,
+                        puasaTertinggal = uiState.ramadanPuasaHabit?.let { uiState.tertinggal(it) } == true,
+                        onTertinggal = onTandaiTertinggal,
+                        onBatalTertinggal = onBatalkanTertinggal
                     )
                 }
             } else if (uiState.filteredHabits.isEmpty() && uiState.filteredSunnahHabits.isEmpty()) {
@@ -638,7 +726,7 @@ fun HomeScreenContent(
                     if (uiState.isHaidhMode && (uiState.selectedMainCategory == "Sholat" || uiState.selectedMainCategory == "Puasa")) {
                         HaidhEmptyState()
                     } else if (!uiState.isHaidhMode) {
-                        EmptyHabitState(onAddHabitClick = onNavigateToAddHabit)
+                        TabKosong(kategori = uiState.selectedMainCategory, onTambah = onNavigateToAddHabit)
                     }
                 }
             } else {
@@ -649,7 +737,13 @@ fun HomeScreenContent(
                         onCheckedChange = { onToggleHabitCompletion(habit) },
                         onToggleReminder = { onToggleHabitReminder(habit) },
                         currentTime = uiState.currentTime,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        jamDicatat = uiState.jamDicatat(habit),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        tertinggal = uiState.tertinggal(habit),
+                        onTertinggal = if (uiState.sholatWajib(habit)) ({ onTandaiTertinggal(habit) }) else null,
+                        onBatalTertinggal = { onBatalkanTertinggal(habit) },
+                        opsiJumat = uiState.opsiJumat(habit),
+                        onGantiTengahHari = { keDzuhur -> onGantiTengahHari(habit, keDzuhur) }
                     )
                 }
                 // User-added sunnah habits (from AddHabitScreen)
@@ -658,7 +752,25 @@ fun HomeScreenContent(
                         sunnahHabit = sunnahHabit,
                         onToggleComplete = { onToggleSunnahCompletion(sunnahHabit.id) },
                         onToggleReminder = { onToggleSunnahReminder(sunnahHabit.id) },
-                        onDelete = { onDeleteSunnah(sunnahHabit.id) }
+                        onDelete = { onDeleteSunnah(sunnahHabit.id) },
+                        currentTime = uiState.currentTime,
+                        tertinggal = uiState.tertinggal(sunnahHabit),
+                        onTertinggal = if (uiState.bisaTertinggal(sunnahHabit)) ({ onTandaiTertinggalSunnah(sunnahHabit) }) else null,
+                        onBatalTertinggal = { onBatalkanTertinggalSunnah(sunnahHabit) }
+                    )
+                }
+            }
+
+            if (uiState.selectedMainCategory == CATEGORY_PUASA) {
+                item(key = "puasa_mendatang") {
+                    val daftarPuasa = androidx.compose.runtime.remember(uiState.gregorianDate) {
+                        com.islami.Aha.util.PuasaMendatang.hitung()
+                    }
+                    PuasaMendatangCard(
+                        daftar = daftarPuasa,
+                        namaHabitAda = uiState.sunnahHabits.map { it.name.lowercase() }.toSet(),
+                        modeCuti = uiState.isHaidhMode,
+                        onJadikanHabit = onJadikanHabitPuasa
                     )
                 }
             }
@@ -673,6 +785,7 @@ fun HomeScreenContent(
                     )
             }
         }
+        com.islami.Aha.ui.theme.ScrimStatusBar(daftarState, warnaKepala = androidx.compose.ui.graphics.Color(0xFF0B6B52))
     }
 }
 

@@ -27,7 +27,7 @@ class DzikirSessionTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         val prefs = context.getSharedPreferences("dzikir-session-test", Context.MODE_PRIVATE)
-        prefs.edit().clear().putBoolean(ResearchLogRepository.KEY_RESEARCH_NOTICE_ACK, true).commit()
+        prefs.edit().clear().putString(ResearchLogRepository.KEY_RESEARCH_CONSENT, ResearchLogRepository.CONSENT_SETUJU).commit()
         repo = ResearchLogRepository(
             context, db.researchLogDao(), db.deletedSyncDao(), prefs, db.habitDao(), TilawahStateRepository(prefs),
             db.dzikirHabitDao()
@@ -116,8 +116,8 @@ class DzikirSessionTest {
     }
 
     @Test
-    fun sumberPencatatanSelaluTidakDiketahui() = runBlocking {
+    fun sumberPencatatanBukaAplikasi() = runBlocking {
         catat(t0)
-        assertEquals(ResearchSchema.Sumber.TIDAK_DIKETAHUI, db.researchLogDao().getAll().single().sumberPencatatan)
+        assertEquals(ResearchSchema.Sumber.BUKA_APLIKASI, db.researchLogDao().getAll().single().sumberPencatatan)
     }
 }

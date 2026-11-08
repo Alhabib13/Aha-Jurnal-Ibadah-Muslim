@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -38,7 +39,12 @@ fun RamadanUnifiedHabitCard(
     puasaHabit: Habit?,
     tarawihHabit: Habit?,
     onToggleHabitCompletion: (Habit) -> Unit,
-    onToggleHabitReminder: (Habit) -> Unit
+    onToggleHabitReminder: (Habit) -> Unit,
+    currentTime: String = "",
+    /** Puasa Ramadan yang ditandai Tertinggal hari ini. */
+    puasaTertinggal: Boolean = false,
+    onTertinggal: (Habit) -> Unit = {},
+    onBatalTertinggal: (Habit) -> Unit = {}
 ) {
     val habits = buildList {
         puasaHabit?.let { add(it) }
@@ -79,8 +85,22 @@ fun RamadanUnifiedHabitCard(
                         else -> habit.name
                     },
                     onToggleHabitCompletion = { onToggleHabitCompletion(habit) },
-                    onToggleHabitReminder = { onToggleHabitReminder(habit) }
+                    onToggleHabitReminder = { onToggleHabitReminder(habit) },
+                    tertinggal = puasaTertinggal && habit.category == CATEGORY_PUASA_WAJIB
                 )
+                // Tombol Tertinggal hanya untuk puasa (Tarawih = sunnah bawaan, bukan buatan pengguna).
+                if (habit.category == CATEGORY_PUASA_WAJIB) {
+                    Box(modifier = Modifier.padding(start = 48.dp)) {
+                        AksiTertinggal(
+                            selesai = habit.isCompleted,
+                            waktu = habit.time,
+                            currentTime = currentTime,
+                            tertinggal = puasaTertinggal,
+                            onTertinggal = { onTertinggal(habit) },
+                            onBatal = { onBatalTertinggal(habit) }
+                        )
+                    }
+                }
                 if (index < habits.lastIndex) {
                     Spacer(modifier = Modifier.height(8.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -96,8 +116,10 @@ private fun RamadanUnifiedHabitRow(
     habit: Habit,
     displayName: String,
     onToggleHabitCompletion: () -> Unit,
-    onToggleHabitReminder: () -> Unit
+    onToggleHabitReminder: () -> Unit,
+    tertinggal: Boolean = false
 ) {
+    val context = LocalContext.current
     val completionStateDescription = if (habit.isCompleted) {
         stringResource(R.string.home_completed_cd)
     } else {
@@ -170,10 +192,10 @@ private fun RamadanUnifiedHabitRow(
                 .size(30.dp)
                 .clip(CircleShape)
                 .then(
-                    if (habit.isCompleted) {
-                        Modifier.background(InfoBlue, CircleShape)
-                    } else {
-                        Modifier.border(2.dp, InfoBlue, CircleShape)
+                    when {
+                        habit.isCompleted -> Modifier.background(InfoBlue, CircleShape)
+                        tertinggal -> Modifier.background(MerahTertinggal, CircleShape)
+                        else -> Modifier.border(2.dp, InfoBlue, CircleShape)
                     }
                 )
                 .semantics {
@@ -185,17 +207,15 @@ private fun RamadanUnifiedHabitRow(
                     role = Role.Checkbox,
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
-                ) { onToggleHabitCompletion() },
+                ) { if (tertinggal) peringatkanTertinggal(context) else onToggleHabitCompletion() },
             contentAlignment = Alignment.Center
         ) {
-            if (habit.isCompleted) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = stringResource(R.string.home_completed_cd),
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
+            IsiLingkaran(
+                selesai = habit.isCompleted,
+                tertinggal = tertinggal,
+                ukuran = 16.dp,
+                warnaIkon = MaterialTheme.colorScheme.onPrimary
+            )
         }
     }
 }

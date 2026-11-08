@@ -4,11 +4,12 @@ service cloud.firestore {
     return request.auth != null;
   }
 
+  // Admin HANYA lewat custom claim di token (diberikan dari server/Admin SDK).
+  // Jangan membaca dokumen yang bisa ditulis pengguna sendiri (mis. meta/profile).
   function isAdmin() {
     return isSignedIn() && (
       request.auth.token.admin == true ||
-      request.auth.token.role == "admin" ||
-      get(/databases/$(database)/documents/users/$(request.auth.uid)/meta/profile).data.role == "admin"
+      request.auth.token.role == "admin"
     );
   }
 
@@ -16,10 +17,32 @@ service cloud.firestore {
     return isSignedIn() && request.auth.uid == userId;
   }
 
+  // Semua field yang pernah ditulis aplikasi ke meta/profile (avatarUrl = versi lama).
+  function profileFields() {
+    return ["name", "email", "genderProfile", "rentangUsia", "izinWali", "isHaidhMode",
+            "haidhDates", "avatarBase64", "avatarUrl", "lastUsernameChangedAt", "updatedAt"];
+  }
+
+  // Field di luar daftar ditolak. Saat update hanya field yang BERUBAH yang diperiksa,
+  // supaya dokumen lama yang terlanjur punya field lain tetap bisa diperbarui.
+  function profileKeysDikenal() {
+    return request.resource.data.keys().hasOnly(profileFields());
+  }
+
+  function profileUbahanDikenal() {
+    return request.resource.data.diff(resource.data).affectedKeys().hasOnly(profileFields());
+  }
+
   function validProfileWrite(data) {
-    return (!("name" in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 100))
+    return (!("updatedAt" in data) || data.updatedAt is timestamp)
+        && (!("avatarUrl" in data) || data.avatarUrl == null || data.avatarUrl is string)
+        && (!("name" in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 100))
         && (!("email" in data) || (data.email is string && data.email.size() <= 254))
-        && (!("genderProfile" in data) || data.genderProfile is string)
+        && (!("genderProfile" in data) || data.genderProfile in ["UNSPECIFIED", "MALE", "FEMALE"])
+        // Kode baru (v1.2.0, sama dengan skema penelitian) + kode lama agar dokumen lama tetap bisa diperbarui.
+        && (!("rentangUsia" in data) || data.rentangUsia in ["<15", "15-18", "19-25", "26-35", ">35",
+                                                             "<13", "13-17", "18+"])
+        && (!("izinWali" in data) || data.izinWali is bool)
         && (!("isHaidhMode" in data) || data.isHaidhMode is bool)
         && (!("haidhDates" in data) || data.haidhDates is list)
         && (
@@ -35,6 +58,18 @@ service cloud.firestore {
              !("lastUsernameChangedAt" in data) ||
              data.lastUsernameChangedAt is int
            );
+  }
+
+  // Profil ibadah permanen: sekali MALE/FEMALE tersimpan, tidak bisa diganti (termasuk
+  // dikosongkan). Koreksi hanya lewat hapus akun atau admin di Firebase Console.
+  // SEMENTARA: kunci hanya untuk dokumen yang sudah melewati onboarding v1.2.0 (punya
+  // rentangUsia). v1.1.1 di Play Store masih punya pilihan ganti jenis kelamin dan selalu
+  // mengirim genderProfile bersama Mode Cuti; tanpa pengecualian ini sinkron Mode Cuti-nya
+  // ikut ditolak. Hapus baris rentangUsia setelah v1.1.1 tidak dipakai lagi.
+  function genderTidakBerubah() {
+    return !("rentangUsia" in resource.data)
+        || !(resource.data.get("genderProfile", "UNSPECIFIED") in ["MALE", "FEMALE"])
+        || request.resource.data.get("genderProfile", "UNSPECIFIED") == resource.data.genderProfile;
   }
 
   // Validasi field sunnah_habits: hanya field yang dikenal oleh app yang boleh ditulis.
@@ -83,18 +118,75 @@ service cloud.firestore {
   // ===================================================================
 
   function profilFields() {
-    return ["jenis_kelamin", "rentang_umur", "status_aktivitas", "tanggal_mulai"];
+    return ["jenis_kelamin", "rentang_umur", "status_aktivitas", "tanggal_mulai", "pilihan_awal"];
+  }
+
+  // Snapshot ibadah yang dicentang di onboarding. null = tidak menjawab, [] = belum ada yang rutin.
+  // Sama dengan ResearchSchema.Profil.PILIHAN_AWAL_VALUES.
+  function pilihanAwalValues() {
+    return ["dhuha", "tahajud", "witir", "rawatib",
+            "senin_kamis", "ayyamul_bidh", "daud",
+            "dzikir_bada_sholat", "dzikir_pagi", "dzikir_petang", "dzikir_sebelum_tidur",
+            "istighfar", "sholawat", "tahlil", "asmaul_husna",
+            "bacaan_harian", "hafalan", "iqro"];
+  }
+
+  // users/{uid} HANYA untuk peserta penelitian: profil lengkap wajib ada.
+  // manufaktur (merek HP, untuk keandalan notifikasi per merek) ikut profil, opsional.
+  //   kode_responden: kode dari peneliti untuk responden yang direkrut langsung (opsional).
+  //   disetujui_pada: waktu server saat profil pertama dikirim setelah menyetujui penelitian.
+  //   ditarik_pada: waktu server saat pemiliknya berhenti ikut penelitian (lihat ditarikSah).
+  function validDokumenUser(data) {
+    return data.keys().hasOnly(profilFields().concat(["manufaktur", "kode_responden", "disetujui_pada", "ditarik_pada"]))
+        && validProfilPenelitian(data)
+        && (!("manufaktur" in data)
+            || (data.manufaktur is string && data.manufaktur.size() >= 1 && data.manufaktur.size() <= 64))
+        && (!("kode_responden" in data)
+            || (data.kode_responden is string && data.kode_responden.matches("^[A-Za-z0-9-]{4,20}$")));
+  }
+
+  // Persetujuan penelitian = syarat dokumen users/{uid}: wajib ada sejak dibuat dan tidak
+  // berubah. Profil lama (sebelum field ini ada) boleh mendapatkannya sekali, dengan waktu server.
+  function disetujuiSaatDibuat() {
+    return request.resource.data.get("disetujui_pada", null) == request.time;
+  }
+
+  // ditarik_pada: tidak ada saat dibuat; sesudahnya hanya boleh diisi dengan waktu server,
+  // dibiarkan, atau dihapus (pemiliknya setuju lagi). Tidak bisa dipalsukan ke waktu lain.
+  function ditarikSah() {
+    return !("ditarik_pada" in request.resource.data)
+        || request.resource.data.ditarik_pada == request.time
+        || (("ditarik_pada" in resource.data)
+            && request.resource.data.ditarik_pada == resource.data.ditarik_pada);
+  }
+
+  function disetujuiTetap() {
+    return ("disetujui_pada" in resource.data)
+        ? request.resource.data.get("disetujui_pada", null) == resource.data.disetujui_pada
+        : (!("disetujui_pada" in request.resource.data) || request.resource.data.disetujui_pada == request.time);
+  }
+
+  // users/{uid}/meta/notifikasi: token FCM perangkat. Terpisah dari profil penelitian supaya
+  // pengguna yang menolak penelitian tetap bisa menerima notifikasi tanpa dokumen users/{uid}.
+  function validTokenFcm(data) {
+    return data.keys().hasOnly(["fcm_token", "fcm_token_diperbarui"])
+        && data.keys().hasAll(["fcm_token", "fcm_token_diperbarui"])
+        && data.fcm_token is string
+        && data.fcm_token.size() >= 1 && data.fcm_token.size() <= 4096
+        && data.fcm_token_diperbarui == request.time;
   }
 
   function validProfilPenelitian(data) {
-    return data.keys().hasOnly(profilFields())
-        && data.keys().hasAll(profilFields())
+    return data.keys().hasAll(profilFields())
         && data.jenis_kelamin in ["laki_laki", "perempuan"]
         && (data.rentang_umur == null
             || data.rentang_umur in ["<15", "15-18", "19-25", "26-35", ">35"])
         && (data.status_aktivitas == null
             || data.status_aktivitas in ["pelajar", "mahasiswa", "pekerja", "lainnya"])
-        && data.tanggal_mulai is timestamp;
+        && data.tanggal_mulai is timestamp
+        && (data.pilihan_awal == null
+            || (data.pilihan_awal is list && data.pilihan_awal.size() <= 18
+                && data.pilihan_awal.hasOnly(pilihanAwalValues())));
   }
 
   function logFields() {
@@ -119,7 +211,8 @@ service cloud.firestore {
   // nama_detail yang sah per jenis_ibadah. iqro & qadha_sholat wajib null.
   function detailPerJenis() {
     return {
-      "sholat_wajib": ["subuh", "dzuhur", "ashar", "maghrib", "isya"],
+      // "jumat" = slot tengah hari laki-laki di hari Jumat, menggantikan "dzuhur".
+      "sholat_wajib": ["subuh", "dzuhur", "jumat", "ashar", "maghrib", "isya"],
       "sholat_sunnah": ["tahajud", "dhuha", "rawatib", "witir", "tarawih",
                         "taubat", "istikharah", "sunnah_lainnya"],
       "puasa": ["senin_kamis", "ayyamul_bidh", "daud", "syawal", "ramadan",
@@ -169,21 +262,35 @@ service cloud.firestore {
   // MENUNGGU VALIDASI PAKAR: cakupan udzur adalah keputusan fiqih. Tilawah saat
   // haid masih khilafiyah; posisi netral sementara = tidak dibuatkan baris apa pun.
   // Sinkron dengan ResearchSchema.JENIS_BOLEH_UDZUR.
+  // "tidak" untuk puasa & sholat sunnah/qadha hanya sebagai pengakuan lewat tombol Tertinggal
+  // (jam + sumber wajib, lihat validJamDanSumber); tidak pernah hasil penyimpulan.
   function validStatus(data) {
     return data.status == "dikerjakan"
         || (data.status == "tidak" && data.jenis_ibadah in ["sholat_wajib", "dzikir"])
+        || (data.status == "tidak" && data.jenis_ibadah in ["sholat_sunnah", "qadha_sholat", "puasa"]
+            && data.sumber_pencatatan != null)
         || (data.status == "udzur" && data.jenis_ibadah in ["sholat_wajib", "puasa"]);
   }
 
-  // Jam & sumber hanya ada untuk tindakan nyata pengguna (dikerjakan).
-  // Baris "tidak"/"udzur" adalah hasil penyimpulan aplikasi -> keduanya null.
+  // Jam & sumber hanya ada untuk tindakan nyata pengguna.
+  // - dikerjakan: keduanya wajib. dari_notifikasi = tombol di notifikasi; dari_notifikasi_dibuka =
+  //   badan notifikasi diketuk lalu ibadah itu dicatat di aplikasi; buka_aplikasi = inisiatif sendiri.
+  // - "tidak" dari tombol "Tertinggal" (sholat wajib saja): jam = saat menekan, sumber =
+  //   dari_notifikasi (tombol di notifikasi) atau buka_aplikasi (tombol di kartu Beranda).
+  //   Pengakuan langsung pengguna, beda dari "tidak" hasil penyimpulan.
+  // - "tidak"/"udzur" hasil penyimpulan aplikasi: keduanya null.
   // "tidak_diketahui" = versi aplikasi yang belum bisa membedakan notifikasi vs
   // buka aplikasi (sebelum Tahap 4). Pipeline membuang baris bernilai ini.
   function validJamDanSumber(data) {
     return data.status == "dikerjakan"
         ? (data.jam_pencatatan is timestamp
-           && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi", "tidak_diketahui"])
-        : (data.jam_pencatatan == null && data.sumber_pencatatan == null);
+           && data.sumber_pencatatan in ["dari_notifikasi", "dari_notifikasi_dibuka", "buka_aplikasi",
+                                         "tidak_diketahui"])
+        : (data.jam_pencatatan == null && data.sumber_pencatatan == null)
+          || (data.status == "tidak"
+              && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "qadha_sholat", "puasa"]
+              && data.jam_pencatatan is timestamp
+              && data.sumber_pencatatan in ["dari_notifikasi", "buka_aplikasi"]);
   }
 
   // tilawah: jumlah = halaman tersentuh (dihitung aplikasi), jumlah_ayat = ukuran halus,
@@ -261,15 +368,44 @@ service cloud.firestore {
         : data.selisih_menit_dari_adzan == null;
   }
 
+  // Ibadah tidak bisa dicatat untuk hari yang belum tiba. Batasnya "besok" menurut UTC
+  // supaya tanggal lokal di zona waktu mana pun (sampai UTC+14) tetap lolos.
+  // Tanggal mustahil (mis. 2026-02-31) membuat timestamp.date gagal -> ditolak.
+  function tanggalBukanMasaDepan(tanggal) {
+    let p = tanggal.split("-");
+    return timestamp.date(int(p[0]), int(p[1]), int(p[2])) <= request.time + duration.value(1, "d");
+  }
+
+  function hariJumat(tanggal) {
+    let p = tanggal.split("-");
+    return timestamp.date(int(p[0]), int(p[1]), int(p[2])).dayOfWeek() == 5;
+  }
+
+  // Sholat Jumat hanya ada di hari Jumat.
+  function jumatDiHariJumat(data) {
+    return data.nama_detail != "jumat" || hariJumat(data.tanggal);
+  }
+
+  // Jumat dan Dzuhur saling meniadakan: di satu hari Jumat hanya boleh ada salah satu
+  // (dokumen lawannya harus sudah/ikut terhapus). Hari selain Jumat tidak perlu dibaca.
+  function tengahHariTunggal(database, data) {
+    return !(data.jenis_ibadah == "sholat_wajib" && data.nama_detail in ["jumat", "dzuhur"])
+        || !hariJumat(data.tanggal)
+        || !existsAfter(/databases/$(database)/documents/logs/$(request.auth.uid + "_" + data.tanggal
+             + "_sholat_wajib_" + (data.nama_detail == "jumat" ? "dzuhur" : "jumat")));
+  }
+
   function validLog(data, logId) {
     return data.keys().hasOnly(logFields())
         && data.keys().hasAll(logFields())
         && data.user_id == request.auth.uid
         && data.tanggal is string
         && data.tanggal.matches("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
+        && tanggalBukanMasaDepan(data.tanggal)
         && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "qadha_sholat", "puasa",
                                  "dzikir", "tilawah", "iqro"]
         && validDetail(data)
+        && jumatDiHariJumat(data)
         && validLogId(data, logId)
         && (data.nama_detail_asli == null
             || (data.nama_detail_asli is string && data.nama_detail_asli.size() <= 100))
@@ -320,26 +456,66 @@ service cloud.firestore {
             : !("nama_detail_asli" in data));
   }
 
+  function validJadwalPengingat(docId, data) {
+    return data.keys().hasOnly(["waktu_kirim", "jenis_ibadah", "nama_detail", "id_pengingat"])
+        && data.keys().hasAll(["waktu_kirim", "jenis_ibadah", "nama_detail", "id_pengingat"])
+        && data.waktu_kirim is timestamp
+        && data.waktu_kirim > request.time - duration.value(1, "d")
+        && data.waktu_kirim <= request.time + duration.value(8, "d")
+        && data.jenis_ibadah in ["sholat_wajib", "sholat_sunnah", "qadha_sholat", "puasa"]
+        && validDetail(data)
+        && data.id_pengingat is string
+        && data.id_pengingat.matches("^[A-Za-z0-9_-]{1,64}$")
+        && docId.matches("^" + data.id_pengingat + "_[0-9]{8}$");
+  }
+
   match /databases/{database}/documents {
     // Profil penelitian. Satu dokumen per pengguna, hanya pemiliknya.
+    // Profil penelitian (+ manufaktur). Satu dokumen per peserta, hanya pemiliknya.
+    // Dokumen tanpa profil penelitian ditolak.
     match /users/{userId} {
       allow read, delete: if isOwner(userId);
       allow create: if isOwner(userId)
-                    && validProfilPenelitian(request.resource.data)
-                    && request.resource.data.tanggal_mulai == request.time;
+                    && validDokumenUser(request.resource.data)
+                    && request.resource.data.tanggal_mulai == request.time
+                    && disetujuiSaatDibuat()
+                    && !("ditarik_pada" in request.resource.data);
       allow update: if isOwner(userId)
-                    && validProfilPenelitian(request.resource.data)
-                    && request.resource.data.tanggal_mulai == resource.data.tanggal_mulai;
+                    && validDokumenUser(request.resource.data)
+                    && request.resource.data.tanggal_mulai == resource.data.tanggal_mulai
+                    && disetujuiTetap()
+                    && ditarikSah();
+    }
+
+    // Jadwal pengingat 7 hari yang disusun HP (server tidak menghitung waktu sholat,
+    // koordinat tidak pernah dikirim). ID = {id_pengingat}_{yyyyMMdd}.
+    match /users/{userId}/jadwal_pengingat/{docId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validJadwalPengingat(docId, request.resource.data);
     }
 
     // Log ibadah penelitian. Kepemilikan lewat field user_id; query klien
     // wajib menyertakan where("user_id", "==", uid).
+    // Log hanya boleh ditulis oleh PESERTA AKTIF: users/{uid} ada, berisi disetujui_pada, dan
+    // tidak berisi ditarik_pada. Dataset di server dengan sendirinya hanya memuat orang yang
+    // menyetujui (aplikasi juga menahan unggahan sampai profilnya terkirim). Hapus tetap boleh.
+    function pesertaAktif(database) {
+      let p = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(p)
+          && ("disetujui_pada" in get(p).data)
+          && !("ditarik_pada" in get(p).data);
+    }
+
     match /logs/{logId} {
       allow read, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
-      allow create: if isSignedIn() && validLog(request.resource.data, logId);
+      allow create: if isSignedIn() && validLog(request.resource.data, logId)
+                    && pesertaAktif(database)
+                    && tengahHariTunggal(database, request.resource.data);
       allow update: if isSignedIn()
+                    && pesertaAktif(database)
                     && resource.data.user_id == request.auth.uid
                     && validLog(request.resource.data, logId)
+                    && tengahHariTunggal(database, request.resource.data)
                     && request.resource.data.diff(resource.data).unchangedKeys()
                          .hasAll(["user_id", "tanggal", "jenis_ibadah", "nama_detail"]);
     }
@@ -398,16 +574,32 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
-    // User profile meta. Client can only manage basic profile fields.
+    // meta/profile: profil aplikasi (field dasar saja). meta/notifikasi: token FCM.
     match /users/{userId}/meta/{docId} {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId)
-                    && docId == "profile"
-                    && validProfileWrite(request.resource.data);
+                    && ((docId == "profile"
+                         && profileKeysDikenal()
+                         && validProfileWrite(request.resource.data))
+                        || (docId == "notifikasi" && validTokenFcm(request.resource.data)));
       allow update: if isOwner(userId)
-                    && docId == "profile"
-                    && validProfileWrite(request.resource.data);
+                    && ((docId == "profile"
+                         && profileUbahanDikenal()
+                         && validProfileWrite(request.resource.data)
+                         && genderTidakBerubah())
+                        || (docId == "notifikasi" && validTokenFcm(request.resource.data)));
       allow delete: if isOwner(userId);
+    }
+
+    // Permintaan penghapusan akun anonim yang ditolak dihapus langsung oleh Firebase (login
+    // terakhir terlalu lama). Data pengguna sudah terhapus; peneliti menghapus akun auth-nya.
+    // Hanya pemiliknya yang bisa mengajukan, sekali, tanpa bisa membaca atau mengubahnya.
+    match /permintaan_hapus/{userId} {
+      allow create: if isOwner(userId)
+                    && request.resource.data.keys().hasOnly(["diminta_pada"])
+                    && request.resource.data.keys().hasAll(["diminta_pada"])
+                    && request.resource.data.diminta_pada == request.time;
+      allow read, update, delete: if false;
     }
 
     // Deny all other paths by default.

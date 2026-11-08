@@ -26,6 +26,26 @@ class ActivityStatsRepository @Inject constructor(
             researchLogDao.getActivityDailyCountsBetween(startDateKey, endDateKey)
         )
 
+    /** Sholat & puasa dalam rentang (sumber: habit_completion_records, hanya dibaca). */
+    suspend fun getCompletionRecordsBetween(startDateKey: String, endDateKey: String) =
+        habitCompletionDao.getRecordsBetween(startDateKey, endDateKey)
+
+    /** Dzikir, tilawah, iqro dalam rentang; baris sholat/puasa di research_logs dibuang agar tidak ganda. */
+    suspend fun getAktivitasLainBetween(startDateKey: String, endDateKey: String) =
+        researchLogDao.getDikerjakanBetween(startDateKey, endDateKey).filter {
+            it.jenisIbadah == ResearchSchema.Jenis.DZIKIR ||
+                it.jenisIbadah == ResearchSchema.Jenis.TILAWAH ||
+                it.jenisIbadah == ResearchSchema.Jenis.IQRO
+        }
+
+    /** Sholat wajib di research_logs (untuk "ditandai tertinggal" & jarak dari adzan); hanya dibaca. */
+    suspend fun getSholatWajibBetween(startDateKey: String, endDateKey: String) =
+        researchLogDao.getSholatWajibBetween(startDateKey, endDateKey)
+
+    suspend fun hasDzikirHabits(): Boolean = dzikirHabitDao.getAll().isNotEmpty()
+
+    suspend fun countDzikirHabits(): Int = dzikirHabitDao.getAll().size
+
     suspend fun getDistinctCompletionDatesDesc(): List<String> =
         (habitCompletionDao.getDistinctCompletionDatesDesc() + researchLogDao.getActivityDistinctDatesDesc())
             .distinct()

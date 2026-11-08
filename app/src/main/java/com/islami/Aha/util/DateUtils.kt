@@ -15,6 +15,13 @@ object DateUtils {
         "Ramadhan", "Syawal", "Dzulqa'dah", "Dzulhijjah"
     )
 
+    /** "3 Jumadil Awal 1448 H" untuk tanggal Masehi tertentu; "" di luar kalender Hijriah. */
+    fun hijriFormatted(tanggal: LocalDate): String = runCatching {
+        val h = HijrahDate.from(tanggal)
+        val bulan = hijriMonthNames[h.get(java.time.temporal.ChronoField.MONTH_OF_YEAR) - 1]
+        "${h.get(java.time.temporal.ChronoField.DAY_OF_MONTH)} $bulan ${h.get(java.time.temporal.ChronoField.YEAR)} H"
+    }.getOrDefault("")
+
     fun getHijriDateFormatted(): String {
         val hijriDate: HijrahDate = HijrahChronology.INSTANCE.dateNow()
         val day = hijriDate.get(java.time.temporal.ChronoField.DAY_OF_MONTH)
@@ -24,9 +31,43 @@ object DateUtils {
         return "$day $monthName $year H"
     }
 
+    /** "Rabiul Akhir – Jumadil Awal 1448" untuk rentang tanggal Masehi; "" bila di luar kalender Hijriah. */
+    fun hijriRentang(awal: LocalDate, akhir: LocalDate): String = runCatching {
+        val a = HijrahDate.from(awal)
+        val b = HijrahDate.from(akhir)
+        fun bulan(h: HijrahDate) = hijriMonthNames[h.get(java.time.temporal.ChronoField.MONTH_OF_YEAR) - 1]
+        fun tahun(h: HijrahDate) = h.get(java.time.temporal.ChronoField.YEAR)
+        when {
+            bulan(a) == bulan(b) && tahun(a) == tahun(b) -> "${bulan(a)} ${tahun(a)}"
+            tahun(a) == tahun(b) -> "${bulan(a)} – ${bulan(b)} ${tahun(b)}"
+            else -> "${bulan(a)} ${tahun(a)} – ${bulan(b)} ${tahun(b)}"
+        }
+    }.getOrDefault("")
+
+    /**
+     * Tanggal Masehi 1 Ramadhan berikutnya (Umm al-Qura) beserta tahun Hijriahnya, atau null
+     * di luar jangkauan kalender. Hanya perkiraan: penetapan di Indonesia bisa selisih sehari.
+     */
+    fun awalRamadanBerikutnya(dari: LocalDate = LocalDate.now()): Pair<LocalDate, Int>? = runCatching {
+        val h = HijrahDate.from(dari)
+        val tahun = h.get(java.time.temporal.ChronoField.YEAR)
+        val bulan = h.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)
+        val tahunRamadan = if (bulan < 9) tahun else tahun + 1
+        LocalDate.from(HijrahChronology.INSTANCE.date(tahunRamadan, 9, 1)) to tahunRamadan
+    }.getOrNull()
+
+    /**
+     * Sumber "hari ini" untuk pencatatan & kartu Beranda. Di aplikasi selalu jam sistem; hanya tes
+     * yang menggantinya (mis. memalsukan tanggal ke hari Jumat) lalu mengembalikannya.
+     */
+    @Volatile
+    var jam: java.time.Clock = java.time.Clock.systemDefaultZone()
+
+    fun hariIni(): LocalDate = LocalDate.now(jam)
+
     fun getTodayKey(): String {
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ROOT)
-        return LocalDate.now().format(formatter)
+        return hariIni().format(formatter)
     }
 
     fun isToday(dateKey: String?): Boolean {

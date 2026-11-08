@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hanya build debug: pemicu pengingat lewat adb untuk menguji notifikasi bertombol. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name="com.islami.Aha.debug.DebugReminderTrigger"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.islami.Aha.debug.TRIGGER_REMINDER" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

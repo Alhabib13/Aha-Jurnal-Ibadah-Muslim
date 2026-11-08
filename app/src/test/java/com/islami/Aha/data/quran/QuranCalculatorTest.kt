@@ -119,4 +119,13 @@ class QuranCalculatorTest {
             assertEquals(i, AyatPosition.fromAbsolute(i).absolute)
         }
     }
+
+    @Test
+    fun `akhir halaman untuk tombol cepat tilawah`() {
+        assertEquals(AyatPosition(1, 7), QuranCalculator.akhirHalaman(1))
+        assertEquals(AyatPosition(114, 6), QuranCalculator.akhirHalaman(604))
+        val p2 = QuranCalculator.akhirHalaman(2)
+        assertEquals(2, QuranCalculator.halamanOf(p2))
+        assertEquals(3, QuranCalculator.halamanOf(QuranCalculator.setelah(p2)!!))
+    }
 }

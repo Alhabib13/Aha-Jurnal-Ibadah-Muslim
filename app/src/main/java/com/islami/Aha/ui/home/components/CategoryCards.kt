@@ -14,6 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -62,14 +65,15 @@ data class CategoryCardData(
     val icon: String? = null,
     val iconVector: ImageVector? = null,
     val gradientStart: Color,
-    val gradientEnd: Color
+    val gradientEnd: Color,
+    val contentColor: Color = Color.White
 )
 
 val categoryCards = listOf(
-    CategoryCardData(CATEGORY_SHOLAT, iconVector = Icons.Rounded.Mosque, gradientStart = EmeraldDark, gradientEnd = Emerald),
-    CategoryCardData(CATEGORY_PUASA, iconVector = Icons.Rounded.NightlightRound, gradientStart = PurpleStart, gradientEnd = PurpleEnd),
-    CategoryCardData(CATEGORY_DZIKIR, iconVector = Icons.Rounded.SelfImprovement, gradientStart = TealStart, gradientEnd = TealEnd),
-    CategoryCardData(CATEGORY_TILAWAH, iconVector = Icons.Rounded.MenuBook, gradientStart = AmberStart, gradientEnd = AmberEnd)
+    CategoryCardData(CATEGORY_SHOLAT, iconVector = Icons.Rounded.Mosque, gradientStart = Color(0xFF0D7C5F), gradientEnd = Color(0xFF14A87D)),
+    CategoryCardData(CATEGORY_PUASA, iconVector = Icons.Rounded.NightlightRound, gradientStart = Color(0xFF5B2FC4), gradientEnd = Color(0xFF7C4DE0)),
+    CategoryCardData(CATEGORY_DZIKIR, iconVector = Icons.Rounded.SelfImprovement, gradientStart = Color(0xFF0B7A72), gradientEnd = Color(0xFF149C8F)),
+    CategoryCardData(CATEGORY_TILAWAH, iconVector = Icons.Rounded.MenuBook, gradientStart = Color(0xFFD28A2A), gradientEnd = Color(0xFFEDB84E), contentColor = Color(0xFF3A2400))
 )
 
 @Composable
@@ -79,172 +83,96 @@ fun CategoryCardsRow(
     onSelectCategory: (String) -> Unit,
     getBadge: (String) -> String
 ) {
+    // Empat kartu sama lebar dalam satu baris (tanpa geser), sesuai desain baru.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         categoryCards.forEach { card ->
             val isSelected = card.name == selectedCategory
             val isComingSoon = card.name in comingSoonCategories
+            val badge = getBadge(card.name)
+            val redup = badge == "Cuti"
             val categoryStateDescription = when {
                 isComingSoon -> stringResource(R.string.home_state_unavailable)
                 isSelected -> stringResource(R.string.home_state_selected)
                 else -> stringResource(R.string.home_state_not_selected)
             }
-            val scale by animateFloatAsState(
-                targetValue = if (isSelected) 1.05f else 1f,
-                label = "categoryScale"
-            )
-
-            val baseModifier = Modifier
-                .width(100.dp)
-                .scale(scale)
-                .semantics(mergeDescendants = true) {
-                    if (!isComingSoon) role = Role.Button
-                    selected = isSelected
-                    stateDescription = categoryStateDescription
-                }
-                .then(
-                    if (isSelected) {
-                        Modifier.border(2.dp, Gold, RoundedCornerShape(16.dp))
-                    } else {
-                        Modifier
+            val shape = RoundedCornerShape(18.dp)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 96.dp)
+                    .alpha(if (redup || isComingSoon) 0.6f else 1f)
+                    .clip(shape)
+                    .background(Brush.linearGradient(listOf(card.gradientStart, card.gradientEnd)))
+                    .then(if (isSelected) Modifier.border(2.dp, Color(0xFFF2C66D), shape) else Modifier)
+                    .clickable(enabled = !isComingSoon) { onSelectCategory(card.name) }
+                    .semantics(mergeDescendants = true) {
+                        if (!isComingSoon) role = Role.Button
+                        selected = isSelected
+                        stateDescription = categoryStateDescription
                     }
-                )
-
-            val cardModifier = if (!isComingSoon) {
-                baseModifier.clickable { onSelectCategory(card.name) }
-            } else {
-                baseModifier
-            }
-
-            Card(
-                modifier = cardModifier,
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 2.dp)
+                    .padding(horizontal = 4.dp, vertical = 12.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .alpha(
-                            when {
-                                isSelected -> 1f
-                                isComingSoon -> 0.65f
-                                else -> 0.82f
-                            }
-                        )
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(card.gradientStart, card.gradientEnd)
-                            )
-                        )
-                        .padding(12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (card.iconVector != null) {
-                            Icon(
-                                imageVector = card.iconVector,
-                                contentDescription = card.name,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        } else {
-                            Text(text = card.icon.orEmpty(), fontSize = 28.sp)
-                        }
-                        Text(
-                            text = card.name,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f)
-                        ) {
-                            Text(
-                                text = getBadge(card.name),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
+                if (card.iconVector != null) {
+                    Icon(card.iconVector, contentDescription = null, tint = card.contentColor, modifier = Modifier.size(26.dp))
+                } else {
+                    Text(text = card.icon.orEmpty(), fontSize = 24.sp)
                 }
+                Text(card.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = card.contentColor, maxLines = 1)
+                // Label kecil di bawah nama. Teks panjang ("Belum dicatat") mengecil sendiri agar muat
+                // di kartu sempit/huruf besar, bukan terpotong. Latarnya rona tipis yang seragam:
+                // putih di kartu bertulisan putih, rona warna tulisan di kartu bertulisan gelap (Tilawah).
+                var ukuranLabel by remember(badge) { mutableStateOf(10f) }
+                Text(
+                    badge,
+                    fontSize = ukuranLabel.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = card.contentColor,
+                    maxLines = 1,
+                    softWrap = false,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    onTextLayout = { hasil ->
+                        if (hasil.didOverflowWidth && ukuranLabel > 7f) ukuranLabel -= 0.5f
+                    },
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(
+                            if (card.contentColor == Color.White) Color.White.copy(alpha = 0.18f)
+                            else card.contentColor.copy(alpha = 0.12f)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                )
             }
         }
     }
 }
 
+/**
+ * Kontrol segmen (Fardhu/Sunnah, Al-Qur'an/Iqro, Sunnah/Wajib): satu wadah bulat, pilihan aktif
+ * diisi warna kategori.
+ */
 @Composable
 fun SubTabRow(
     tabs: List<String>,
     selectedIndex: Int,
-    onSelectTab: (Int) -> Unit
+    onSelectTab: (Int) -> Unit,
+    accent: Color = Color(0xFF2ECC9B),
+    onAccent: Color = Color(0xFF062B1F)
 ) {
-    val useEqualWidthTabs = tabs.size <= 3
-
-    if (useEqualWidthTabs) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            tabs.forEachIndexed { index, tab ->
-                val isSelected = index == selectedIndex
-                val tabStateDescription = if (isSelected) {
-                    stringResource(R.string.home_state_selected)
-                } else {
-                    stringResource(R.string.home_state_not_selected)
-                }
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(50))
-                        .semantics {
-                            role = Role.Tab
-                            selected = isSelected
-                            stateDescription = tabStateDescription
-                        }
-                        .clickable { onSelectTab(index) },
-                    shape = RoundedCornerShape(50),
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    border = if (!isSelected) {
-                        androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                    } else null
-                ) {
-                    Text(
-                        text = tab,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 9.dp)
-                    )
-                }
-            }
-        }
-        return
-    }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         tabs.forEachIndexed { index, tab ->
             val isSelected = index == selectedIndex
@@ -253,29 +181,29 @@ fun SubTabRow(
             } else {
                 stringResource(R.string.home_state_not_selected)
             }
-            Surface(
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 40.dp)
                     .clip(RoundedCornerShape(50))
+                    .background(if (isSelected) accent else Color.Transparent)
                     .semantics {
                         role = Role.Tab
                         selected = isSelected
                         stateDescription = tabStateDescription
                     }
-                    .clickable { onSelectTab(index) },
-                shape = RoundedCornerShape(50),
-                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                border = if (!isSelected) {
-                    androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                } else null
+                    .clickable { onSelectTab(index) }
+                    .padding(horizontal = 8.dp)
             ) {
                 Text(
                     text = tab,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    textAlign = TextAlign.Center,
+                    color = if (isSelected) onAccent else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

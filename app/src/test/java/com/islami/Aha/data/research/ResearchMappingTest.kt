@@ -29,9 +29,9 @@ class ResearchMappingTest {
     }
 
     @Test
-    fun `sholat jumat dicatat sebagai dzuhur dengan nama asli jumat`() {
+    fun `sholat jumat punya nama_detail sendiri dengan nama asli jumat`() {
         val slot = ResearchMapping.fromDefaultHabit("Sholat Jumat", "Sholat Fardhu")!!
-        assertEquals(Detail.DZUHUR, slot.namaDetail)
+        assertEquals(Detail.JUMAT, slot.namaDetail)
         assertEquals("Sholat Jumat", slot.namaDetailAsli)
     }
 

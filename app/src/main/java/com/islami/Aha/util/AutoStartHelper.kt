@@ -84,17 +84,17 @@ object AutoStartHelper {
         // Infinix / Tecno (XOS)
         intents.add(Intent().setComponent(ComponentName("com.transsion.phonemaster", "com.cyin.himgr.widget.activity.MainSettingLaunchActivity")))
         
-        val pm = context.packageManager
+        // Langsung dicoba satu per satu. queryIntentActivities tidak bisa dipakai: sejak Android 11
+        // aplikasi lain tidak terlihat tanpa <queries> di manifest, sehingga dulu semua kandidat
+        // dianggap tidak ada. startActivity dengan komponen eksplisit tetap boleh.
         for (intent in intents) {
-            val list = pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-            if (list.isNotEmpty()) {
-                try {
-                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    context.startActivity(intent)
-                    return true
-                } catch (e: Exception) {
-                    Log.e(TAG, "Gagal membuka layar AutoStart: ${intent.component}", e)
-                }
+            try {
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(intent)
+                return true
+            } catch (e: Exception) {
+                // Komponen tidak ada di HP ini atau tidak boleh dibuka: coba kandidat berikutnya.
+                Log.d(TAG, "Layar AutoStart tidak tersedia: ${intent.component}")
             }
         }
         return false

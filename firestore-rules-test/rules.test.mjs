@@ -27,6 +27,8 @@ const TGL = "2026-10-09";
 
 let env;
 const db = (uid) => env.authenticatedContext(uid).firestore();
+// Tamu yang masuk anonim (Firebase Anonymous Auth).
+const dbAnonim = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: "anonymous" } }).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
 
 before(async () => {
@@ -43,6 +45,8 @@ const profil = (o = {}) => ({
   rentang_umur: "15-18",
   status_aktivitas: "pelajar",
   tanggal_mulai: serverTimestamp(),
+  pilihan_awal: ["dhuha", "dzikir_pagi"],
+  disetujui_pada: serverTimestamp(),
   ...o,
 });
 
@@ -99,6 +103,14 @@ async function seed(path, data) {
   await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), path), data));
 }
 
+// Log hanya boleh ditulis peserta aktif (users/{uid} dengan disetujui_pada, tanpa ditarik_pada).
+const MULAI = Timestamp.fromDate(new Date("2026-10-01T00:00:00Z"));
+async function seedPeserta() {
+  for (const uid of [ALICE, BOB]) {
+    await seed(`users/${uid}`, profil({ tanggal_mulai: MULAI, disetujui_pada: MULAI }));
+  }
+}
+
 describe("users/{uid}: profil penelitian", () => {
   test("pemilik membuat profil lengkap", () =>
     assertSucceeds(setDoc(doc(db(ALICE), "users", ALICE), profil())));
@@ -148,11 +160,31 @@ describe("users/{uid}: profil penelitian", () => {
 
   test("update umur boleh, tanggal_mulai tidak boleh berubah", async () => {
     const mulai = Timestamp.fromDate(new Date("2026-10-01T00:00:00Z"));
-    await seed(`users/${ALICE}`, profil({ tanggal_mulai: mulai }));
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: mulai, disetujui_pada: mulai }));
     await assertSucceeds(
-      setDoc(doc(db(ALICE), "users", ALICE), profil({ tanggal_mulai: mulai, rentang_umur: "19-25" }))
+      setDoc(doc(db(ALICE), "users", ALICE), profil({ tanggal_mulai: mulai, disetujui_pada: mulai, rentang_umur: "19-25" }))
     );
     await assertFails(updateDoc(doc(db(ALICE), "users", ALICE), { tanggal_mulai: Timestamp.now() }));
+  });
+
+  test("pilihan_awal: null / [] / nilai katalog sah, selain itu ditolak", async () => {
+    const ref = doc(db(ALICE), "users", ALICE);
+    await assertSucceeds(setDoc(ref, profil({ pilihan_awal: null })));
+    await env.clearFirestore();
+    await assertSucceeds(setDoc(ref, profil({ pilihan_awal: [] })));
+    await env.clearFirestore();
+    await assertFails(setDoc(ref, profil({ pilihan_awal: ["dhuha", "main_game"] })));
+    await assertFails(setDoc(ref, profil({ pilihan_awal: "dhuha" })));
+    const p = profil();
+    delete p.pilihan_awal;
+    await assertFails(setDoc(ref, p));
+  });
+
+  test("cara aplikasi: buat dengan serverTimestamp, lalu merge tanpa tanggal_mulai", async () => {
+    await assertSucceeds(setDoc(doc(db(ALICE), "users", ALICE), profil()));
+    const ubah = { jenis_kelamin: "perempuan", rentang_umur: "26-35", status_aktivitas: "pekerja",
+                   pilihan_awal: ["tahajud"] };
+    await assertSucceeds(setDoc(doc(db(ALICE), "users", ALICE), ubah, { merge: true }));
   });
 
   test("hapus hanya oleh pemilik", async () => {
@@ -162,7 +194,369 @@ describe("users/{uid}: profil penelitian", () => {
   });
 });
 
+describe("users/{uid}: hanya untuk peserta penelitian + manufaktur", () => {
+  const ref = (who = ALICE, uid = ALICE) => doc(db(who), "users", uid);
+  const LAMA = Timestamp.fromDate(new Date("2026-10-01T00:00:00Z"));
+
+  test("dokumen tanpa profil penelitian ditolak (kosong, token, atau manufaktur saja)", async () => {
+    await assertFails(setDoc(ref(), {}));
+    await assertFails(setDoc(ref(), { fcm_token: "t", fcm_token_diperbarui: serverTimestamp() }, { merge: true }));
+    await assertFails(setDoc(ref(), { manufaktur: "Xiaomi" }, { merge: true }));
+  });
+
+  test("token FCM tidak boleh lagi di users/{uid}", async () => {
+    await assertFails(setDoc(ref(), { ...profil(), fcm_token: "t", fcm_token_diperbarui: serverTimestamp() }));
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA }));
+    await assertFails(setDoc(ref(), { fcm_token: "t", fcm_token_diperbarui: serverTimestamp() }, { merge: true }));
+  });
+
+  test("manufaktur bersama profil: saat dibuat dan saat merge", async () => {
+    await assertSucceeds(setDoc(ref(), { ...profil(), manufaktur: "Xiaomi" }));
+    await assertSucceeds(setDoc(ref(), { manufaktur: "OPPO" }, { merge: true }));
+  });
+
+  test("profil lama tanpa manufaktur tetap sah", async () => {
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA }));
+    await assertSucceeds(setDoc(ref(), { rentang_umur: "19-25" }, { merge: true }));
+  });
+
+  test("bentuk manufaktur: string 1-64", async () => {
+    await assertFails(setDoc(ref(), { ...profil(), manufaktur: "" }));
+    await assertFails(setDoc(ref(), { ...profil(), manufaktur: "x".repeat(65) }));
+    await assertFails(setDoc(ref(), { ...profil(), manufaktur: 7 }));
+  });
+
+  test("profil tidak bisa dicabut lewat update (hanya hapus dokumen)", async () => {
+    await seed(`users/${ALICE}`, { ...profil({ tanggal_mulai: LAMA }), manufaktur: "Xiaomi" });
+    await assertFails(setDoc(ref(), { manufaktur: "Xiaomi" }));
+    await assertSucceeds(deleteDoc(ref()));
+  });
+
+  test("orang lain tidak bisa menulis manufaktur", async () => {
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA }));
+    await assertFails(setDoc(ref(BOB), { manufaktur: "Xiaomi" }, { merge: true }));
+  });
+});
+
+describe("users/{uid}/meta/notifikasi: token FCM", () => {
+  const ref = (who = ALICE, uid = ALICE) => doc(db(who), `users/${uid}/meta/notifikasi`);
+  const T = (t = "tok-abc") => ({ fcm_token: t, fcm_token_diperbarui: serverTimestamp() });
+  const LAMA = Timestamp.fromDate(new Date("2026-10-01T00:00:00Z"));
+
+  test("cara aplikasi: tulis token tanpa dokumen users/{uid} (menolak penelitian)", async () => {
+    await assertSucceeds(setDoc(ref(), T()));
+    let ada = null;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      ada = (await getDoc(doc(ctx.firestore(), "users", ALICE))).exists();
+    });
+    if (ada !== false) throw new Error("users/{uid} ikut terbuat");
+  });
+
+  test("ganti token = tulis ulang dengan cap waktu server", async () => {
+    await seed(`users/${ALICE}/meta/notifikasi`, { fcm_token: "lama", fcm_token_diperbarui: LAMA });
+    await assertFails(updateDoc(ref(), { fcm_token: "baru" }));
+    await assertSucceeds(setDoc(ref(), T("baru")));
+  });
+
+  test("fcm_token_diperbarui harus waktu server, keduanya wajib", async () => {
+    await assertFails(setDoc(ref(), { fcm_token: "t", fcm_token_diperbarui: Timestamp.now() }));
+    await assertFails(setDoc(ref(), { fcm_token: "t" }));
+    await assertFails(setDoc(ref(), { fcm_token_diperbarui: serverTimestamp() }));
+  });
+
+  test("bentuk token: string 1-4096", async () => {
+    await assertFails(setDoc(ref(), T("")));
+    await assertFails(setDoc(ref(), { fcm_token: 123, fcm_token_diperbarui: serverTimestamp() }));
+    await assertFails(setDoc(ref(), T("x".repeat(4097))));
+    await assertSucceeds(setDoc(ref(), T("x".repeat(4096))));
+  });
+
+  test("field lain ditolak (mis. manufaktur, lokasi)", async () => {
+    await assertFails(setDoc(ref(), { ...T(), manufaktur: "Xiaomi" }));
+    await assertFails(setDoc(ref(), { ...T(), lokasi: "jakarta" }));
+  });
+
+  test("logout: pemilik menghapus dokumen token", async () => {
+    await seed(`users/${ALICE}/meta/notifikasi`, { fcm_token: "t", fcm_token_diperbarui: LAMA });
+    await assertSucceeds(deleteDoc(ref()));
+  });
+
+  test("orang lain tidak bisa membaca, menulis, atau menghapus token", async () => {
+    await assertFails(setDoc(ref(BOB), T()));
+    await seed(`users/${ALICE}/meta/notifikasi`, { fcm_token: "t", fcm_token_diperbarui: LAMA });
+    await assertFails(getDoc(ref(BOB)));
+    await assertFails(deleteDoc(ref(BOB)));
+    await assertFails(getDoc(doc(anon(), `users/${ALICE}/meta/notifikasi`)));
+  });
+
+  test("dokumen meta lain selain profile & notifikasi tetap ditolak", () =>
+    assertFails(setDoc(doc(db(ALICE), `users/${ALICE}/meta/lainnya`), T())));
+
+  test("meta/profile tidak menerima field token", () =>
+    assertFails(setDoc(doc(db(ALICE), `users/${ALICE}/meta/profile`), { name: "A", ...T() })));
+});
+
+describe("users/{uid}/jadwal_pengingat (notifikasi server tahap 1)", () => {
+  const jadwal = (who = ALICE, id = "default_1_20261105", uid = ALICE) =>
+    doc(db(who), `users/${uid}/jadwal_pengingat/${id}`);
+  const jam = (h) => Timestamp.fromMillis(Date.now() + h * 3600_000);
+  const J = (o = {}) => ({
+    waktu_kirim: jam(5), jenis_ibadah: "sholat_wajib", nama_detail: "subuh", id_pengingat: "default_1", ...o,
+  });
+
+  test("pemilik menulis, membaca, menghapus", async () => {
+    await assertSucceeds(setDoc(jadwal(), J()));
+    await assertSucceeds(getDoc(jadwal()));
+    await assertSucceeds(getDocs(collection(db(ALICE), `users/${ALICE}/jadwal_pengingat`)));
+    await assertSucceeds(deleteDoc(jadwal()));
+  });
+
+  test("sunnah (uuid), qadha (detail null), puasa sah", async () => {
+    const uuid = "3f2a9c1e-7b4d-4e8a-9f00-1234567890ab";
+    await assertSucceeds(setDoc(jadwal(ALICE, `${uuid}_20261106`),
+      J({ id_pengingat: uuid, jenis_ibadah: "sholat_sunnah", nama_detail: "dhuha" })));
+    await assertSucceeds(setDoc(jadwal(ALICE, "q1_20261106"),
+      J({ id_pengingat: "q1", jenis_ibadah: "qadha_sholat", nama_detail: null })));
+    await assertSucceeds(setDoc(jadwal(ALICE, "p1_20261106"),
+      J({ id_pengingat: "p1", jenis_ibadah: "puasa", nama_detail: "senin_kamis" })));
+  });
+
+  test("orang lain tidak bisa membaca atau menulis", async () => {
+    await assertFails(setDoc(jadwal(BOB), J()));
+    await seed(`users/${ALICE}/jadwal_pengingat/default_1_20261105`, J());
+    await assertFails(getDoc(jadwal(BOB)));
+    await assertFails(deleteDoc(jadwal(BOB)));
+    await assertFails(getDoc(doc(anon(), `users/${ALICE}/jadwal_pengingat/default_1_20261105`)));
+  });
+
+  test("waktu_kirim: timestamp, tidak lebih dari 8 hari ke depan / 1 hari lalu", async () => {
+    await assertFails(setDoc(jadwal(), J({ waktu_kirim: "2026-11-05T04:30" })));
+    await assertFails(setDoc(jadwal(), J({ waktu_kirim: jam(24 * 9) })));
+    await assertFails(setDoc(jadwal(), J({ waktu_kirim: jam(-48) })));
+    await assertSucceeds(setDoc(jadwal(), J({ waktu_kirim: jam(24 * 7) })));
+  });
+
+  test("jenis & nama_detail mengikuti skema logs", async () => {
+    await assertFails(setDoc(jadwal(), J({ jenis_ibadah: "tilawah", nama_detail: "bacaan_harian" })));
+    await assertFails(setDoc(jadwal(), J({ nama_detail: "dhuha" })));
+    await assertFails(setDoc(jadwal(), J({ nama_detail: null })));
+    await assertFails(setDoc(jadwal(), J({ jenis_ibadah: "qadha_sholat", nama_detail: "subuh" })));
+  });
+
+  test("kunci wajib lengkap, tidak boleh ada field lain (mis. koordinat)", async () => {
+    const t = J();
+    delete t.nama_detail;
+    await assertFails(setDoc(jadwal(), t));
+    await assertFails(setDoc(jadwal(), J({ lat: -6.2, lng: 106.8 })));
+  });
+
+  test("ID dokumen = {id_pengingat}_{yyyyMMdd}", async () => {
+    await assertFails(setDoc(jadwal(ALICE, "default_2_20261105"), J()));
+    await assertFails(setDoc(jadwal(ALICE, "default_1_2026-11-05"), J()));
+    await assertFails(setDoc(jadwal(ALICE, "x_20261105"), J({ id_pengingat: "x y" })));
+  });
+});
+
+describe("users/{uid}: kode responden & persetujuan penelitian", () => {
+  const ref = (who = ALICE) => doc(db(who), "users", ALICE);
+  const LAMA = Timestamp.fromDate(new Date("2026-10-01T00:00:00Z"));
+  const tanpa = (k) => { const p = profil(); delete p[k]; return p; };
+
+  test("dokumen baru tanpa disetujui_pada ditolak", () =>
+    assertFails(setDoc(ref(), tanpa("disetujui_pada"))));
+
+  test("disetujui_pada harus waktu server, tidak boleh jam HP", () =>
+    assertFails(setDoc(ref(), profil({ disetujui_pada: Timestamp.now() }))));
+
+  test("disetujui_pada tidak berubah setelah tersimpan", async () => {
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA }));
+    await assertFails(setDoc(ref(), { disetujui_pada: serverTimestamp() }, { merge: true }));
+    await assertSucceeds(setDoc(ref(), { rentang_umur: "19-25" }, { merge: true }));
+  });
+
+  test("profil lama tanpa disetujui_pada: boleh mendapatkannya sekali (waktu server), boleh juga tidak", async () => {
+    await seed(`users/${ALICE}`, tanpa("disetujui_pada"));
+    await assertSucceeds(setDoc(ref(), { rentang_umur: "19-25" }, { merge: true }));
+    await assertFails(setDoc(ref(), { disetujui_pada: LAMA }, { merge: true }));
+    await assertSucceeds(setDoc(ref(), { disetujui_pada: serverTimestamp() }, { merge: true }));
+  });
+
+  test("kode_responden opsional: 4-20 huruf/angka/tanda hubung", async () => {
+    await assertSucceeds(setDoc(ref(), profil({ kode_responden: "UNPAM-017" })));
+    await env.clearFirestore();
+    await assertFails(setDoc(ref(), profil({ kode_responden: "AB1" })));
+    await assertFails(setDoc(ref(), profil({ kode_responden: "x".repeat(21) })));
+    await assertFails(setDoc(ref(), profil({ kode_responden: "kode spasi" })));
+    await assertFails(setDoc(ref(), profil({ kode_responden: 1234 })));
+    await assertSucceeds(setDoc(ref(), profil()));
+  });
+
+  test("kode_responden boleh ditambah, diganti, dan dihapus", async () => {
+    const { deleteField } = await import("firebase/firestore");
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA }));
+    await assertSucceeds(setDoc(ref(), { kode_responden: "R-0001" }, { merge: true }));
+    await assertSucceeds(setDoc(ref(), { kode_responden: "R-0002" }, { merge: true }));
+    await assertSucceeds(setDoc(ref(), { kode_responden: deleteField() }, { merge: true }));
+  });
+
+  test("orang lain tidak bisa menulis kode responden", async () => {
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA }));
+    await assertFails(setDoc(ref(BOB), { kode_responden: "R-0001" }, { merge: true }));
+  });
+});
+
+describe("users/{uid}: ditarik_pada (berhenti ikut penelitian)", () => {
+  const ref = (who = ALICE) => doc(db(who), "users", ALICE);
+  const LAMA = Timestamp.fromDate(new Date("2026-10-01T00:00:00Z"));
+  const peserta = () => seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA }));
+
+  test("pemilik boleh menandai ditarik_pada dengan waktu server (update seperti aplikasi)", async () => {
+    await peserta();
+    await assertSucceeds(updateDoc(ref(), { ditarik_pada: serverTimestamp() }));
+  });
+
+  test("ditarik_pada tidak boleh jam HP atau waktu lain", async () => {
+    await peserta();
+    await assertFails(updateDoc(ref(), { ditarik_pada: Timestamp.now() }));
+    await assertFails(updateDoc(ref(), { ditarik_pada: LAMA }));
+  });
+
+  test("ditarik_pada yang tersimpan tidak bisa digeser, tapi boleh dibiarkan saat profil diperbarui", async () => {
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA, ditarik_pada: LAMA }));
+    await assertFails(updateDoc(ref(), { ditarik_pada: Timestamp.fromDate(new Date("2026-10-02T00:00:00Z")) }));
+    await assertSucceeds(setDoc(ref(), { kode_responden: "R-0001" }, { merge: true }));
+  });
+
+  test("setuju lagi: pemilik boleh menghapus ditarik_pada", async () => {
+    const { deleteField } = await import("firebase/firestore");
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA, ditarik_pada: LAMA }));
+    await assertSucceeds(setDoc(ref(), { ditarik_pada: deleteField() }, { merge: true }));
+  });
+
+  test("orang lain tidak bisa menandai atau menghapus ditarik_pada", async () => {
+    const { deleteField } = await import("firebase/firestore");
+    await peserta();
+    await assertFails(updateDoc(ref(BOB), { ditarik_pada: serverTimestamp() }));
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA, ditarik_pada: LAMA }));
+    await assertFails(setDoc(ref(BOB), { ditarik_pada: deleteField() }, { merge: true }));
+  });
+
+  test("dokumen baru tidak boleh langsung berisi ditarik_pada", () =>
+    assertFails(setDoc(ref(), profil({ ditarik_pada: serverTimestamp() }))));
+
+  test("pengiriman profil aplikasi (merge + hapus ditarik_pada) lolos untuk dokumen baru maupun lama", async () => {
+    const { deleteField } = await import("firebase/firestore");
+    await assertSucceeds(setDoc(ref(), profil({ ditarik_pada: deleteField() }), { merge: true }));
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: LAMA, disetujui_pada: LAMA, ditarik_pada: LAMA }));
+    await assertSucceeds(setDoc(ref(), { rentang_umur: "26-35", ditarik_pada: deleteField() }, { merge: true }));
+  });
+
+  test("menandai ditarik_pada pada dokumen yang tidak ada ditolak (aplikasi menganggapnya selesai)", () =>
+    assertFails(updateDoc(ref(), { ditarik_pada: serverTimestamp() })));
+});
+
+describe("logs: Tertinggal untuk puasa & ibadah sunnah", () => {
+  beforeEach(seedPeserta);
+  const tt = (o = {}) => ({ status: "tidak", sumber_pencatatan: "buka_aplikasi", nama_detail_asli: null, ...o });
+
+  test("puasa sunnah & Ramadan: tidak dari kartu Beranda", async () => {
+    await assertSucceeds(tulisLog(tt({ jenis_ibadah: "puasa", nama_detail: "senin_kamis" })));
+    await assertSucceeds(tulisLog(tt({ jenis_ibadah: "puasa", nama_detail: "ramadan", sumber_pencatatan: "dari_notifikasi" })));
+  });
+
+  test("sholat sunnah (preset & buatan pengguna) dan qadha", async () => {
+    await assertSucceeds(tulisLog(tt({ jenis_ibadah: "sholat_sunnah", nama_detail: "dhuha" })));
+    await assertSucceeds(tulisLog(tt({ jenis_ibadah: "sholat_sunnah", nama_detail: "sunnah_lainnya" })));
+    await assertSucceeds(tulisLog(tt({ jenis_ibadah: "qadha_sholat", nama_detail: null })));
+  });
+
+  test("untuk jenis baru, tidak HANYA sebagai pengakuan (jam + sumber wajib)", async () => {
+    await assertFails(tulisLog(tt({ jenis_ibadah: "puasa", nama_detail: "senin_kamis", jam_pencatatan: null })));
+    await assertFails(tulisLog(tt({ jenis_ibadah: "puasa", nama_detail: "senin_kamis", jam_pencatatan: null, sumber_pencatatan: null })));
+    await assertFails(tulisLog(tt({ jenis_ibadah: "sholat_sunnah", nama_detail: "dhuha", sumber_pencatatan: "dari_notifikasi_dibuka" })));
+  });
+
+  test("tilawah & iqro tetap tanpa Tertinggal", async () => {
+    await assertFails(tulisLog(tt({ jenis_ibadah: "tilawah", nama_detail: "bacaan_harian", jumlah: 1, jumlah_ayat: 1, juz: 1 })));
+    await assertFails(tulisLog(tt({ jenis_ibadah: "iqro", nama_detail: null, jumlah: 1, jilid: 1 })));
+  });
+
+  test("Tertinggal lalu dikerjakan: tertimpa", async () => {
+    await assertSucceeds(tulisLog(tt({ jenis_ibadah: "puasa", nama_detail: "senin_kamis" })));
+    await assertSucceeds(tulisLog({ jenis_ibadah: "puasa", nama_detail: "senin_kamis", nama_detail_asli: null }));
+  });
+});
+
+describe("Anonymous Auth: tamu anonim", () => {
+  const ANON = "anonUid789";
+
+  test("menulis log, profil penelitian (dengan persetujuan), token, dan jadwal miliknya", async () => {
+    const d = dbAnonim(ANON);
+    // Urutan aplikasi: profil penelitian (dengan persetujuan) dulu, baru log.
+    await assertFails(setDoc(doc(d, "logs", logId({ user_id: ANON }, ANON)), log({ user_id: ANON })));
+    await assertSucceeds(setDoc(doc(d, "users", ANON), profil()));
+    await assertSucceeds(setDoc(doc(d, "logs", logId({ user_id: ANON }, ANON)), log({ user_id: ANON })));
+    await assertSucceeds(setDoc(doc(d, `users/${ANON}/meta/notifikasi`), { fcm_token: "t", fcm_token_diperbarui: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(d, `users/${ANON}/meta/profile`), { genderProfile: "FEMALE", isHaidhMode: false, haidhDates: [] }));
+    await assertSucceeds(setDoc(doc(d, `users/${ANON}/sunnah_habits/s1`), {
+      name: "Sholat Dhuha", category: "SHOLAT", frequencyLabel: "Setiap hari", reminderEnabled: false,
+      createdAt: Date.now(), updatedAt: Date.now() }));
+  });
+
+  test("tanpa persetujuan (disetujui_pada) users/{uid} anonim tidak bisa dibuat", async () => {
+    const p = profil();
+    delete p.disetujui_pada;
+    await assertFails(setDoc(doc(dbAnonim(ANON), "users", ANON), p));
+  });
+
+  test("tidak bisa membaca atau menulis data orang lain", async () => {
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: Timestamp.now() }));
+    await seed(`logs/${logId()}`, log());
+    const d = dbAnonim(ANON);
+    await assertFails(getDoc(doc(d, "users", ALICE)));
+    await assertFails(getDoc(doc(d, "logs", logId())));
+    await assertFails(setDoc(doc(d, "logs", logId()), log()));
+    await assertFails(setDoc(doc(d, "logs", logId({ user_id: ANON }, ALICE)), log({ user_id: ANON })));
+  });
+
+  test("setelah ditautkan ke Google (UID sama), data lama tetap bisa diperbarui", async () => {
+    await seed(`users/${ANON}`, profil({ tanggal_mulai: Timestamp.now() }));
+    const google = env.authenticatedContext(ANON, { firebase: { sign_in_provider: "google.com" } }).firestore();
+    await assertSucceeds(setDoc(doc(google, "users", ANON), { rentang_umur: "19-25" }, { merge: true }));
+  });
+
+  test("tanpa login sama sekali tetap ditolak", () =>
+    assertFails(setDoc(doc(anon(), "logs", logId()), log())));
+});
+
+describe("permintaan_hapus/{uid}: akun anonim yang menolak dihapus langsung", () => {
+  const ANON = "anonUid789";
+  const ref = (who = ANON, uid = ANON) => doc(dbAnonim(who), `permintaan_hapus/${uid}`);
+
+  test("pemilik mengajukan sekali dengan waktu server", async () => {
+    await assertSucceeds(setDoc(ref(), { diminta_pada: serverTimestamp() }));
+    await assertFails(setDoc(ref(), { diminta_pada: serverTimestamp() }));
+  });
+
+  test("waktu harus waktu server dan tidak boleh ada field lain", async () => {
+    await assertFails(setDoc(ref(), { diminta_pada: Timestamp.now() }));
+    await assertFails(setDoc(ref(), { diminta_pada: serverTimestamp(), alasan: "x" }));
+    await assertFails(setDoc(ref(), {}));
+  });
+
+  test("tidak bisa dibaca, diubah, atau dihapus dari aplikasi", async () => {
+    await seed(`permintaan_hapus/${ANON}`, { diminta_pada: Timestamp.now() });
+    await assertFails(getDoc(ref()));
+    await assertFails(updateDoc(ref(), { diminta_pada: serverTimestamp() }));
+    await assertFails(deleteDoc(ref()));
+  });
+
+  test("tidak bisa mengajukan atas nama UID lain", () =>
+    assertFails(setDoc(ref(ANON, ALICE), { diminta_pada: serverTimestamp() })));
+});
+
 describe("logs: struktur & kepemilikan", () => {
+  beforeEach(seedPeserta);
   test("log sholat wajib dikerjakan yang valid", () => assertSucceeds(tulisLog()));
 
   test("tanpa login ditolak", () =>
@@ -208,7 +602,8 @@ describe("logs: struktur & kepemilikan", () => {
 
   test("nama_detail harus cocok dengan jenis_ibadah", async () => {
     await assertFails(tulisLog({ nama_detail: "pagi" }));
-    await assertFails(tulisLog({ nama_detail: "jumat" }));
+    // "jumat" hanya sah untuk sholat_wajib (lihat blok sholat Jumat).
+    await assertFails(tulisLog({ jenis_ibadah: "sholat_sunnah", nama_detail: "jumat" }));
     await assertFails(tulisLog({ nama_detail: null }));
     await assertFails(tulisLog({ ...DZ, nama_detail: "subuh" }));
   });
@@ -218,6 +613,7 @@ describe("logs: struktur & kepemilikan", () => {
 });
 
 describe("logs: status tiga nilai", () => {
+  beforeEach(seedPeserta);
   test("dikerjakan wajib punya jam_pencatatan bertipe timestamp", async () => {
     await assertFails(tulisLog({ jam_pencatatan: null }));
     await assertFails(tulisLog({ jam_pencatatan: Date.now() }));
@@ -230,6 +626,13 @@ describe("logs: status tiga nilai", () => {
     await assertFails(tulisLog({ sumber_pencatatan: "widget" }));
   });
 
+  test("dari_notifikasi_dibuka sah untuk dikerjakan, tidak untuk baris tidak/udzur", async () => {
+    await assertSucceeds(tulisLog({ sumber_pencatatan: "dari_notifikasi_dibuka" }));
+    await assertFails(tulisLog({ status: "tidak", sumber_pencatatan: "dari_notifikasi_dibuka" }));
+    await assertFails(tulisLog({ status: "udzur", jam_pencatatan: null, sumber_pencatatan: "dari_notifikasi_dibuka" }));
+    await assertFails(tulisLog({ sumber_pencatatan: "dari_notifikasi_buka" }));
+  });
+
   test("tidak_diketahui hanya untuk dikerjakan, bukan pengganti null", async () => {
     await assertFails(tulisLog({ status: "tidak", jam_pencatatan: null, sumber_pencatatan: "tidak_diketahui" }));
     await assertFails(tulisLog({ status: "udzur", jam_pencatatan: null, sumber_pencatatan: "tidak_diketahui" }));
@@ -240,6 +643,25 @@ describe("logs: status tiga nilai", () => {
     await assertSucceeds(tulisLog({ status: "tidak", jam_pencatatan: null, sumber_pencatatan: null }));
     await assertFails(tulisLog({ status: "tidak", sumber_pencatatan: null }));
     await assertFails(tulisLog({ status: "tidak", jam_pencatatan: null }));
+  });
+
+  test("tidak dari tombol Tertinggal: sholat wajib, jam + sumber dari_notifikasi / buka_aplikasi", async () => {
+    const tt = { status: "tidak", sumber_pencatatan: "dari_notifikasi" };
+    await assertSucceeds(tulisLog(tt));
+    await assertFails(tulisLog({ ...tt, jam_pencatatan: null }));
+    // Tombol Tertinggal di kartu Beranda.
+    await assertSucceeds(tulisLog({ ...tt, sumber_pencatatan: "buka_aplikasi" }));
+    await assertFails(tulisLog({ ...DZ, ...tt, sumber_pencatatan: "buka_aplikasi", nama_detail: "dzikir_petang",
+      mode_pencatatan: null, waktu_dzikir: "petang" }));
+    await assertFails(tulisLog({ ...tt, sumber_pencatatan: "tidak_diketahui" }));
+    await assertFails(tulisLog({ ...tt, selisih_menit_dari_adzan: 5 }));
+    await assertFails(tulisLog({ ...DZ, ...tt, nama_detail: "dzikir_petang", mode_pencatatan: null, waktu_dzikir: "petang" }));
+    await assertFails(tulisLog({ status: "udzur", sumber_pencatatan: "dari_notifikasi" }));
+  });
+
+  test("tidak dari Tertinggal lalu dicentang: tertimpa jadi dikerjakan", async () => {
+    await assertSucceeds(tulisLog({ status: "tidak", sumber_pencatatan: "dari_notifikasi" }));
+    await assertSucceeds(tulisLog({ sumber_pencatatan: "buka_aplikasi" }));
   });
 
   test("tidak hanya untuk sholat wajib dan dzikir", async () => {
@@ -263,6 +685,7 @@ describe("logs: status tiga nilai", () => {
 });
 
 describe("logs: jumlah & jilid", () => {
+  beforeEach(seedPeserta);
   const tilawah = { jenis_ibadah: "tilawah", nama_detail: "bacaan_harian", nama_detail_asli: null, jumlah_ayat: 10, juz: 1 };
   const iqro = { jenis_ibadah: "iqro", nama_detail: null, nama_detail_asli: null };
 
@@ -306,6 +729,7 @@ describe("logs: jumlah & jilid", () => {
 });
 
 describe("logs: tilawah model rentang", () => {
+  beforeEach(seedPeserta);
   const t = { jenis_ibadah: "tilawah", nama_detail: "hafalan", nama_detail_asli: null, jumlah: 1, jumlah_ayat: 5, juz: 30 };
 
   test("batas jumlah halaman 1-604", async () => {
@@ -343,6 +767,7 @@ describe("logs: tilawah model rentang", () => {
 });
 
 describe("logs: offset_waktu & selisih_menit_dari_adzan", () => {
+  beforeEach(seedPeserta);
   test("offset_waktu wajib, format +HH:MM", async () => {
     for (const ok of ["+07:00", "+08:00", "+09:00", "-03:30", "+00:00", "+05:45"]) {
       await assertSucceeds(tulisLog({ offset_waktu: ok }));
@@ -378,6 +803,7 @@ describe("logs: offset_waktu & selisih_menit_dari_adzan", () => {
 });
 
 describe("logs: dzikir katalog + mode pencatatan", () => {
+  beforeEach(seedPeserta);
   test("sembilan slug katalog diterima (mode centang)", async () => {
     const slugs = ["dzikir_bada_sholat", "dzikir_pagi", "dzikir_petang", "dzikir_sebelum_tidur",
       "istighfar", "sholawat", "tahlil", "asmaul_husna"];
@@ -560,6 +986,7 @@ describe("habit dzikir (konfigurasi, bukan log)", () => {
 });
 
 describe("logs: bentuk ID per jenis", () => {
+  beforeEach(seedPeserta);
   const tilawah = { jenis_ibadah: "tilawah", nama_detail: "bacaan_harian", nama_detail_asli: null, jumlah_ayat: 10, juz: 1 };
   const qadha = { jenis_ibadah: "qadha_sholat", nama_detail: null, nama_detail_asli: "Qadha" };
 
@@ -619,6 +1046,7 @@ describe("logs: bentuk ID per jenis", () => {
 });
 
 describe("logs: baca, ubah, hapus", () => {
+  beforeEach(seedPeserta);
   beforeEach(async () => {
     await seed(`logs/${logId()}`, log());
     await seed(`logs/${logId({}, BOB)}`, log({ user_id: BOB }));
@@ -653,6 +1081,308 @@ describe("logs: baca, ubah, hapus", () => {
   test("hapus hanya oleh pemilik", async () => {
     await assertFails(deleteDoc(doc(db(BOB), "logs", logId())));
     await assertSucceeds(deleteDoc(doc(db(ALICE), "logs", logId())));
+  });
+});
+
+describe("meta/profile: profil ibadah permanen & rentang usia", () => {
+  const prof = (uid = ALICE) => doc(db(uid), `users/${uid}/meta/profile`);
+
+  test("dokumen v1.2.0 (punya rentangUsia): jenis kelamin sekali terisi tidak bisa diganti atau dikosongkan", async () => {
+    await assertSucceeds(setDoc(prof(), { genderProfile: "UNSPECIFIED", isHaidhMode: false, rentangUsia: "19-25" }));
+    await assertSucceeds(setDoc(prof(), { genderProfile: "FEMALE" }, { merge: true }));
+    await assertFails(setDoc(prof(), { genderProfile: "MALE" }, { merge: true }));
+    await assertFails(setDoc(prof(), { genderProfile: "UNSPECIFIED" }, { merge: true }));
+    // Field lain tetap bisa diubah selama jenis kelamin tidak disentuh atau sama.
+    await assertSucceeds(setDoc(prof(), { isHaidhMode: true, haidhDates: ["2026-10-14"] }, { merge: true }));
+    await assertSucceeds(setDoc(prof(), { genderProfile: "FEMALE", isHaidhMode: false }, { merge: true }));
+  });
+
+  test("dokumen v1.1.1 (tanpa rentangUsia): jenis kelamin masih boleh diganti", async () => {
+    await assertSucceeds(setDoc(prof(), { genderProfile: "FEMALE", isHaidhMode: false, haidhDates: [] }));
+    await assertSucceeds(setDoc(prof(), { genderProfile: "MALE" }, { merge: true }));
+    await assertSucceeds(setDoc(prof(), { genderProfile: "UNSPECIFIED" }, { merge: true }));
+    // Begitu rentangUsia tersimpan (onboarding v1.2.0), kunci berlaku.
+    await assertSucceeds(setDoc(prof(), { genderProfile: "FEMALE", rentangUsia: "19-25" }, { merge: true }));
+    await assertFails(setDoc(prof(), { genderProfile: "MALE" }, { merge: true }));
+  });
+
+  test("rentang usia & izin wali divalidasi, usia boleh berubah", async () => {
+    await assertSucceeds(setDoc(prof(), { rentangUsia: "15-18", izinWali: true }));
+    await assertSucceeds(setDoc(prof(), { rentangUsia: "19-25", izinWali: false }, { merge: true }));
+    await assertSucceeds(setDoc(prof(), { rentangUsia: ">35" }, { merge: true }));
+    // Kode lama (sebelum v1.2.0) tetap sah supaya dokumen lama bisa diperbarui.
+    await assertSucceeds(setDoc(prof(), { rentangUsia: "18+" }, { merge: true }));
+    await assertFails(setDoc(prof(), { rentangUsia: "20" }, { merge: true }));
+    await assertFails(setDoc(prof(), { izinWali: "ya" }, { merge: true }));
+    await assertFails(setDoc(prof(), { genderProfile: "lainnya" }, { merge: true }));
+  });
+
+  test("profil orang lain tetap tidak bisa ditulis", async () => {
+    await assertFails(setDoc(doc(db(BOB), `users/${ALICE}/meta/profile`), { genderProfile: "MALE" }));
+  });
+
+  test("field tak dikenal (role, isAdmin) ditolak saat dibuat maupun diubah", async () => {
+    await assertFails(setDoc(prof(), { name: "Alice", role: "admin" }));
+    await assertSucceeds(setDoc(prof(), { name: "Alice", updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(prof(), { role: "admin" }, { merge: true }));
+    await assertFails(setDoc(prof(), { isAdmin: true }, { merge: true }));
+    await assertFails(updateDoc(prof(), { updatedAt: 123 }));
+  });
+
+  test("semua field yang ditulis aplikasi tetap diterima", () =>
+    assertSucceeds(setDoc(prof(), {
+      name: "Alice", email: "a@b.c", genderProfile: "FEMALE", rentangUsia: "18+", izinWali: false,
+      isHaidhMode: false, haidhDates: [], avatarBase64: "abc", avatarUrl: null,
+      lastUsernameChangedAt: Date.now(), updatedAt: serverTimestamp(),
+    })));
+
+  test("dokumen lama dengan field lain tetap bisa diperbarui (field itu tidak disentuh)", async () => {
+    await seed(`users/${ALICE}/meta/profile`, { name: "Alice", fieldLama: "x" });
+    await assertSucceeds(setDoc(prof(), { isHaidhMode: true, updatedAt: serverTimestamp() }, { merge: true }));
+    await assertFails(setDoc(prof(), { fieldLama: "y" }, { merge: true }));
+  });
+});
+
+describe("logs: sholat Jumat (slot tengah hari)", () => {
+  beforeEach(seedPeserta);
+  const JUMAT = "2026-10-09"; // Jumat
+  const KAMIS = "2026-10-08";
+  const jumat = (o = {}) => ({ nama_detail: "jumat", nama_detail_asli: "Sholat Jumat", tanggal: JUMAT, ...o });
+  const dzuhur = (o = {}) => ({ nama_detail: "dzuhur", nama_detail_asli: "Sholat Dzuhur", tanggal: JUMAT, ...o });
+
+  test("jumat sah di hari Jumat, dengan selisih adzan & sumber seperti sholat wajib lain", async () => {
+    await assertSucceeds(tulisLog(jumat({ selisih_menit_dari_adzan: 25, sumber_pencatatan: "dari_notifikasi" })));
+  });
+
+  test("jumat ditolak di hari selain Jumat", () =>
+    assertFails(tulisLog(jumat({ tanggal: KAMIS }))));
+
+  test("dzuhur di hari biasa tidak terpengaruh", () =>
+    assertSucceeds(tulisLog(dzuhur({ tanggal: KAMIS }))));
+
+  test("ID dokumen jumat = {uid}_{tanggal}_sholat_wajib_jumat", async () => {
+    await assertFails(tulisLog(jumat(), { id: `${ALICE}_${JUMAT}_sholat_wajib_dzuhur` }));
+    await assertSucceeds(tulisLog(jumat(), { id: `${ALICE}_${JUMAT}_sholat_wajib_jumat` }));
+  });
+
+  test("Tertinggal Jumat (dari Beranda atau notifikasi), lalu dicentang", async () => {
+    await assertSucceeds(tulisLog(jumat({ status: "tidak", sumber_pencatatan: "buka_aplikasi" })));
+    await assertSucceeds(tulisLog(jumat({ sumber_pencatatan: "buka_aplikasi" })));
+  });
+
+  test("saling meniadakan: jumat ditolak bila dzuhur hari itu ada, dan sebaliknya", async () => {
+    await seed(`logs/${logId(dzuhur())}`, log(dzuhur()));
+    await assertFails(tulisLog(jumat()));
+    await env.clearFirestore();
+    await seed(`logs/${logId(jumat())}`, log(jumat()));
+    await assertFails(tulisLog(dzuhur()));
+    await assertFails(tulisLog(dzuhur({ status: "tidak", sumber_pencatatan: "dari_notifikasi" })));
+  });
+
+  test("ganti Jumat -> Dzuhur: hapus dulu lalu tulis (urutan sinkron aplikasi) atau dalam satu batch", async () => {
+    const { writeBatch } = await import("firebase/firestore");
+    await seed(`logs/${logId(jumat())}`, log(jumat()));
+    await assertSucceeds(deleteDoc(doc(db(ALICE), "logs", logId(jumat()))));
+    await assertSucceeds(tulisLog(dzuhur()));
+    // Kembali ke Jumat dalam satu batch.
+    const fs = db(ALICE);
+    const b = writeBatch(fs);
+    b.delete(doc(fs, "logs", logId(dzuhur())));
+    b.set(doc(fs, "logs", logId(jumat())), log(jumat()));
+    await assertSucceeds(b.commit());
+  });
+
+  test("menulis ulang slot yang sama (tidak -> dikerjakan) tetap boleh", async () => {
+    await seed(`logs/${logId(jumat())}`, log(jumat({ status: "tidak", sumber_pencatatan: "dari_notifikasi" })));
+    await assertSucceeds(tulisLog(jumat()));
+  });
+
+  test("catatan pengguna lain tidak mengganggu", async () => {
+    await seed(`logs/${logId(dzuhur({ user_id: BOB }), BOB)}`, log(dzuhur({ user_id: BOB })));
+    await assertSucceeds(tulisLog(jumat()));
+  });
+
+  test("Mode Cuti: udzur untuk jumat tetap mengikuti aturan sholat wajib", () =>
+    assertSucceeds(tulisLog(jumat({ status: "udzur", jam_pencatatan: null, sumber_pencatatan: null,
+      nama_detail_asli: null }))));
+});
+
+describe("logs: tanggal tidak boleh di masa depan", () => {
+  beforeEach(seedPeserta);
+  // Tanggal kalender UTC, digeser n hari dari sekarang.
+  const hari = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+
+  test("hari ini, kemarin, dan besok (selisih zona waktu) diterima", async () => {
+    await assertSucceeds(tulisLog({ tanggal: hari(0) }));
+    await assertSucceeds(tulisLog({ tanggal: hari(-1) }));
+    await assertSucceeds(tulisLog({ tanggal: hari(1) }));
+  });
+
+  test("lusa dan seterusnya ditolak", async () => {
+    await assertFails(tulisLog({ tanggal: hari(2) }));
+    await assertFails(tulisLog({ tanggal: "2099-01-01" }));
+  });
+
+  test("tanggal mustahil ditolak", () => assertFails(tulisLog({ tanggal: "2026-02-31" })));
+
+  test("dokumen lama tidak bisa digeser ke masa depan lewat update", async () => {
+    const lama = log({ tanggal: hari(0) });
+    await seed(`logs/${logId(lama)}`, lama);
+    await assertFails(setDoc(doc(db(ALICE), "logs", logId(lama)), { ...lama, tanggal: "2099-01-01" }));
+  });
+});
+
+describe("admin hanya lewat token", () => {
+  const adminDb = (claims) => env.authenticatedContext(ALICE, claims).firestore();
+
+  test("role admin di meta/profile tidak memberi akses admin", async () => {
+    await seed(`users/${ALICE}/meta/profile`, { role: "admin" });
+    await assertFails(setDoc(doc(db(ALICE), "app_config/flags"), { x: 1 }));
+    await assertFails(setDoc(doc(db(ALICE), "hadith_contents/h1"), { x: 1 }));
+  });
+
+  test("custom claim admin tetap bisa menulis konten", async () => {
+    await assertSucceeds(setDoc(doc(adminDb({ admin: true }), "app_config/flags"), { x: 1 }));
+    await assertSucceeds(setDoc(doc(adminDb({ role: "admin" }), "surah_verses/s1"), { x: 1 }));
+  });
+});
+
+// Tiruan PERSIS tiap tulisan Firestore v1.1.1 (commit 636bd8f, versi di Play Store).
+// Long Kotlin = integer; FieldValue.serverTimestamp() = serverTimestamp();
+// SetOptions.merge() = { merge: true }; FieldValue.delete() = deleteField().
+describe("regresi v1.1.1 (636bd8f): tulisan persis versi produksi", () => {
+  const profilRef = (who = ALICE) => doc(db(who), `users/${ALICE}/meta/profile`);
+  const sunnahRef = (id = "7b3f0c2e-1d4a-4c8e-9f21-0a1b2c3d4e5f") => doc(db(ALICE), `users/${ALICE}/sunnah_habits/${id}`);
+  const completionRef = (id = `${TGL}_default_1`) => doc(db(ALICE), `users/${ALICE}/habit_completions/${id}`);
+  const AWAL = Timestamp.fromDate(new Date("2026-09-01T00:00:00Z"));
+
+  // AuthRepository.syncUserPreferences: ganti jenis kelamin, toggle Mode Cuti, dismissGenderPrompt.
+  const syncUserPreferences = (gender, isHaidhMode, haidhDates) =>
+    setDoc(profilRef(), { genderProfile: gender, isHaidhMode, haidhDates, updatedAt: serverTimestamp() }, { merge: true });
+
+  // Dokumen profil khas pengguna v1.1.1 (tanpa rentangUsia / izinWali).
+  const profilV111 = (o = {}) => ({
+    name: "Fatimah", email: "fatimah@example.com", genderProfile: "FEMALE",
+    isHaidhMode: false, haidhDates: [], updatedAt: AWAL, ...o,
+  });
+
+  // UserHabitRepository.syncUpsertToCloud: set() 9 field tanpa merge.
+  const sunnahV111 = (o = {}) => ({
+    name: "Sholat Dhuha", category: "SHOLAT", frequencyLabel: "Setiap hari", rakaat: 2,
+    reminderEnabled: true, reminderTime: "08:00", completedDateKey: null,
+    createdAt: 1790000000000, updatedAt: 1790000000000, ...o,
+  });
+
+  const completionV111 = (o = {}) => ({
+    habitKey: "default_1", dateKey: TGL, category: "Sholat Fardhu", source: "DEFAULT",
+    createdAt: 1790000000000, ...o,
+  });
+
+  test("login pertama: upsertProfileBasics (name, email, updatedAt) membuat meta/profile", () =>
+    assertSucceeds(setDoc(profilRef(),
+      { name: "Fatimah", email: "fatimah@example.com", updatedAt: serverTimestamp() }, { merge: true })));
+
+  test("login berikutnya: upsertProfileBasics memperbarui dokumen yang ada", async () => {
+    await seed(`users/${ALICE}/meta/profile`, profilV111());
+    await assertSucceeds(setDoc(profilRef(),
+      { name: "Fatimah Az", email: "fatimah@example.com", updatedAt: serverTimestamp() }, { merge: true }));
+  });
+
+  test("ganti nama: name + lastUsernameChangedAt (Long ms) + updatedAt", async () => {
+    await seed(`users/${ALICE}/meta/profile`, profilV111());
+    await assertSucceeds(setDoc(profilRef(),
+      { name: "Nama Baru", lastUsernameChangedAt: 1793000000000, updatedAt: serverTimestamp() }, { merge: true }));
+  });
+
+  test("unggah avatar lalu hapus avatar (FieldValue.delete)", async () => {
+    const { deleteField } = await import("firebase/firestore");
+    await seed(`users/${ALICE}/meta/profile`, profilV111());
+    await assertSucceeds(setDoc(profilRef(),
+      { avatarBase64: "iVBORw0KGgo" + "A".repeat(5000), updatedAt: serverTimestamp() }, { merge: true }));
+    await assertSucceeds(setDoc(profilRef(),
+      { avatarBase64: deleteField(), updatedAt: serverTimestamp() }, { merge: true }));
+  });
+
+  test("toggle Mode Cuti beserta tanggalnya (nyala lalu mati)", async () => {
+    await seed(`users/${ALICE}/meta/profile`, profilV111());
+    await assertSucceeds(syncUserPreferences("FEMALE", true, ["2026-11-01", "2026-11-02"]));
+    await assertSucceeds(syncUserPreferences("FEMALE", false, ["2026-11-01", "2026-11-02", "2026-11-03"]));
+  });
+
+  test("ganti jenis kelamin di Pengaturan, lalu Mode Cuti tetap tersinkron", async () => {
+    await seed(`users/${ALICE}/meta/profile`, profilV111({ genderProfile: "MALE" }));
+    await assertSucceeds(syncUserPreferences("FEMALE", false, []));
+    await assertSucceeds(syncUserPreferences("FEMALE", true, ["2026-11-04"]));
+  });
+
+  test("dismissGenderPrompt mengirim jenis kelamin lokal (bisa UNSPECIFIED) di atas yang tersimpan", async () => {
+    await seed(`users/${ALICE}/meta/profile`, profilV111({ genderProfile: "MALE" }));
+    await assertSucceeds(syncUserPreferences("UNSPECIFIED", false, []));
+  });
+
+  test("dismissGenderPrompt sebelum dokumen ada (membuat dokumen)", () =>
+    assertSucceeds(syncUserPreferences("UNSPECIFIED", false, [])));
+
+  test("sunnah_habits: upsert 9 field persis (termasuk null)", async () => {
+    await assertSucceeds(setDoc(sunnahRef(), sunnahV111()));
+    await assertSucceeds(setDoc(sunnahRef(), sunnahV111({ rakaat: null, reminderEnabled: false, reminderTime: null,
+      completedDateKey: TGL, updatedAt: 1793000000000 })));
+    await assertSucceeds(setDoc(sunnahRef("p1"), sunnahV111({ name: "Puasa Senin Kamis", category: "PUASA",
+      frequencyLabel: "Hari: Sen • Kam", rakaat: null })));
+  });
+
+  test("habit_completions: DEFAULT dan SUNNAH", async () => {
+    await assertSucceeds(setDoc(completionRef(), completionV111({ createdAt: Date.now() })));
+    await assertSucceeds(setDoc(completionRef(`${TGL}_7b3f0c2e`), completionV111({
+      habitKey: "7b3f0c2e", category: "SHOLAT", source: "SUNNAH", createdAt: Date.now() })));
+  });
+
+  test("baca: fetchUserPreferences, sunnah & completion (restore saat login)", async () => {
+    await seed(`users/${ALICE}/meta/profile`, profilV111());
+    await assertSucceeds(getDoc(profilRef()));
+    await assertSucceeds(getDocs(collection(db(ALICE), `users/${ALICE}/sunnah_habits`)));
+    await assertSucceeds(getDocs(collection(db(ALICE), `users/${ALICE}/habit_completions`)));
+  });
+
+  test("hapus habit sunnah & batal centang (delete dokumen)", async () => {
+    await seed(`users/${ALICE}/sunnah_habits/s1`, sunnahV111());
+    await seed(`users/${ALICE}/habit_completions/${TGL}_default_1`, completionV111());
+    await assertSucceeds(deleteDoc(sunnahRef("s1")));
+    await assertSucceeds(deleteDoc(completionRef()));
+  });
+
+  test("hapus akun: batch delete sunnah + completion, lalu delete meta/profile", async () => {
+    const { writeBatch } = await import("firebase/firestore");
+    await seed(`users/${ALICE}/sunnah_habits/s1`, sunnahV111());
+    await seed(`users/${ALICE}/habit_completions/${TGL}_default_1`, completionV111());
+    await seed(`users/${ALICE}/meta/profile`, profilV111());
+    const fs = db(ALICE); // batch & referensinya harus dari instance yang sama
+    const b = writeBatch(fs);
+    b.delete(doc(fs, `users/${ALICE}/sunnah_habits/s1`));
+    b.delete(doc(fs, `users/${ALICE}/habit_completions/${TGL}_default_1`));
+    await assertSucceeds(b.commit());
+    await assertSucceeds(deleteDoc(profilRef()));
+  });
+
+  test("hapus akun gagal: pemulihan dari cadangan (null dibuang, updatedAt jadi Timestamp)", async () => {
+    const { writeBatch } = await import("firebase/firestore");
+    // Cadangan v1.1.1 = doc.data() dengan nilai null dibuang; batch.set tanpa merge.
+    const cadanganSunnah = sunnahV111();
+    for (const k of Object.keys(cadanganSunnah)) if (cadanganSunnah[k] === null) delete cadanganSunnah[k];
+    const cadanganProfil = profilV111({ avatarBase64: "iVBORw0KGgo", lastUsernameChangedAt: 1793000000000,
+      haidhDates: ["2026-10-20"], isHaidhMode: true });
+    const fs = db(ALICE); // batch & referensinya harus dari instance yang sama
+    const b = writeBatch(fs);
+    b.set(doc(fs, `users/${ALICE}/sunnah_habits/s1`), cadanganSunnah);
+    b.set(doc(fs, `users/${ALICE}/habit_completions/${TGL}_default_1`), completionV111());
+    await assertSucceeds(b.commit());
+    // Profil dipulihkan dengan set(profileData, merge).
+    await assertSucceeds(setDoc(profilRef(), cadanganProfil, { merge: true }));
+  });
+
+  test("profil dari versi lebih lama (avatarUrl) tetap bisa diperbarui v1.1.1", async () => {
+    await seed(`users/${ALICE}/meta/profile`, profilV111({ avatarUrl: "https://x/y.png" }));
+    await assertSucceeds(syncUserPreferences("FEMALE", true, ["2026-11-04"]));
   });
 });
 
@@ -694,4 +1424,37 @@ describe("regresi: path lama v1.1.1 tetap berfungsi", () => {
 
   test("path tak dikenal tetap ditolak", () =>
     assertFails(setDoc(doc(db(ALICE), "sembarang/x"), { a: 1 })));
+});
+
+describe("logs: hanya peserta aktif (celah 3)", () => {
+  const ref = (uid = ALICE) => doc(db(uid), "logs", logId({ user_id: uid }, uid));
+
+  test("tanpa users/{uid} log ditolak", () =>
+    assertFails(setDoc(ref(), log())));
+
+  test("users/{uid} tanpa disetujui_pada: log ditolak", async () => {
+    const p = profil({ tanggal_mulai: MULAI });
+    delete p.disetujui_pada;
+    await seed(`users/${ALICE}`, p);
+    await assertFails(setDoc(ref(), log()));
+  });
+
+  test("peserta aktif boleh menulis dan memperbarui log", async () => {
+    await seedPeserta();
+    await assertSucceeds(setDoc(ref(), log()));
+    await assertSucceeds(setDoc(ref(), log({ sumber_pencatatan: "dari_notifikasi" })));
+  });
+
+  test("setelah berhenti ikut (ditarik_pada): tulis & ubah ditolak, hapus tetap boleh", async () => {
+    await seedPeserta();
+    await assertSucceeds(setDoc(ref(), log()));
+    await seed(`users/${ALICE}`, profil({ tanggal_mulai: MULAI, disetujui_pada: MULAI, ditarik_pada: MULAI }));
+    await assertFails(setDoc(ref(), log({ sumber_pencatatan: "dari_notifikasi" })));
+    await assertSucceeds(deleteDoc(ref()));
+  });
+
+  test("profil penelitian orang lain tidak bisa dipakai untuk menulis log atas nama sendiri", async () => {
+    await seed(`users/${BOB}`, profil({ tanggal_mulai: MULAI, disetujui_pada: MULAI }));
+    await assertFails(setDoc(ref(ALICE), log()));
+  });
 });

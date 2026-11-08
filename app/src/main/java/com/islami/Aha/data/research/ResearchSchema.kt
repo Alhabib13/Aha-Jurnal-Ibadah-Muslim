@@ -15,12 +15,58 @@ object ResearchSchema {
         const val RENTANG_UMUR = "rentang_umur"
         const val STATUS_AKTIVITAS = "status_aktivitas"
         const val TANGGAL_MULAI = "tanggal_mulai"
+        /**
+         * Ibadah yang dicentang pengguna di onboarding ("biasa dilakukan"), sebagai snapshot
+         * yang tidak ikut berubah saat habit ditambah/dihapus. null = tidak menjawab (dilewati
+         * atau pengguna lama), [] = menjawab "belum ada yang rutin". Fakta awal, BUKAN label.
+         */
+        const val PILIHAN_AWAL = "pilihan_awal"
+        /** Build.MANUFACTURER; untuk mengukur keandalan notifikasi per merek HP. Opsional. */
+        const val MANUFAKTUR = "manufaktur"
+        /**
+         * Kode dari peneliti untuk responden yang direkrut langsung (opsional). Memisahkan
+         * responden dari pengguna umum Play Store saat menarik data.
+         */
+        const val KODE_RESPONDEN = "kode_responden"
+        /** Waktu server saat profil pertama dikirim setelah pengguna menyetujui penelitian. */
+        const val DISETUJUI_PADA = "disetujui_pada"
+        /**
+         * Waktu server saat pengguna berhenti ikut penelitian (sakelar dimatikan / menolak).
+         * Dihapus lagi bila ia kembali setuju. Data lama tidak dihapus; ekspor dataset
+         * mengeluarkan dokumen yang memiliki field ini.
+         */
+        const val DITARIK_PADA = "ditarik_pada"
+        /** 4-20 huruf/angka/tanda hubung; sama dengan firestore.rules. */
+        val KODE_RESPONDEN_POLA = Regex("^[A-Za-z0-9-]{4,20}$")
+
+        /**
+         * Nilai [PILIHAN_AWAL] yang dikirim. null ("Lewati" = tidak menjawab) TETAP null dan []
+         * ("Belum ada yang rutin") tetap []. Kode yang tidak dikenal dibuang; bila semuanya tidak
+         * dikenal hasilnya null, bukan [] — jangan sampai jawaban berubah jadi "belum ada yang rutin".
+         */
+        fun normalisasiPilihanAwal(pilihan: Set<String>?): List<String>? {
+            if (pilihan == null) return null
+            if (pilihan.isEmpty()) return emptyList()
+            return pilihan.filter { it in PILIHAN_AWAL_VALUES }.sorted().ifEmpty { null }
+        }
+
+        /** Kode yang diketik pengguna: dipangkas; kosong = null; tidak sah = null. */
+        fun normalisasiKodeResponden(teks: String?): String? =
+            teks?.trim()?.takeIf { it.isNotEmpty() && KODE_RESPONDEN_POLA.matches(it) }
 
         const val LAKI_LAKI = "laki_laki"
         const val PEREMPUAN = "perempuan"
 
         val RENTANG_UMUR_VALUES = listOf("<15", "15-18", "19-25", "26-35", ">35")
         val STATUS_AKTIVITAS_VALUES = listOf("pelajar", "mahasiswa", "pekerja", "lainnya")
+        /** Nilai sah [PILIHAN_AWAL] (= nama_detail, unik lintas jenis; "iqro" untuk Iqro). */
+        val PILIHAN_AWAL_VALUES = listOf(
+            "dhuha", "tahajud", "witir", "rawatib",
+            "senin_kamis", "ayyamul_bidh", "daud",
+            "dzikir_bada_sholat", "dzikir_pagi", "dzikir_petang", "dzikir_sebelum_tidur",
+            "istighfar", "sholawat", "tahlil", "asmaul_husna",
+            "bacaan_harian", "hafalan", "iqro"
+        )
     }
 
     object Log {
@@ -66,6 +112,8 @@ object ResearchSchema {
     object Detail {
         const val SUBUH = "subuh"
         const val DZUHUR = "dzuhur"
+        /** Sholat Jumat (laki-laki, hari Jumat) mengisi slot tengah hari menggantikan Dzuhur. */
+        const val JUMAT = "jumat"
         const val ASHAR = "ashar"
         const val MAGHRIB = "maghrib"
         const val ISYA = "isya"
@@ -137,19 +185,26 @@ object ResearchSchema {
     }
 
     object Sumber {
+        /** Tombol "Sudah"/"Tertinggal" langsung di notifikasi pengingat. */
         const val DARI_NOTIFIKASI = "dari_notifikasi"
+        /**
+         * Pengguna mengetuk BADAN notifikasi pengingat, aplikasi terbuka, lalu ibadah yang
+         * diingatkan itu dicatat (pencatatan pertama dalam sesi itu, maks. 30 menit).
+         * Lihat util/NotifikasiSesi.
+         */
+        const val DARI_NOTIFIKASI_DIBUKA = "dari_notifikasi_dibuka"
+        /** Pengguna membuka aplikasi sendiri lalu mencatat (Beranda, Statistik, dzikir/tilawah/Iqro). */
         const val BUKA_APLIKASI = "buka_aplikasi"
         /**
-         * Dipakai sampai Tahap 4 (penanda notifikasi) selesai. Mengisi "buka_aplikasi"
-         * sebelum itu adalah data salah: ketukan notifikasi ikut tercatat sebagai buka
-         * aplikasi. Pipeline analisis membuang baris bernilai ini.
+         * Hanya dari versi sebelum v1.2.0 (sebelum notifikasi bisa dibedakan). Tidak lagi
+         * ditulis aplikasi; tetap sah di rules untuk baris lama. Pipeline membuang nilai ini.
          */
         const val TIDAK_DIKETAHUI = "tidak_diketahui"
     }
 
     /** nama_detail yang sah per jenis_ibadah; iqro & qadha_sholat tidak punya detail. */
     val DETAIL_PER_JENIS: Map<String, Set<String>> = mapOf(
-        Jenis.SHOLAT_WAJIB to setOf(Detail.SUBUH, Detail.DZUHUR, Detail.ASHAR, Detail.MAGHRIB, Detail.ISYA),
+        Jenis.SHOLAT_WAJIB to setOf(Detail.SUBUH, Detail.DZUHUR, Detail.JUMAT, Detail.ASHAR, Detail.MAGHRIB, Detail.ISYA),
         Jenis.SHOLAT_SUNNAH to setOf(
             Detail.TAHAJUD, Detail.DHUHA, Detail.RAWATIB, Detail.WITIR, Detail.TARAWIH,
             Detail.TAUBAT, Detail.ISTIKHARAH, Detail.SUNNAH_LAINNYA
@@ -171,6 +226,13 @@ object ResearchSchema {
 
     /** Slot harian tetap: satu-satunya jenis yang boleh punya baris status "tidak". */
     val JENIS_BOLEH_TIDAK = setOf(Jenis.SHOLAT_WAJIB, Jenis.DZIKIR)
+
+    /**
+     * Jenis yang punya tombol "Tertinggal" (pengakuan pengguna, jam + sumber wajib): sholat wajib,
+     * dan sejak v1.2.0 juga puasa serta habit sunnah buatan pengguna. Untuk jenis selain
+     * [JENIS_BOLEH_TIDAK], "tidak" HANYA ada sebagai pengakuan, tidak pernah hasil penyimpulan.
+     */
+    val JENIS_BOLEH_TERTINGGAL = setOf(Jenis.SHOLAT_WAJIB, Jenis.SHOLAT_SUNNAH, Jenis.QADHA_SHOLAT, Jenis.PUASA)
 
     /**
      * Ibadah yang gugur saat Mode Cuti: satu-satunya jenis yang boleh berstatus "udzur".
@@ -272,8 +334,8 @@ object ResearchMapping {
     private val FARDHU_BY_NAME = mapOf(
         "sholat subuh" to ResearchSchema.Detail.SUBUH,
         "sholat dzuhur" to ResearchSchema.Detail.DZUHUR,
-        // Pengganti Dzuhur di hari Jumat; detail tetap dzuhur, nama asli menyimpan "Jumat".
-        "sholat jumat" to ResearchSchema.Detail.DZUHUR,
+        // Pengganti Dzuhur di hari Jumat (laki-laki): slot tengah hari yang sama, detail sendiri.
+        "sholat jumat" to ResearchSchema.Detail.JUMAT,
         "sholat ashar" to ResearchSchema.Detail.ASHAR,
         "sholat maghrib" to ResearchSchema.Detail.MAGHRIB,
         "sholat isya" to ResearchSchema.Detail.ISYA

@@ -39,7 +39,7 @@ object NotificationScheduler {
         GENTLE(
             value = "gentle",
             displayName = "Lembut",
-            description = "Tetap berbunyi dengan prioritas lebih rendah"
+            description = "Berbunyi tanpa muncul melayang di layar"
         ),
         SILENT(
             value = "silent",
@@ -117,28 +117,16 @@ object NotificationScheduler {
         return hash and 0x7FFFFFFF
     }
 
-    fun createNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val notificationManager = context.getSystemService(NotificationManager::class.java)
-            if (notificationManager.getNotificationChannel(CHANNEL_ID) != null) {
-                return
-            }
+    /**
+     * Menyiapkan channel notifikasi (dan memigrasikan channel versi lama). Lihat [KanalNotifikasi].
+     * Nama dipertahankan karena dipanggil dari AhaApplication & BootCompletedReceiver.
+     */
+    fun createNotificationChannel(context: Context) = KanalNotifikasi.pastikan(context)
 
-            val channel = buildNotificationChannel(getChannelSettings(context))
-            notificationManager.createNotificationChannel(channel)
-            debugLog("Notification channel created: $CHANNEL_ID")
-        }
-    }
-
-    fun applyChannelSettings(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val notificationManager = context.getSystemService(NotificationManager::class.java)
-            notificationManager.deleteNotificationChannel(CHANNEL_ID)
-            notificationManager.createNotificationChannel(buildNotificationChannel(getChannelSettings(context)))
-            debugLog("Notification channel recreated with latest settings")
-        }
-    }
-
+    /**
+     * Pilihan suara/getar umum versi lama. Hanya dibaca sekali saat migrasi channel; tidak ada
+     * lagi pemilih suara di aplikasi (diatur per channel di Pengaturan Android).
+     */
     fun getChannelSettings(context: Context): NotificationChannelSettings {
         val prefs = SecurePrefsProvider.get(context)
         return NotificationChannelSettings(
@@ -164,6 +152,23 @@ object NotificationScheduler {
         }.getOrDefault(true)
     }
 
+    /**
+     * Android 12+: tanpa izin "Alarm & pengingat", pengingat dijadwalkan longgar dan bisa telat
+     * sampai ~1 jam. Sejak Android 14 izin ini mati secara bawaan untuk pemasangan baru.
+     */
+    fun canScheduleExactAlarms(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        return runCatching { alarmManager.canScheduleExactAlarms() }.getOrDefault(true)
+    }
+
+    /** Halaman sistem untuk mengizinkan "Alarm & pengingat" bagi aplikasi ini. */
+    fun exactAlarmSettingsIntent(context: Context): Intent? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+        return Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+            .setData(android.net.Uri.parse("package:${context.packageName}"))
+    }
+
     fun getNotificationCapability(context: Context): NotificationCapability {
         return runCatching {
             if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
@@ -178,44 +183,12 @@ object NotificationScheduler {
             ) {
                 return@runCatching NotificationCapability.PERMISSION_DENIED
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val notificationManager = context.getSystemService(NotificationManager::class.java)
-                val channel = notificationManager.getNotificationChannel(CHANNEL_ID)
-                if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
-                    return@runCatching NotificationCapability.CHANNEL_DISABLED
-                }
-            }
+            // Channel yang dimatikan pengguna ditangani Android per channel (notifikasinya tidak
+            // tampil); yang lain tetap berjalan, jadi tidak ada satu channel umum yang dicek.
             NotificationCapability.AVAILABLE
         }.getOrDefault(NotificationCapability.AVAILABLE)
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun buildNotificationChannel(
-        settings: NotificationChannelSettings
-    ): NotificationChannel {
-        val importance = when (settings.soundOption) {
-            NotificationSoundOption.SYSTEM_DEFAULT -> NotificationManager.IMPORTANCE_HIGH
-            NotificationSoundOption.GENTLE -> NotificationManager.IMPORTANCE_DEFAULT
-            NotificationSoundOption.SILENT -> NotificationManager.IMPORTANCE_LOW
-        }
-
-        return NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
-            description = "Pengingat untuk ibadah harian"
-            setSound(
-                getSoundUri(settings.soundOption),
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-            enableVibration(settings.vibrationEnabled)
-            if (settings.vibrationEnabled) {
-                vibrationPattern = longArrayOf(0, 180, 80, 180)
-            } else {
-                vibrationPattern = longArrayOf(0)
-            }
-        }
-    }
 
     fun scheduleHabitReminder(
         context: Context,

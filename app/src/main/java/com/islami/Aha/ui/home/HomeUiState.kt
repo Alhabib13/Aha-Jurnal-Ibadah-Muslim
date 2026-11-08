@@ -27,13 +27,15 @@ data class DzikirHabitUi(
     val targetHitungan: Int?,
     /** Jumlah sesi yang dicatat hari ini (0 = belum dicatat, BUKAN "tidak dikerjakan"). */
     val sesiHariIni: Int,
-    val jamTerakhir: String?
+    val jamTerakhir: String?,
+    /** ResearchSchema.WaktuDzikir, untuk ikon & warna kartu. */
+    val waktu: String = ""
 ) {
     val dicatatHariIni: Boolean get() = sesiHariIni > 0
 }
 
 /** Posisi terakhir Iqro/metode sejenis. */
-data class IqroProgressUi(val jilid: Int, val halaman: Int, val tanggal: String)
+data class IqroProgressUi(val jilid: Int, val halaman: Int, val tanggal: String, val jam: String = "")
 
 internal const val BELUM_ADA = "Belum ada"
 internal const val MODE_CUTI_AKTIF = "Mode Cuti aktif"
@@ -52,12 +54,24 @@ data class HomeUiState(
     val nextPrayerName: String = "",
     val nextPrayerTimeRemaining: String = "",
     val nextPrayerProgress: Float = 0f,
+    /** Jam sholat berikutnya ("HH.mm") dan sisa menitnya, untuk hitung mundur. */
+    val nextPrayerJam: String = "",
+    val nextPrayerMenit: Int = -1,
+    /** Imsak & Terbit dari API jadwal (kosong = belum pernah sinkron lokasi). */
+    val jadwalImsak: String = "",
+    val jadwalTerbit: String = "",
     val prayerTimeSource: String = "DEFAULT",
     val prayerTimeLastSyncAtMs: Long = 0L,
     val prayerTimeStatusText: String = "",
     val isJumatEnabled: Boolean = false,
     val isHaidhMode: Boolean = false,
     val genderProfile: GenderProfile = GenderProfile.UNSPECIFIED,
+    /** Pengguna dari v1.1.1: jenis kelamin yang perlu ditegaskan di kartu "Lengkapi profil"; null = tidak perlu. */
+    val konfirmasiGender: GenderProfile? = null,
+    /** Jenis kelamin belum diisi (dilewati di onboarding): kartu Lengkapi profil menanyakannya. */
+    val pilihGender: Boolean = false,
+    /** Usia & kesibukan sudah terisi: setelah memilih jenis kelamin kartu langsung selesai. */
+    val usiaLengkap: Boolean = false,
     val puasaWajibRamadanEnabled: Boolean = true,
     val ramadanScheduleByLocationEnabled: Boolean = true,
     val sholatTarawihEnabled: Boolean = true,
@@ -82,10 +96,22 @@ data class HomeUiState(
     val isRamadanMonth: Boolean = DateUtils.isRamadanMonth(),
     val showGenderPrompt: Boolean = false,
     val showResearchNotice: Boolean = false,
+    /** Kartu "Lengkapi profil penelitian": ikut penelitian tapi usia/kesibukan belum diisi. */
+    val tampilLengkapiProfil: Boolean = false,
     /** Habit dzikir pilihan pengguna; kosong = Beranda menampilkan pintu masuk netral, bukan 0/0. */
     val dzikirHabits: List<DzikirHabitUi> = emptyList(),
     val tilawahSessions: List<TilawahSessionUi> = emptyList(),
     val iqroProgress: IqroProgressUi? = null,
+    /** Sholat fardhu hari ini: nama_detail -> jam pencatatan "HH.mm" (dari research_logs). */
+    val jamSholatDicatat: Map<String, String> = emptyMap(),
+    /** Sholat fardhu hari ini: nama_detail -> status ("dikerjakan" / "tidak" / "udzur"). */
+    val statusSholatHariIni: Map<String, String> = emptyMap(),
+    /** Semua catatan hari ini: slotKey -> status; kartu puasa & sunnah (Tertinggal). */
+    val statusSlotHariIni: Map<String, String> = emptyMap(),
+    /** Tanggal milik [statusSlotHariIni] (yyyy-MM-dd). */
+    val tanggalStatus: String = "",
+    /** Slot tengah hari hari ini: "jumat" (laki-laki di hari Jumat) atau "dzuhur". */
+    val detailTengahHariIni: String = com.islami.Aha.data.research.ResearchSchema.Detail.DZUHUR,
     val tilawahJenisDipilih: String = com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN,
     /** Posisi AKHIR sesi terakhir per jenis sesi Al-Qur'an. */
     val tilawahPenanda: Map<String, com.islami.Aha.data.quran.AyatPosition?> = emptyMap(),
@@ -93,6 +119,92 @@ data class HomeUiState(
     val tilawahTargetHalaman: Int? = null,
     val showKhatamDialog: Boolean = false
 ) {
+    /** Judul bagian sesuai kategori yang dipilih. */
+    val judulBagian: String
+        get() = when (selectedMainCategory) {
+            "Sholat" -> "Sholat hari ini"
+            "Puasa" -> "Puasa hari ini"
+            "Dzikir" -> "Dzikir hari ini"
+            "Tilawah" -> "Tilawah hari ini"
+            else -> "Habit hari ini"
+        }
+
+    val keteranganBagian: String?
+        get() = if (isDzikirCategory && dzikirHabits.isNotEmpty()) "Ketuk Catat setiap selesai berdzikir" else null
+
+    /** Warna kontrol segmen mengikuti kategori. */
+    val warnaSegmen: Pair<Long, Long>
+        get() = when (selectedMainCategory) {
+            "Puasa" -> 0xFF7C4DE0 to 0xFFFFFFFF
+            "Tilawah" -> 0xFFEDB84E to 0xFF3A2400
+            else -> 0xFF2ECC9B to 0xFF062B1F
+        }
+
+    /** Imsak, Subuh, Terbit, Dzuhur, Ashar, Maghrib, Isya — untuk kartu waktu sholat. */
+    val jadwalHarian: List<JadwalWaktu>
+        get() = susunJadwalHarian(allHabits, jadwalImsak, jadwalTerbit, currentTime)
+
+    /** "01:27" — jam:menit menuju sholat berikutnya. */
+    val hitungMundur: String
+        get() = if (nextPrayerMenit < 0) "" else "%02d:%02d".format(nextPrayerMenit / 60, nextPrayerMenit % 60)
+
+    /** Habit bawaan (sholat wajib, puasa Ramadan) yang ditandai "Tertinggal" hari ini (dan belum dicentang). */
+    fun tertinggal(habit: com.islami.Aha.data.model.Habit): Boolean {
+        if (habit.isCompleted) return false
+        val slot = com.islami.Aha.data.research.ResearchMapping.fromDefaultHabit(habit.name, habit.category) ?: return false
+        if (slot.jenisIbadah == com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB) {
+            return statusSholatHariIni[slot.namaDetail] == com.islami.Aha.data.research.ResearchSchema.Status.TIDAK
+        }
+        return statusSlot(com.islami.Aha.data.research.SlotRef(slot, null)) == com.islami.Aha.data.research.ResearchSchema.Status.TIDAK
+    }
+
+    /** Habit sunnah/puasa buatan pengguna yang ditandai "Tertinggal" hari ini. */
+    fun tertinggal(habit: com.islami.Aha.domain.model.SunnahHabit): Boolean {
+        if (habit.isCompletedToday) return false
+        val ref = com.islami.Aha.data.research.ResearchLogRepository
+            .slotForSunnahHabit(habit.id, habit.name, habit.category.name) ?: return false
+        return statusSlot(ref) == com.islami.Aha.data.research.ResearchSchema.Status.TIDAK
+    }
+
+    /** Kartu habit sunnah/puasa ini punya tombol Tertinggal. */
+    fun bisaTertinggal(habit: com.islami.Aha.domain.model.SunnahHabit): Boolean =
+        com.islami.Aha.data.research.ResearchLogRepository.slotForSunnahHabit(habit.id, habit.name, habit.category.name)
+            ?.slot?.jenisIbadah in com.islami.Aha.data.research.ResearchSchema.JENIS_BOLEH_TERTINGGAL
+
+    private fun statusSlot(ref: com.islami.Aha.data.research.SlotRef): String? {
+        if (tanggalStatus.isEmpty()) return null
+        val key = runCatching {
+            com.islami.Aha.data.research.ResearchSchema.slotKey(tanggalStatus, ref.slot.jenisIbadah, ref.slot.namaDetail, ref.localId)
+        }.getOrNull() ?: return null
+        return statusSlotHariIni[key]
+    }
+
+    /** Kartu sholat wajib (yang punya tombol Tertinggal). */
+    fun sholatWajib(habit: com.islami.Aha.data.model.Habit): Boolean =
+        com.islami.Aha.data.research.ResearchMapping.fromDefaultHabit(habit.name, habit.category)?.jenisIbadah ==
+            com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB
+
+    /**
+     * Opsi tukar slot tengah hari di kartu itu (laki-laki, hari Jumat): true = kartu sedang Jumat
+     * dan bisa diganti Dzuhur; false = sedang Dzuhur dan bisa kembali ke Jumat; null = tidak berlaku.
+     */
+    fun opsiJumat(habit: com.islami.Aha.data.model.Habit): Boolean? {
+        if (!isJumatEnabled || !isFriday || habit.category != "Sholat Fardhu") return null
+        return when (habit.name) {
+            com.islami.Aha.data.research.SholatJumat.NAMA_JUMAT -> true
+            com.islami.Aha.data.research.SholatJumat.NAMA_DZUHUR -> false
+            else -> null
+        }
+    }
+
+    /** Jam pencatatan sholat fardhu yang sudah dicentang hari ini; null bila tidak diketahui. */
+    fun jamDicatat(habit: com.islami.Aha.data.model.Habit): String? {
+        if (!habit.isCompleted) return null
+        val slot = com.islami.Aha.data.research.ResearchMapping.fromDefaultHabit(habit.name, habit.category) ?: return null
+        if (slot.jenisIbadah != com.islami.Aha.data.research.ResearchSchema.Jenis.SHOLAT_WAJIB) return null
+        return jamSholatDicatat[slot.namaDetail]
+    }
+
     val bacaanHarianHalamanToday: Int
         get() = tilawahSessions
             .filter { it.jenisSesi == com.islami.Aha.data.research.ResearchSchema.Detail.BACAAN_HARIAN }
@@ -186,10 +298,7 @@ data class HomeUiState(
         get() = selectedMainCategory in comingSoonCategories
 
     val isFriday: Boolean
-        get() {
-            val calendar = Calendar.getInstance()
-            return calendar.get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY
-        }
+        get() = com.islami.Aha.util.DateUtils.hariIni().dayOfWeek == java.time.DayOfWeek.FRIDAY
 
     val filteredHabits: List<Habit>
         get() {
@@ -206,8 +315,10 @@ data class HomeUiState(
                 
                 true
             }.map { habit ->
-                if (isJumatEnabled && isFriday && habit.name == "Sholat Dzuhur") {
-                    habit.copy(name = "Sholat Jumat")
+                if (detailTengahHariIni == com.islami.Aha.data.research.ResearchSchema.Detail.JUMAT &&
+                    habit.name == com.islami.Aha.data.research.SholatJumat.NAMA_DZUHUR
+                ) {
+                    habit.copy(name = com.islami.Aha.data.research.SholatJumat.NAMA_JUMAT)
                 } else {
                     habit
                 }
@@ -272,30 +383,32 @@ data class HomeUiState(
             }
             // Sholat & puasa tidak dihitung selama Mode Cuti: angka apa pun di sini salah.
             isHaidhMode && (selectedMainCategory == "Sholat" || selectedMainCategory == "Puasa") -> MODE_CUTI_AKTIF
+            // Judulnya "Sholat/Puasa hari ini": hitung seluruh kategori, bukan hanya sub-tab yang dibuka.
+            selectedMainCategory == "Sholat" || selectedMainCategory == "Puasa" ->
+                hitunganKategori(selectedMainCategory).let { (selesai, total) ->
+                    if (total == 0) BELUM_ADA else "$selesai/$total selesai"
+                }
             totalHabitsCount == 0 -> BELUM_ADA
             else -> null
         }
 
+    /** (selesai, total) hari ini untuk "Sholat" atau "Puasa", fardhu/wajib + sunnah. */
+    private fun hitunganKategori(mainCategory: String): Pair<Int, Int> {
+        val habits = allHabits.filter {
+            it.category.startsWith(mainCategory) &&
+                !(it.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled)) &&
+                !(it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled))
+        }
+        val jenisSunnah = if (mainCategory == "Sholat") SunnahCategoryType.SHOLAT else SunnahCategoryType.PUASA
+        val sunnah = sunnahHabits.filter { it.category == jenisSunnah }
+        return (habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }) to (habits.size + sunnah.size)
+    }
+
     fun getCategoryBadge(mainCategory: String): String {
         return when (mainCategory) {
-            "Sholat" -> {
+            "Sholat", "Puasa" -> {
                 if (isHaidhMode) return "Cuti"
-                val habits = allHabits.filter { it.category.startsWith("Sholat") }
-                    .filterNot { it.category == "Sholat Tarawih" && (!isRamadanMonth || !sholatTarawihEnabled) }
-                val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.SHOLAT }
-                val completed = habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }
-                val total = habits.size + sunnah.size
-                if (total == 0) BELUM_ADA else "$completed/$total"
-            }
-            "Puasa" -> {
-                if (isHaidhMode) return "Cuti"
-                val habits = allHabits.filter {
-                    it.category.startsWith("Puasa") &&
-                        !(it.category == "Puasa Wajib" && (!isRamadanMonth || !puasaWajibRamadanEnabled))
-                }
-                val sunnah = sunnahHabits.filter { it.category == SunnahCategoryType.PUASA }
-                val completed = habits.count { it.isCompleted } + sunnah.count { it.isCompletedToday }
-                val total = habits.size + sunnah.size
+                val (completed, total) = hitunganKategori(mainCategory)
                 // Di luar Ramadan tanpa puasa sunnah: "tidak ada", bukan hitungan 0/0.
                 if (total == 0) BELUM_ADA else "$completed/$total"
             }

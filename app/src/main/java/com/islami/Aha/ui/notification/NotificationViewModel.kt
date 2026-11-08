@@ -33,7 +33,10 @@ data class NotificationUiState(
     val sunnahHabitToDelete: SunnahHabit? = null,
     val showEditSunnahDialog: Boolean = false,
     val sunnahHabitToEdit: SunnahHabit? = null,
-    val snackbarMessage: String? = null
+    val snackbarMessage: String? = null,
+    val notificationSound: NotificationScheduler.NotificationSoundOption =
+        NotificationScheduler.NotificationSoundOption.SYSTEM_DEFAULT,
+    val vibrationEnabled: Boolean = true
 ) {
     val deleteTargetName: String
         get() = habitToDelete?.name ?: sunnahHabitToDelete?.name ?: ""
@@ -48,12 +51,16 @@ class NotificationViewModel @Inject constructor(
     private val featureConfigRepository: FeatureConfigRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
-        NotificationUiState(
-            globalNotificationEnabled = sharedPreferences.getBoolean(
-                NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED,
-                true
+        NotificationScheduler.getChannelSettings(context).let { channel ->
+            NotificationUiState(
+                globalNotificationEnabled = sharedPreferences.getBoolean(
+                    NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED,
+                    true
+                ),
+                notificationSound = channel.soundOption,
+                vibrationEnabled = channel.vibrationEnabled
             )
-        )
+        }
     )
     val uiState: StateFlow<NotificationUiState> = _uiState.asStateFlow()
 
@@ -301,6 +308,9 @@ class NotificationViewModel @Inject constructor(
             hideDeleteConfirmation()
         }
     }
+
+    // === Pengaturan notifikasi (dipindah dari layar Pengaturan) ===
+
 
     fun clearSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }

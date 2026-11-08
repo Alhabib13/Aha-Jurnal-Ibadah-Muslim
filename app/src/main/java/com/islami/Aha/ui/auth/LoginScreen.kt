@@ -62,6 +62,9 @@ fun LoginScreen(
     onNavigateToHome: () -> Unit = {}
 ) {
     val uiState by viewModel.loginState.collectAsStateWithLifecycle()
+    uiState.konfirmasiPindahAkun?.let { baris ->
+        DialogPindahAkun(baris = baris, onLanjut = viewModel::setujuiPindahAkun, onBatal = viewModel::batalkanPindahAkun)
+    }
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
     var toastMessage by remember { mutableStateOf<String?>(null) }

@@ -1,6 +1,24 @@
 package com.islami.Aha.ui.home.components
 
+import com.islami.Aha.ui.theme.teks
+
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.foundation.border
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -65,17 +83,11 @@ fun namaSurah(surah: Int): String = QuranData.NAMA_SURAH[surah - 1]
 
 fun labelPosisi(pos: AyatPosition): String = "${namaSurah(pos.surah)} ${pos.surah}:${pos.ayat}"
 
-@Composable
-private fun TilawahCardShell(content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) { content() }
-    }
-}
+private val EmasTua = Color(0xFFB8741F)
+private val EmasTengah = Color(0xFFD9952F)
+private val EmasMuda = Color(0xFFEDB84E)
+private val CoklatTeks = Color(0xFF2B1A00)
+private val CoklatRedup = Color(0xFF4A2E00)
 
 @Composable
 fun TilawahQuranSection(
@@ -100,51 +112,55 @@ fun TilawahQuranSection(
         terakhir ?: AyatPosition.AWAL
     }
     var showUbahPosisi by remember { mutableStateOf(false) }
+    var showTarget by remember { mutableStateOf(false) }
 
-    TilawahCardShell {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-            JENIS_LABEL.forEach { (jenis, label) ->
-                FilterChip(selected = jenisDipilih == jenis, onClick = { onSelectJenis(jenis) }, label = { Text(label) })
-            }
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        KartuPosisi(
+            jenisLabel = JENIS_LABEL[jenisDipilih].orEmpty(),
+            isBacaanHarian = isBacaanHarian,
+            posisi = if (isBacaanHarian) awalDefault else terakhir,
+            targetHalaman = targetHalaman,
+            hariIni = bacaanHarianHariIni,
+            onUbahPosisi = { showUbahPosisi = true },
+            onAturTarget = { showTarget = true }
+        )
+        // key: isian rentang direset saat jenis sesi atau titik awal default berubah.
+        androidx.compose.runtime.key(jenisDipilih, awalDefault) {
+            KartuCatatSesi(
+                jenisDipilih = jenisDipilih,
+                awalDefault = awalDefault,
+                onSelectJenis = onSelectJenis,
+                onSave = { dari, sampai -> onSave(jenisDipilih, dari, sampai) }
+            )
         }
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    if (isBacaanHarian) "Lanjut dari" else "Terakhir",
-                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                val shown = if (isBacaanHarian) awalDefault else terakhir
-                Text(
-                    shown?.let { "${labelPosisi(it)} · Juz ${QuranCalculator.juzOf(it)} · hlm ${QuranCalculator.halamanOf(it)}" }
-                        ?: "Belum ada sesi",
-                    fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            TextButton(onClick = { showUbahPosisi = true }) { Text("Ubah posisi") }
-        }
-        if (isBacaanHarian) {
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            TargetHarianRow(targetHalaman, bacaanHarianHariIni, onSetTarget)
-        }
-    }
-
-    // key: isian rentang direset saat jenis sesi atau titik awal default berubah.
-    androidx.compose.runtime.key(jenisDipilih, awalDefault) {
-        RentangInputCard(awalDefault = awalDefault, onSave = { dari, sampai -> onSave(jenisDipilih, dari, sampai) })
-    }
-
-    if (sessions.isNotEmpty()) {
-        TilawahCardShell {
-            Text("Sesi hari ini", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+        if (sessions.isNotEmpty()) {
+            Text("Sesi hari ini", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             sessions.forEach { s ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "${JENIS_LABEL[s.jenisSesi] ?: s.jenisSesi} · ${s.ayat} ayat · ${s.halaman} hlm · Juz ${s.juz} · ${s.jam}",
-                        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f)
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(start = 14.dp, top = 8.dp, bottom = 8.dp, end = 4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(EmasMuda.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) { Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null, tint = EmasMuda.teks(), modifier = Modifier.size(18.dp)) }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "${JENIS_LABEL[s.jenisSesi] ?: s.jenisSesi} · ${s.halaman} halaman",
+                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text("${s.ayat} ayat · Juz ${s.juz} · ${s.jam}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     IconButton(onClick = { onDeleteSession(s.slotKey) }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Hapus sesi ${JENIS_LABEL[s.jenisSesi]} ${s.ayat} ayat")
+                        Icon(Icons.Filled.Delete, contentDescription = "Hapus sesi ${JENIS_LABEL[s.jenisSesi]} ${s.ayat} ayat", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -152,176 +168,219 @@ fun TilawahQuranSection(
     }
 
     if (showUbahPosisi) {
-        UbahPosisiDialog(
-            judul = "Ubah posisi ${JENIS_LABEL[jenisDipilih]?.lowercase()}",
-            keterangan = "Pilih ayat terakhir yang sudah dibaca.",
+        PilihAyatSheet(
+            judul = "Ayat terakhir yang sudah dibaca",
             awal = terakhir ?: AyatPosition.AWAL,
-            onConfirm = { onSetPenanda(jenisDipilih, it); showUbahPosisi = false },
+            onPilih = { onSetPenanda(jenisDipilih, it); showUbahPosisi = false },
             onDismiss = { showUbahPosisi = false }
         )
     }
+    if (showTarget) {
+        AlertDialog(
+            onDismissRequest = { showTarget = false },
+            title = { Text("Target bacaan harian") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Berapa halaman per hari? Boleh tanpa target.", fontSize = 13.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                        FilterChip(selected = targetHalaman == null, onClick = { onSetTarget(null); showTarget = false }, label = { Text("Tanpa") })
+                        TARGET_PILIHAN.forEach { n ->
+                            FilterChip(selected = targetHalaman == n, onClick = { onSetTarget(n); showTarget = false }, label = { Text("$n hlm") })
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showTarget = false }) { Text("Tutup") } }
+        )
+    }
 }
 
+/** Kartu emas: posisi terakhir / lanjutan, plus target harian (hanya bacaan harian). */
 @Composable
-private fun TargetHarianRow(target: Int?, hariIni: Int, onSetTarget: (Int?) -> Unit) {
-    Text(
-        when {
-            target == null -> "Target harian belum diatur"
-            hariIni == 0 -> "Target $target hlm/hari · hari ini belum dicatat"
-            hariIni >= target -> "Target $target hlm/hari · hari ini $hariIni hlm ✓"
-            else -> "Target $target hlm/hari · hari ini $hariIni hlm"
-        },
-        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-    Spacer(Modifier.height(4.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-        FilterChip(selected = target == null, onClick = { onSetTarget(null) }, label = { Text("Tanpa") })
-        TARGET_PILIHAN.forEach { n ->
-            FilterChip(selected = target == n, onClick = { onSetTarget(n) }, label = { Text("$n hlm") })
+private fun KartuPosisi(
+    jenisLabel: String,
+    isBacaanHarian: Boolean,
+    posisi: AyatPosition?,
+    targetHalaman: Int?,
+    hariIni: Int,
+    onUbahPosisi: () -> Unit,
+    onAturTarget: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Brush.linearGradient(listOf(EmasTua, EmasTengah, EmasMuda)))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                (if (isBacaanHarian) "LANJUT BACAAN HARIAN" else "${jenisLabel.uppercase()} TERAKHIR"),
+                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CoklatRedup, letterSpacing = 0.5.sp,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onUbahPosisi, colors = ButtonDefaults.textButtonColors(contentColor = CoklatTeks)) {
+                Text("Ubah posisi", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+        }
+        if (posisi != null) {
+            Column {
+                Text("${namaSurah(posisi.surah)} · ayat ${posisi.ayat}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = CoklatTeks)
+                Text(
+                    "Juz ${QuranCalculator.juzOf(posisi)} · halaman ${QuranCalculator.halamanOf(posisi)}",
+                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CoklatRedup
+                )
+            }
+        } else {
+            Text("Belum ada sesi", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = CoklatTeks)
+        }
+        if (isBacaanHarian) {
+            if (targetHalaman != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Target hari ini", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CoklatTeks, modifier = Modifier.weight(1f))
+                    Text(
+                        if (hariIni == 0) "belum dicatat · $targetHalaman hlm" else "$hariIni dari $targetHalaman halaman",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CoklatTeks
+                    )
+                }
+                LinearProgressIndicator(
+                    progress = { (hariIni.toFloat() / targetHalaman).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                    color = CoklatTeks,
+                    trackColor = CoklatTeks.copy(alpha = 0.18f),
+                    drawStopIndicator = {}
+                )
+                Text(
+                    "Ubah target",
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CoklatTeks,
+                    modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onAturTarget).padding(vertical = 4.dp)
+                )
+            } else {
+                Text(
+                    "Atur target harian",
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CoklatTeks,
+                    modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onAturTarget).padding(vertical = 4.dp)
+                )
+            }
         }
     }
 }
 
+/** Catat sesi: titik mulai otomatis (bisa diubah), pengguna cukup memilih "Baca sampai". */
 @Composable
-private fun RentangInputCard(awalDefault: AyatPosition, onSave: (AyatPosition, AyatPosition) -> Unit) {
+private fun KartuCatatSesi(
+    jenisDipilih: String,
+    awalDefault: AyatPosition,
+    onSelectJenis: (String) -> Unit,
+    onSave: (AyatPosition, AyatPosition) -> Unit
+) {
     var dari by remember { mutableStateOf(awalDefault) }
     var sampai by remember { mutableStateOf(awalDefault) }
+    var ubahMulai by remember { mutableStateOf(false) }
+    var ubahSampai by remember { mutableStateOf(false) }
     val hasil = QuranCalculator.hitung(dari, sampai)
 
-    TilawahCardShell {
-        PositionPicker(label = "Dari", value = dari, onChange = { dari = it; if (sampai < it) sampai = it })
-        Spacer(Modifier.height(12.dp))
-        PositionPicker(label = "Sampai", value = sampai, onChange = { sampai = it })
-        HorizontalDivider(Modifier.padding(vertical = 12.dp))
-        Text(
-            hasil?.let { "${it.jumlahAyat} ayat · ${it.jumlahHalaman} halaman · mulai Juz ${it.juzAwal}" }
-                ?: "\"Sampai\" harus sesudah \"Dari\"",
-            fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            color = if (hasil != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-        )
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = { hasil?.let { onSave(it.dari, it.sampai) } }, enabled = hasil != null, modifier = Modifier.fillMaxWidth()) {
-            Text("Selesai")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            JENIS_LABEL.forEach { (jenis, label) ->
+                FilterChip(
+                    selected = jenisDipilih == jenis,
+                    onClick = { onSelectJenis(jenis) },
+                    label = { Text(label) },
+                    shape = CircleShape,
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = EmasMuda,
+                        selectedLabelColor = Color(0xFF3A2400)
+                    )
+                )
+            }
         }
+        BarisPosisi(label = "Mulai dari", posisi = dari, menonjol = false, onClick = { ubahMulai = true })
+        BarisPosisi(label = "Baca sampai", posisi = sampai, menonjol = true, onClick = { ubahSampai = true })
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            val halAwal = QuranCalculator.halamanOf(dari)
+            AssistChip(onClick = { sampai = QuranCalculator.akhirHalaman(halAwal) }, label = { Text("+1 halaman") }, shape = CircleShape)
+            AssistChip(
+                onClick = { sampai = QuranCalculator.akhirHalaman((halAwal + 1).coerceAtMost(QuranData.TOTAL_HALAMAN)) },
+                label = { Text("+2 halaman") },
+                shape = CircleShape
+            )
+            AssistChip(onClick = { sampai = QuranCalculator.akhirJuz(QuranCalculator.juzOf(dari)) }, label = { Text("Sampai akhir juz") }, shape = CircleShape)
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                hasil?.let { "${it.jumlahAyat} ayat · ${it.jumlahHalaman} halaman" } ?: "\"Sampai\" harus sesudah titik mulai",
+                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                color = if (hasil != null) Color(0xFFF2C66D).teks() else MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f)
+            )
+            Button(
+                onClick = { hasil?.let { onSave(it.dari, it.sampai) } },
+                enabled = hasil != null,
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = EmasMuda, contentColor = CoklatTeks)
+            ) { Text("Simpan sesi", fontWeight = FontWeight.Bold) }
+        }
+    }
+
+    if (ubahMulai) {
+        PilihAyatSheet(
+            judul = "Mulai dari ayat",
+            awal = dari,
+            onPilih = { dari = it; if (sampai < it) sampai = it; ubahMulai = false },
+            onDismiss = { ubahMulai = false }
+        )
+    }
+    if (ubahSampai) {
+        PilihAyatSheet(
+            judul = "Baca sampai ayat",
+            awal = sampai,
+            minimal = dari,
+            onPilih = { sampai = it; ubahSampai = false },
+            onDismiss = { ubahSampai = false }
+        )
     }
 }
 
-/**
- * Pemilih posisi dengan dua cara masuk: per surah, atau PILIH JUZ dulu (lebih cepat bagi
- * yang membaca per juz) lalu surah & ayat di dalam juz itu.
- */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Baris posisi yang bisa diketuk: membuka lembar pemilih ayat. */
 @Composable
-fun PositionPicker(label: String, value: AyatPosition, onChange: (AyatPosition) -> Unit) {
-    var modeJuz by rememberSaveable { mutableStateOf(false) }
-    val juzSekarang = QuranCalculator.juzOf(value)
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        FilterChip(selected = !modeJuz, onClick = { modeJuz = false }, label = { Text("Surah") })
-        Spacer(Modifier.width(6.dp))
-        FilterChip(selected = modeJuz, onClick = { modeJuz = true }, label = { Text("Juz") })
-    }
-    if (modeJuz) {
-        SimpleDropdown(
-            label = "Juz",
-            selectedText = "Juz $juzSekarang",
-            items = (1..QuranData.TOTAL_JUZ).map { j ->
-                val awal = QuranCalculator.awalJuz(j)
-                j to "Juz $j · mulai ${labelPosisi(awal)}"
-            },
-            onSelect = { j -> onChange(QuranCalculator.awalJuz(j)) }
-        )
-        Spacer(Modifier.height(6.dp))
-    }
-    val surahPilihan = if (modeJuz) QuranCalculator.surahDalamJuz(juzSekarang) else 1..114
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1.6f)) {
-            SimpleDropdown(
-                label = "Surah",
-                selectedText = "${value.surah}. ${namaSurah(value.surah)}",
-                items = surahPilihan.map { s -> s to "$s. ${namaSurah(s)} (${QuranData.JUMLAH_AYAT[s - 1]} ayat)" },
-                onSelect = { s -> onChange(AyatPosition(s, 1)) }
+private fun BarisPosisi(label: String, posisi: AyatPosition, menonjol: Boolean, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.background)
+            .then(
+                if (menonjol) Modifier.border(1.dp, EmasMuda.copy(alpha = 0.6f), RoundedCornerShape(16.dp)) else Modifier
+            )
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, fontSize = 12.sp, color = if (menonjol) EmasMuda.teks() else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+            Text(
+                "${namaSurah(posisi.surah)} ${posisi.ayat}",
+                fontSize = if (menonjol) 17.sp else 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                "Juz ${QuranCalculator.juzOf(posisi)} · halaman ${QuranCalculator.halamanOf(posisi)}",
+                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Spacer(Modifier.width(8.dp))
-        AyatField(
-            surah = value.surah,
-            ayat = value.ayat,
-            onChange = { a -> onChange(AyatPosition(value.surah, a)) },
-            modifier = Modifier.weight(1f)
-        )
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-}
-
-@Composable
-private fun AyatField(surah: Int, ayat: Int, onChange: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val maks = QuranData.JUMLAH_AYAT[surah - 1]
-    var text by remember(surah, ayat) { mutableStateOf(ayat.toString()) }
-    OutlinedTextField(
-        value = text,
-        onValueChange = { input ->
-            text = input.filter(Char::isDigit).take(3)
-            text.toIntOrNull()?.takeIf { it in 1..maks }?.let(onChange)
-        },
-        label = { Text("Ayat") },
-        singleLine = true,
-        isError = text.toIntOrNull()?.let { it !in 1..maks } ?: true,
-        supportingText = { Text("1–$maks") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = modifier
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SimpleDropdown(
-    label: String,
-    selectedText: String,
-    items: List<Pair<Int, String>>,
-    onSelect: (Int) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = selectedText,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            singleLine = true,
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            items.forEach { (id, text) ->
-                DropdownMenuItem(text = { Text(text) }, onClick = { onSelect(id); expanded = false })
-            }
-        }
-    }
-}
-
-@Composable
-private fun UbahPosisiDialog(
-    judul: String,
-    keterangan: String,
-    awal: AyatPosition,
-    onConfirm: (AyatPosition) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var pos by remember { mutableStateOf(awal) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(judul) },
-        text = {
-            Column {
-                Text(keterangan, fontSize = 13.sp)
-                Spacer(Modifier.height(8.dp))
-                PositionPicker(label = "Posisi", value = pos, onChange = { pos = it })
-            }
-        },
-        confirmButton = { Button(onClick = { onConfirm(pos) }, enabled = pos.isValid) { Text("Simpan") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
-    )
 }
 
 /** Khatam: diberitahukan dulu, tidak di-reset diam-diam. */
@@ -337,17 +396,5 @@ fun KhatamDialog(onDismiss: () -> Unit) {
             )
         },
         confirmButton = { Button(onClick = onDismiss) { Text("Mulai lagi dari ${namaSurah(1)}") } }
-    )
-}
-
-/** Atribusi wajib lisensi CC BY 3.0 untuk data halaman & juz. */
-@Composable
-fun TanzilAttribution() {
-    Text(
-        "Data halaman & juz: Tanzil.net (CC BY 3.0)",
-        fontSize = 11.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
     )
 }

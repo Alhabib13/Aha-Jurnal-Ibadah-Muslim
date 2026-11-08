@@ -70,7 +70,6 @@ data class SettingsUiState(
     val showTimeFormatDialog: Boolean = false,
     val showThemeModeDialog: Boolean = false,
     val showGenderDialog: Boolean = false,
-    val showNotificationSoundDialog: Boolean = false,
     val showChangePasswordDialog: Boolean = false,
     val showAccountSecurityDialog: Boolean = false,
     val isEmailVerified: Boolean = false,
@@ -89,6 +88,12 @@ data class SettingsUiState(
     val showDeleteAccountConfirmation: Boolean = false,
     val isChangingPassword: Boolean = false,
     val isDeletingAccount: Boolean = false,
+    /** Masuk lewat Google: tanpa kata sandi Aha; konfirmasi hapus akun lewat pemilih akun Google. */
+    val isGoogleUser: Boolean = false,
+    /** Konfirmasi hapus akun pengguna Google: layar meluncurkan pemilih akun Google. */
+    val requestGoogleReAuth: Boolean = false,
+    /** Kata sandi baru saja berhasil diganti (halaman Ubah kata sandi kembali sendiri). */
+    val passwordChanged: Boolean = false,
     val isLoggingOut: Boolean = false,
     val showReAuthDialog: Boolean = false,
 
@@ -108,7 +113,9 @@ class SettingsViewModel @Inject constructor(
     private val sharedPreferences: SharedPreferences,
     private val authRepository: AuthRepository,
     private val userHabitRepository: com.islami.Aha.data.repository.UserHabitRepository,
-    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository
+    private val researchLogRepository: com.islami.Aha.data.research.ResearchLogRepository,
+    /** null hanya di unit test lama; logout lalu langsung signOut. */
+    private val penyimpanToken: com.islami.Aha.data.notifikasi.PenyimpanTokenFcm? = null
 ) : ViewModel() {
     companion object {
         private const val VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
@@ -121,6 +128,7 @@ class SettingsViewModel @Inject constructor(
         SettingsUiState(
             themeMode = ThemeManager.themeMode.value,
             isLoggedIn = authRepository.isLoggedIn,
+            isGoogleUser = authRepository.isGoogleOnlyUser,
             userEmail = authRepository.currentUser?.email.orEmpty(),
             notificationEnabled = sharedPreferences.getBoolean(
                 NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED,
@@ -185,7 +193,12 @@ class SettingsViewModel @Inject constructor(
 
     fun setGenderProfile(profile: com.islami.Aha.util.GenderProfile) {
         viewModelScope.launch {
-            com.islami.Aha.util.UserPreferencesManager.setGender(profile)
+            val login = authRepository.currentUser != null
+            if (!com.islami.Aha.util.UserPreferencesManager.setGender(profile, belumTerkirim = login)) {
+                // Profil ibadah permanen: sudah diisi, tidak bisa diganti.
+                hideGenderDialog()
+                return@launch
+            }
             val res = authRepository.syncUserPreferences(
                 gender = profile.name,
                 isHaidhMode = com.islami.Aha.util.UserPreferencesManager.isHaidhMode.value,
@@ -193,6 +206,7 @@ class SettingsViewModel @Inject constructor(
             )
             hideGenderDialog()
             res.onSuccess {
+                if (login) com.islami.Aha.util.UserPreferencesManager.genderTerkirim()
                 showSnackbar(appContext.getString(R.string.settings_snackbar_profile_updated))
             }.onFailure { err ->
                 val errorMsg = appContext.getString(R.string.error_sync_cloud, err.message ?: "")
@@ -204,78 +218,6 @@ class SettingsViewModel @Inject constructor(
     fun setThemeMode(mode: com.islami.Aha.ui.theme.ThemeMode) {
         ThemeManager.setThemeMode(mode)
         _uiState.update { it.copy(themeMode = mode, showThemeModeDialog = false) }
-    }
-
-    // === Notifikasi ===
-
-    fun toggleNotification() {
-        val enabled = !_uiState.value.notificationEnabled
-        if (enabled) {
-            val capability = NotificationScheduler.getNotificationCapability(appContext)
-            if (capability != NotificationScheduler.NotificationCapability.AVAILABLE) {
-                showSnackbar(
-                    when (capability) {
-                        NotificationScheduler.NotificationCapability.PERMISSION_DENIED ->
-                            appContext.getString(com.islami.Aha.R.string.notification_permission_required_message)
-                        NotificationScheduler.NotificationCapability.SYSTEM_DISABLED ->
-                            appContext.getString(com.islami.Aha.R.string.notification_system_disabled_message)
-                        NotificationScheduler.NotificationCapability.CHANNEL_DISABLED ->
-                            appContext.getString(com.islami.Aha.R.string.notification_channel_disabled_message)
-                        NotificationScheduler.NotificationCapability.AVAILABLE -> ""
-                    }
-                )
-                return
-            }
-        }
-        sharedPreferences.edit()
-            .putBoolean(NotificationScheduler.KEY_GLOBAL_NOTIFICATION_ENABLED, enabled)
-            .apply()
-        _uiState.update { it.copy(notificationEnabled = enabled) }
-
-        viewModelScope.launch {
-            if (enabled) {
-                rescheduleAllActiveReminders()
-                showSnackbar(appContext.getString(R.string.settings_snackbar_reminder_enabled))
-            } else {
-                cancelAllExistingReminders()
-                showSnackbar(appContext.getString(R.string.settings_snackbar_reminder_disabled))
-            }
-        }
-    }
-
-    fun onNotificationSoundClick() {
-        _uiState.update { it.copy(showNotificationSoundDialog = true) }
-    }
-
-    fun hideNotificationSoundDialog() {
-        _uiState.update { it.copy(showNotificationSoundDialog = false) }
-    }
-
-    fun setNotificationSound(option: NotificationScheduler.NotificationSoundOption) {
-        sharedPreferences.edit()
-            .putString(NotificationScheduler.KEY_NOTIFICATION_SOUND, option.value)
-            .apply()
-        _uiState.update {
-            it.copy(
-                notificationSound = option,
-                showNotificationSoundDialog = false
-            )
-        }
-        NotificationScheduler.applyChannelSettings(appContext)
-        showSnackbar(appContext.getString(R.string.settings_snackbar_sound_updated))
-    }
-
-    fun toggleNotificationVibration() {
-        val enabled = !_uiState.value.notificationVibrationEnabled
-        sharedPreferences.edit()
-            .putBoolean(NotificationScheduler.KEY_NOTIFICATION_VIBRATION, enabled)
-            .apply()
-        _uiState.update { it.copy(notificationVibrationEnabled = enabled) }
-        NotificationScheduler.applyChannelSettings(appContext)
-        showSnackbar(
-            if (enabled) "Getar notifikasi diaktifkan"
-            else "Getar notifikasi dimatikan"
-        )
     }
 
     // === Privasi & Keamanan ===
@@ -336,7 +278,8 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isChangingPassword = false,
-                        showChangePasswordDialog = false
+                        showChangePasswordDialog = false,
+                        passwordChanged = true
                     )
                 }
                 showSnackbar(appContext.getString(R.string.settings_snackbar_password_changed))
@@ -462,7 +405,8 @@ class SettingsViewModel @Inject constructor(
             clearTrackedDataForGuestMode()
             // Unggah log penelitian selagi akun lama masih login, lalu kosongkan.
             runCatching { researchLogRepository.flushAndClear() }
-            authRepository.logout()
+            // Token FCM dihapus dari server selagi masih login, lalu token perangkat dimatikan.
+            penyimpanToken?.hapusSaatLogout { authRepository.logout() } ?: authRepository.logout()
             val user = authRepository.currentUser
             val prefs = com.islami.Aha.util.SecurePrefsProvider.get(appContext)
             val formatStr = prefs.getString("time_format", TimeFormatOption.HOUR_24.name)
@@ -525,10 +469,36 @@ class SettingsViewModel @Inject constructor(
                     )
                 }
                 if (error is ReAuthRequiredException) {
-                    _uiState.update { it.copy(showReAuthDialog = true) }
+                    _uiState.update {
+                        if (it.isGoogleUser) it.copy(requestGoogleReAuth = true) else it.copy(showReAuthDialog = true)
+                    }
                 } else {
                     showSnackbar(error?.message ?: appContext.getString(R.string.error_delete_account))
                 }
+            }
+        }
+    }
+
+    fun passwordChangedHandled() = _uiState.update { it.copy(passwordChanged = false) }
+
+    fun googleReAuthLaunched() = _uiState.update { it.copy(requestGoogleReAuth = false) }
+
+    /** Pemilih akun Google mengembalikan token: login ulang lalu hapus akun. null = dibatalkan. */
+    fun confirmGoogleReAuthDelete(idToken: String?, onSuccess: () -> Unit) {
+        if (idToken.isNullOrBlank()) {
+            showSnackbar(appContext.getString(R.string.settings_snackbar_delete_account_failed))
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeletingAccount = true) }
+            val result = authRepository.reAuthenticateWithGoogleAndDelete(idToken)
+            if (result.isSuccess) {
+                clearLocalData()
+                _uiState.update { it.copy(isDeletingAccount = false, isLoggedIn = false, userEmail = "") }
+                onSuccess()
+            } else {
+                _uiState.update { it.copy(isDeletingAccount = false) }
+                showSnackbar(appContext.getString(R.string.settings_snackbar_delete_account_failed))
             }
         }
     }
@@ -846,31 +816,6 @@ class SettingsViewModel @Inject constructor(
         sunnahHabits.forEach { habit ->
             if (!habit.reminderEnabled || habit.reminderTime.isNullOrBlank()) return@forEach
             val (hour, minute) = parseHourMinute(habit.reminderTime) ?: return@forEach
-            NotificationScheduler.scheduleHabitReminder(
-                context = appContext,
-                habitId = habit.id,
-                habitName = habit.name,
-                hour = hour,
-                minute = minute
-            )
-        }
-    }
-
-    private suspend fun rescheduleAllActiveReminders() {
-        habitDao.getActiveReminderHabits().forEach { habit ->
-            val (hour, minute) = parseHourMinute(habit.time) ?: return@forEach
-            NotificationScheduler.scheduleHabitReminder(
-                context = appContext,
-                habitId = "default_${habit.id}",
-                habitName = habit.name,
-                hour = hour,
-                minute = minute
-            )
-        }
-
-        userHabitDao.getActiveReminderHabits().forEach { habit ->
-            val reminderTime = habit.reminderTime ?: return@forEach
-            val (hour, minute) = parseHourMinute(reminderTime) ?: return@forEach
             NotificationScheduler.scheduleHabitReminder(
                 context = appContext,
                 habitId = habit.id,

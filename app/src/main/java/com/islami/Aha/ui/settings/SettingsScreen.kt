@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.*
+import com.islami.Aha.ui.onboarding.PanduanPengingatLayar
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,10 +58,14 @@ import com.islami.Aha.ui.settings.components.*
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
-    onNavigateToLogin: (String?) -> Unit = {}
+    onNavigateToLogin: (String?) -> Unit = {},
+    onNavigateToPrivacyData: () -> Unit = {},
+    onNavigateToAccountSecurity: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // Panduan Autostart & baterai (HP Xiaomi/Oppo/Vivo/Huawei dkk.), sama dengan di onboarding.
+    var panduanDibuka by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -107,6 +112,8 @@ fun SettingsScreen(
             viewModel.clearSnackbar()
         },
         onNavigateBack = onNavigateBack,
+        onNavigateToPrivacyData = onNavigateToPrivacyData,
+        onNavigateToAccountSecurity = onNavigateToAccountSecurity,
         onShowLocationDialog = viewModel::showLocationDialog,
         onHideLocationDialog = viewModel::hideLocationDialog,
         onSetLocation = viewModel::setLocation,
@@ -116,11 +123,6 @@ fun SettingsScreen(
         onShowThemeModeDialog = viewModel::showThemeModeDialog,
         onHideThemeModeDialog = viewModel::hideThemeModeDialog,
         onSetThemeMode = viewModel::setThemeMode,
-        onToggleNotification = viewModel::toggleNotification,
-        onNotificationSoundClick = viewModel::onNotificationSoundClick,
-        onHideNotificationSoundDialog = viewModel::hideNotificationSoundDialog,
-        onSetNotificationSound = viewModel::setNotificationSound,
-        onToggleNotificationVibration = viewModel::toggleNotificationVibration,
         onChangePasswordClick = viewModel::onChangePasswordClick,
         onHideChangePasswordDialog = viewModel::hideChangePasswordDialog,
         onSubmitChangePassword = viewModel::submitPasswordChange,
@@ -146,13 +148,6 @@ fun SettingsScreen(
         onShowResetConfirmation = viewModel::showResetConfirmation,
         onHideResetConfirmation = viewModel::hideResetConfirmation,
         onConfirmReset = viewModel::confirmResetData,
-        onPrivacyPolicyClick = {
-            context.startActivity(
-                Intent(context, LegalDocumentActivity::class.java).apply {
-                    putExtra(LegalDocumentActivity.EXTRA_DOCUMENT_TYPE, LegalDocumentActivity.DOC_PRIVACY)
-                }
-            )
-        },
         onTermsClick = {
             context.startActivity(
                 Intent(context, LegalDocumentActivity::class.java).apply {
@@ -175,20 +170,28 @@ fun SettingsScreen(
         onShowGenderDialog = viewModel::showGenderDialog,
         onHideGenderDialog = viewModel::hideGenderDialog,
         onSetGenderProfile = viewModel::setGenderProfile,
-        onFixNotificationClick = {
-            if (!com.islami.Aha.util.AutoStartHelper.isIgnoringBatteryOptimizations(context)) {
-                android.widget.Toast.makeText(context, context.getString(R.string.settings_battery_opt_prompt), android.widget.Toast.LENGTH_LONG).show()
-                com.islami.Aha.util.AutoStartHelper.requestIgnoreBatteryOptimizations(context)
-            } else {
-                val success = com.islami.Aha.util.AutoStartHelper.openAutoStartSettings(context)
-                if (!success) {
-                    android.widget.Toast.makeText(context, context.getString(R.string.settings_battery_already_optimal), android.widget.Toast.LENGTH_LONG).show()
-                } else {
-                    android.widget.Toast.makeText(context, context.getString(R.string.settings_autostart_prompt), android.widget.Toast.LENGTH_LONG).show()
-                }
+        onFixNotificationClick = { panduanDibuka = true }
+    )
+    if (panduanDibuka) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { panduanDibuka = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
+                androidx.compose.material3.TextButton(
+                    onClick = { panduanDibuka = false },
+                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                ) { Text("Tutup") }
+                PanduanPengingatLayar(labelLanjut = "Selesai") { panduanDibuka = false }
             }
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,6 +201,8 @@ fun SettingsScreenContent(
     toastMessage: String?,
     onToastDismissed: () -> Unit,
     onNavigateBack: () -> Unit,
+    onNavigateToPrivacyData: () -> Unit = {},
+    onNavigateToAccountSecurity: () -> Unit = {},
     onShowLocationDialog: () -> Unit,
     onHideLocationDialog: () -> Unit,
     onSetLocation: (String) -> Unit,
@@ -210,11 +215,6 @@ fun SettingsScreenContent(
     onShowGenderDialog: () -> Unit,
     onHideGenderDialog: () -> Unit,
     onSetGenderProfile: (com.islami.Aha.util.GenderProfile) -> Unit,
-    onToggleNotification: () -> Unit,
-    onNotificationSoundClick: () -> Unit,
-    onHideNotificationSoundDialog: () -> Unit,
-    onSetNotificationSound: (NotificationScheduler.NotificationSoundOption) -> Unit,
-    onToggleNotificationVibration: () -> Unit,
     onChangePasswordClick: () -> Unit,
     onHideChangePasswordDialog: () -> Unit,
     onSubmitChangePassword: (String, String, String) -> Unit,
@@ -236,7 +236,6 @@ fun SettingsScreenContent(
     onShowResetConfirmation: () -> Unit,
     onHideResetConfirmation: () -> Unit,
     onConfirmReset: () -> Unit,
-    onPrivacyPolicyClick: () -> Unit,
     onTermsClick: () -> Unit,
     onLoginClick: () -> Unit,
     onLogoutClick: () -> Unit,
@@ -264,169 +263,110 @@ fun SettingsScreenContent(
             // =============================================================
             // SECTION: UMUM
             // =============================================================
+            item { SettingsSectionHeader(title = stringResource(R.string.settings_section_general)) }
             item {
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_general))
-            }
-
-            // Format Waktu
-            item {
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Schedule,
-                    iconBackground = WarningAmber.copy(alpha = 0.1f),
-                    iconTint = WarningAmber,
-                    title = stringResource(R.string.settings_time_format_title),
-                    subtitle = uiState.selectedTimeFormat.displayName,
-                    onClick = onShowTimeFormatDialog
-                )
-            }
-
-            // Mode Tema
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.Outlined.DarkMode,
-                    iconBackground = CategoryPuasaStart.copy(alpha = 0.1f),
-                    iconTint = CategoryPuasaStart,
-                    title = stringResource(R.string.settings_dark_mode_title),
-                    subtitle = uiState.themeMode.displayName,
-                    onClick = onShowThemeModeDialog
-                )
-            }
-
-            // Profil Ibadah (Gender)
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
                 val genderText = when (uiState.genderProfile) {
                     com.islami.Aha.util.GenderProfile.MALE -> stringResource(R.string.settings_gender_male_active)
                     com.islami.Aha.util.GenderProfile.FEMALE -> stringResource(R.string.settings_gender_female_active)
                     else -> stringResource(R.string.settings_gender_not_set)
                 }
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Person,
-                    iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    title = stringResource(R.string.settings_gender_title),
-                    subtitle = genderText,
-                    onClick = {
-                        if (uiState.isHaidhMode) {
-                            android.widget.Toast.makeText(
-                                context,
-                                context.getString(R.string.settings_gender_haidh_warning),
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            onShowGenderDialog()
-                        }
+                // Terkunci setelah ditegaskan di v1.2.0; pengguna dari v1.1.1 masih bisa membetulkan.
+                val profilTerkunci = uiState.genderProfile != com.islami.Aha.util.GenderProfile.UNSPECIFIED &&
+                    com.islami.Aha.util.UserPreferencesManager.isGenderLocked
+                SettingsGroup {
+                    if (com.islami.Aha.util.PanduanPengingat.berlaku()) {
+                        SettingsClickableItem(
+                            icon = Icons.Outlined.NotificationsActive,
+                            iconBackground = WarningAmber.copy(alpha = 0.14f),
+                            iconTint = WarningAmber,
+                            title = "Agar pengingat tidak terlewat",
+                            subtitle = "Autostart & penghemat baterai HP ini",
+                            onClick = onFixNotificationClick
+                        )
+                        SettingsDivider()
                     }
-                )
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Schedule,
+                        iconBackground = WarningAmber.copy(alpha = 0.14f),
+                        iconTint = WarningAmber,
+                        title = stringResource(R.string.settings_time_format_title),
+                        subtitle = uiState.selectedTimeFormat.displayName,
+                        onClick = onShowTimeFormatDialog
+                    )
+                    SettingsDivider()
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.DarkMode,
+                        iconBackground = CategoryPuasaStart.copy(alpha = 0.14f),
+                        iconTint = CategoryPuasaStart,
+                        title = stringResource(R.string.settings_dark_mode_title),
+                        subtitle = uiState.themeMode.displayName,
+                        onClick = onShowThemeModeDialog
+                    )
+                    SettingsDivider()
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Person,
+                        iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        title = stringResource(R.string.settings_gender_title),
+                        subtitle = if (profilTerkunci) "$genderText · permanen" else genderText,
+                        onClick = {
+                            if (profilTerkunci) {
+                                // Profil ibadah permanen (keputusan pemilik proyek): tidak bisa diganti.
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Profil ibadah sudah disimpan dan tidak bisa diubah.",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            } else if (uiState.isHaidhMode) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.settings_gender_haidh_warning),
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                onShowGenderDialog()
+                            }
+                        }
+                    )
+                }
             }
-
-            // =============================================================
-            // SECTION: NOTIFIKASI
-            // =============================================================
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_notifications))
-            }
-
-            // Pengingat Ibadah
-            item {
-                SettingsToggleItem(
-                    icon = Icons.Outlined.Notifications,
-                    iconBackground = InfoBlue.copy(alpha = 0.1f),
-                    iconTint = InfoBlue,
-                    title = stringResource(R.string.settings_reminder_title),
-                    subtitle = stringResource(R.string.settings_reminder_subtitle),
-                    isChecked = uiState.notificationEnabled,
-                    onToggle = onToggleNotification
-                )
-            }
-
-            // Suara Notifikasi
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.AutoMirrored.Filled.VolumeUp,
-                    iconBackground = CategoryDzikirStart.copy(alpha = 0.1f),
-                    iconTint = CategoryDzikirStart,
-                    title = stringResource(R.string.settings_sound_title),
-                    subtitle = uiState.notificationSound.displayName,
-                    onClick = onNotificationSoundClick
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsToggleItem(
-                    icon = Icons.Outlined.Vibration,
-                    iconBackground = InfoBlue.copy(alpha = 0.1f),
-                    iconTint = InfoBlue,
-                    title = stringResource(R.string.settings_vibration_title),
-                    subtitle = stringResource(R.string.settings_vibration_subtitle),
-                    isChecked = uiState.notificationVibrationEnabled,
-                    onToggle = onToggleNotificationVibration
-                )
-            }
-
-            // Removed AutoStart per user request
 
             // =============================================================
             // SECTION: AKUN
             // =============================================================
+            item { SettingsSectionHeader(title = stringResource(R.string.settings_section_account)) }
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_account))
-            }
-
-            if (uiState.isLoggedIn) {
-                item {
-                    SettingsInfoItem(
-                        icon = Icons.Outlined.Person,
-                        iconBackground = CategoryDzikirStart.copy(alpha = 0.1f),
-                        iconTint = CategoryDzikirStart,
-                        title = stringResource(R.string.settings_active_account_title),
-                        value = uiState.userEmail.ifBlank { stringResource(R.string.settings_user_fallback) }
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingsClickableItem(
-                        icon = Icons.Outlined.Lock,
-                        iconBackground = WarningAmber.copy(alpha = 0.1f),
-                        iconTint = WarningAmber,
-                        title = stringResource(R.string.settings_change_password_title),
-                        subtitle = stringResource(R.string.settings_change_password_subtitle),
-                        onClick = onChangePasswordClick
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingsClickableItem(
-                        icon = Icons.Outlined.Shield,
-                        iconBackground = InfoBlue.copy(alpha = 0.1f),
-                        iconTint = InfoBlue,
-                        title = stringResource(R.string.settings_account_security_title),
-                        subtitle = stringResource(R.string.settings_account_security_subtitle),
-                        onClick = onAccountSecurityClick
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingsClickableItem(
-                        icon = Icons.Outlined.Logout,
-                        iconBackground = ErrorRed.copy(alpha = 0.1f),
-                        iconTint = ErrorRed,
-                        title = stringResource(R.string.settings_logout_title),
-                        subtitle = stringResource(R.string.settings_logout_subtitle),
-                        titleColor = ErrorRed,
-                        onClick = onLogoutClick
-                    )
-                }
-            } else {
-                item {
+                if (uiState.isLoggedIn) {
+                    SettingsGroup {
+                        SettingsInfoItem(
+                            icon = Icons.Outlined.Person,
+                            iconBackground = CategoryDzikirStart.copy(alpha = 0.14f),
+                            iconTint = CategoryDzikirStart,
+                            title = stringResource(R.string.settings_active_account_title),
+                            value = uiState.userEmail.ifBlank { stringResource(R.string.settings_user_fallback) }
+                        )
+                        SettingsDivider()
+                        // Ubah Password + Keamanan Akun digabung jadi satu halaman.
+                        SettingsClickableItem(
+                            icon = Icons.Outlined.Shield,
+                            iconBackground = InfoBlue.copy(alpha = 0.14f),
+                            iconTint = InfoBlue,
+                            title = "Akun & Keamanan",
+                            subtitle = "Email, kata sandi, hapus akun",
+                            onClick = onNavigateToAccountSecurity
+                        )
+                        SettingsDivider()
+                        SettingsClickableItem(
+                            icon = Icons.Outlined.Logout,
+                            iconBackground = ErrorRed.copy(alpha = 0.12f),
+                            iconTint = ErrorRed,
+                            title = stringResource(R.string.settings_logout_title),
+                            subtitle = stringResource(R.string.settings_logout_subtitle),
+                            titleColor = ErrorRed,
+                            onClick = onLogoutClick
+                        )
+                    }
+                } else {
                     GuestLoginCard(onLoginClick = onLoginClick)
                 }
             }
@@ -434,97 +374,81 @@ fun SettingsScreenContent(
             // =============================================================
             // SECTION: DATA
             // =============================================================
+            item { SettingsSectionHeader(title = stringResource(R.string.settings_section_data)) }
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_data))
-            }
-
-            item {
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Download,
-                    iconBackground = CategoryTilawahStart.copy(alpha = 0.1f),
-                    iconTint = CategoryTilawahStart,
-                    title = stringResource(R.string.settings_import_title),
-                    subtitle = stringResource(R.string.settings_import_subtitle),
-                    onClick = onImportDataClick
-                )
-            }
-
-            if (uiState.isLoggedIn) {
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
+                SettingsGroup {
                     SettingsClickableItem(
-                        icon = Icons.Outlined.Upload,
-                        iconBackground = InfoBlue.copy(alpha = 0.1f),
-                        iconTint = InfoBlue,
-                        title = stringResource(R.string.settings_export_title),
-                        subtitle = stringResource(R.string.settings_export_subtitle),
-                        onClick = onExportDataClick
+                        icon = Icons.Outlined.Lock,
+                        iconBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        title = "Privasi & Data",
+                        subtitle = "Penelitian, data penelitianmu, kebijakan privasi",
+                        onClick = onNavigateToPrivacyData
                     )
+                    SettingsDivider()
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Download,
+                        iconBackground = CategoryTilawahStart.copy(alpha = 0.14f),
+                        iconTint = CategoryTilawahStart,
+                        title = stringResource(R.string.settings_import_title),
+                        subtitle = stringResource(R.string.settings_import_subtitle),
+                        onClick = onImportDataClick
+                    )
+                    if (uiState.isLoggedIn) {
+                        SettingsDivider()
+                        SettingsClickableItem(
+                            icon = Icons.Outlined.Upload,
+                            iconBackground = InfoBlue.copy(alpha = 0.14f),
+                            iconTint = InfoBlue,
+                            title = stringResource(R.string.settings_export_title),
+                            subtitle = stringResource(R.string.settings_export_subtitle),
+                            onClick = onExportDataClick
+                        )
+                    }
                 }
             }
-
-            // Reset Data
+            // Reset dipisah dari baris lain supaya tidak terpencet.
+            item { Spacer(modifier = Modifier.height(12.dp)) }
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.Outlined.DeleteForever,
-                    iconBackground = ErrorRed.copy(alpha = 0.1f),
-                    iconTint = ErrorRed,
-                    title = stringResource(R.string.settings_reset_title),
-                    subtitle = if (uiState.isLoggedIn) {
-                        stringResource(R.string.settings_reset_subtitle_logged_in)
-                    } else {
-                        stringResource(R.string.settings_reset_subtitle_guest)
-                    },
-                    titleColor = ErrorRed,
-                    onClick = onShowResetConfirmation
-                )
+                SettingsGroup {
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.DeleteForever,
+                        iconBackground = ErrorRed.copy(alpha = 0.12f),
+                        iconTint = ErrorRed,
+                        title = stringResource(R.string.settings_reset_title),
+                        subtitle = if (uiState.isLoggedIn) {
+                            stringResource(R.string.settings_reset_subtitle_logged_in)
+                        } else {
+                            stringResource(R.string.settings_reset_subtitle_guest)
+                        },
+                        titleColor = ErrorRed,
+                        onClick = onShowResetConfirmation
+                    )
+                }
             }
 
             // =============================================================
             // SECTION: TENTANG
             // =============================================================
+            item { SettingsSectionHeader(title = stringResource(R.string.settings_section_about)) }
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = stringResource(R.string.settings_section_about))
-            }
-
-            // Versi Aplikasi
-            item {
-                SettingsInfoItem(
-                    icon = Icons.Outlined.Info,
-                    iconBackground = MaterialTheme.colorScheme.surfaceVariant,
-                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    title = stringResource(R.string.settings_app_version_title),
-                    value = BuildConfig.VERSION_NAME.ifBlank { "-" }
-                )
-            }
-
-            // Kebijakan Privasi
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.Outlined.PrivacyTip,
-                    iconBackground = CategoryDzikirStart.copy(alpha = 0.1f),
-                    iconTint = CategoryDzikirStart,
-                    title = stringResource(R.string.settings_privacy_title),
-                    subtitle = stringResource(R.string.settings_privacy_subtitle),
-                    onClick = onPrivacyPolicyClick
-                )
-            }
-
-            // Syarat & Ketentuan
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsClickableItem(
-                    icon = Icons.Outlined.Description,
-                    iconBackground = CategoryTilawahStart.copy(alpha = 0.1f),
-                    iconTint = CategoryTilawahStart,
-                    title = stringResource(R.string.settings_terms_title),
-                    subtitle = stringResource(R.string.settings_terms_subtitle),
-                    onClick = onTermsClick
-                )
+                SettingsGroup {
+                    SettingsInfoItem(
+                        icon = Icons.Outlined.Info,
+                        title = stringResource(R.string.settings_app_version_title),
+                        value = BuildConfig.VERSION_NAME.ifBlank { "-" }
+                    )
+                    SettingsDivider()
+                    // Kebijakan privasi ada di Privasi & Data (dekat persetujuan penelitian), tidak diulang di sini.
+                    SettingsClickableItem(
+                        icon = Icons.Outlined.Description,
+                        iconBackground = CategoryTilawahStart.copy(alpha = 0.14f),
+                        iconTint = CategoryTilawahStart,
+                        title = stringResource(R.string.settings_terms_title),
+                        subtitle = stringResource(R.string.settings_terms_subtitle),
+                        onClick = onTermsClick
+                    )
+                }
             }
 
             // Footer
@@ -689,14 +613,6 @@ fun SettingsScreenContent(
         }
     }
 
-    if (uiState.showNotificationSoundDialog) {
-        NotificationSoundSelectionDialog(
-            currentOption = uiState.notificationSound,
-            onSelect = onSetNotificationSound,
-            onDismiss = onHideNotificationSoundDialog
-        )
-    }
-
     if (uiState.showChangePasswordDialog) {
         ChangePasswordDialog(
             userEmail = uiState.userEmail,
@@ -784,11 +700,6 @@ fun SettingsScreenPreview() {
             onShowGenderDialog = {},
             onHideGenderDialog = {},
             onSetGenderProfile = {},
-            onToggleNotification = {},
-            onNotificationSoundClick = {},
-            onHideNotificationSoundDialog = {},
-            onSetNotificationSound = {},
-            onToggleNotificationVibration = {},
             onChangePasswordClick = {},
             onHideChangePasswordDialog = {},
             onSubmitChangePassword = { _, _, _ -> },
@@ -810,7 +721,6 @@ fun SettingsScreenPreview() {
             onShowResetConfirmation = {},
             onHideResetConfirmation = {},
             onConfirmReset = {},
-            onPrivacyPolicyClick = {},
             onTermsClick = {},
             onLoginClick = {},
             onLogoutClick = {}

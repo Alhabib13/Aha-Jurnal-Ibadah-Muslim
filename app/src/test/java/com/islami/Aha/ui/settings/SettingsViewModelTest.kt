@@ -8,7 +8,6 @@ import com.islami.Aha.data.local.HabitCompletionDao
 import com.islami.Aha.data.local.HabitDao
 import com.islami.Aha.data.local.UserHabitDao
 import com.islami.Aha.data.repository.AuthRepository
-import com.islami.Aha.util.NotificationScheduler
 import com.google.firebase.auth.FirebaseUser
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -153,17 +152,6 @@ class SettingsViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(TimeFormatOption.HOUR_12, state.selectedTimeFormat)
         assertFalse(state.showTimeFormatDialog)
-    }
-
-    // ===================== Notification =====================
-
-    @Test
-    fun `toggle notification flips state`() {
-        assertTrue(viewModel.uiState.value.notificationEnabled)
-        viewModel.toggleNotification()
-        assertFalse(viewModel.uiState.value.notificationEnabled)
-        viewModel.toggleNotification()
-        assertTrue(viewModel.uiState.value.notificationEnabled)
     }
 
     // ===================== Reset Data =====================
@@ -378,40 +366,6 @@ class SettingsViewModelTest {
     fun `set import mode updates state`() {
         viewModel.setImportMode(ImportMode.MERGE)
         assertEquals(ImportMode.MERGE, viewModel.uiState.value.selectedImportMode)
-    }
-
-    @Test
-    fun `notification sound click opens sound dialog`() {
-        assertFalse(viewModel.uiState.value.showNotificationSoundDialog)
-        viewModel.onNotificationSoundClick()
-        assertTrue(viewModel.uiState.value.showNotificationSoundDialog)
-    }
-
-    @Test
-    fun `set notification sound updates preferences and state`() {
-        viewModel.onNotificationSoundClick()
-        viewModel.setNotificationSound(NotificationScheduler.NotificationSoundOption.SILENT)
-        assertEquals(
-            NotificationScheduler.NotificationSoundOption.SILENT,
-            viewModel.uiState.value.notificationSound
-        )
-        assertFalse(viewModel.uiState.value.showNotificationSoundDialog)
-        assertEquals("Suara notifikasi diperbarui", viewModel.uiState.value.snackbarMessage)
-        verify {
-            mockEditor.putString(
-                NotificationScheduler.KEY_NOTIFICATION_SOUND,
-                NotificationScheduler.NotificationSoundOption.SILENT.value
-            )
-        }
-    }
-
-    @Test
-    fun `toggle notification vibration updates preferences and state`() {
-        assertTrue(viewModel.uiState.value.notificationVibrationEnabled)
-        viewModel.toggleNotificationVibration()
-        assertFalse(viewModel.uiState.value.notificationVibrationEnabled)
-        assertEquals("Getar notifikasi dimatikan", viewModel.uiState.value.snackbarMessage)
-        verify { mockEditor.putBoolean(NotificationScheduler.KEY_NOTIFICATION_VIBRATION, false) }
     }
 
     // ===================== Account State =====================

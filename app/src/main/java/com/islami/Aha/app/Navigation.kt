@@ -39,6 +39,8 @@ sealed class Screen(val route: String) {
     object Notification : Screen("notification")
     object Profile : Screen("profile")
     object Settings : Screen("settings")
+    object PrivacyData : Screen("privacy_data")
+    object AccountSecurity : Screen("account_security")
 }
 
 @Composable
@@ -79,12 +81,14 @@ fun AhaNavHost(
                         popUpTo(Screen.Onboarding.route) { inclusive = true }
                     }
                 },
-                onNavigateToSettings = {
+                onNavigateToLogin = {
+                    // Sudah punya akun: profil dipulihkan dari server setelah login,
+                    // persetujuan penelitian ditanyakan di Beranda.
                     com.islami.Aha.util.UserPreferencesManager.setHasSeenOnboarding()
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Onboarding.route) { inclusive = true }
                     }
-                    navController.navigate(Screen.Settings.route)
+                    navController.navigate(Screen.Login.route)
                 }
             )
         }
@@ -162,7 +166,13 @@ fun AhaNavHost(
         }
 
         composable(Screen.Statistic.route) {
-            StatisticScreen() // Navigasi dikelola oleh BottomNav
+            StatisticScreen(
+                onNavigateToAddHabit = { navController.navigate(Screen.AddHabit.route) },
+                onNavigateToAddDzikir = {
+                    navController.navigate(Screen.AddHabit.route)
+                    navController.currentBackStackEntry?.savedStateHandle?.set(ADD_HABIT_KATEGORI_KEY, "dzikir")
+                }
+            )
         }
 
         composable(Screen.AddHabit.route) { backStackEntry ->
@@ -191,22 +201,35 @@ fun AhaNavHost(
             )
         }
 
+        composable(Screen.PrivacyData.route) {
+            com.islami.Aha.ui.settings.PrivacyDataScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
         composable(Screen.Settings.route) {
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToLogin = { message ->
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                    if (!message.isNullOrBlank()) {
-                        navController.currentBackStackEntry?.savedStateHandle?.set(
-                            TRANSIENT_SNACKBAR_KEY,
-                            message
-                        )
-                    }
-                }
+                onNavigateToPrivacyData = { navController.navigate(Screen.PrivacyData.route) },
+                onNavigateToAccountSecurity = { navController.navigate(Screen.AccountSecurity.route) },
+                onNavigateToLogin = { message -> navigateToLoginAfterAccountExit(navController, message) }
             )
         }
+
+        composable(Screen.AccountSecurity.route) {
+            com.islami.Aha.ui.settings.AccountSecurityScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToLogin = { message -> navigateToLoginAfterAccountExit(navController, message) }
+            )
+        }
+    }
+}
+
+/** Setelah keluar / hapus akun: ke Login, buang tumpukan Beranda, opsional tampilkan pesan. */
+private fun navigateToLoginAfterAccountExit(navController: NavHostController, message: String?) {
+    navController.navigate(Screen.Login.route) {
+        popUpTo(Screen.Home.route) { inclusive = true }
+        launchSingleTop = true
+    }
+    if (!message.isNullOrBlank()) {
+        navController.currentBackStackEntry?.savedStateHandle?.set(TRANSIENT_SNACKBAR_KEY, message)
     }
 }

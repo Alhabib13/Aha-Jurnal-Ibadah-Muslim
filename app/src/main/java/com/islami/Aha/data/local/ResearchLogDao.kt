@@ -16,6 +16,18 @@ interface ResearchLogDao {
     @Query("SELECT * FROM research_logs WHERE slotKey = :slotKey")
     suspend fun getBySlotKey(slotKey: String): ResearchLogEntity?
 
+    /** Semua baris satu tanggal (semua jenis); kartu puasa & sunnah Beranda. */
+    @Query("SELECT * FROM research_logs WHERE tanggal = :tanggal")
+    fun observeHari(tanggal: String): kotlinx.coroutines.flow.Flow<List<ResearchLogEntity>>
+
+    /** Semua baris (dikerjakan / tidak / udzur) satu jenis pada satu tanggal; kartu sholat Beranda. */
+    @Query("SELECT * FROM research_logs WHERE tanggal = :tanggal AND jenisIbadah = :jenis")
+    fun observeSemuaStatus(tanggal: String, jenis: String): kotlinx.coroutines.flow.Flow<List<ResearchLogEntity>>
+
+    /** Baris berstatus [status] dengan tanggal di antara [sejak]..[sampai] (yyyy-MM-dd, inklusif). */
+    @Query("SELECT * FROM research_logs WHERE status = :status AND tanggal >= :sejak AND tanggal <= :sampai")
+    suspend fun getByStatusBetween(status: String, sejak: String, sampai: String): List<ResearchLogEntity>
+
     @Query("DELETE FROM research_logs WHERE slotKey = :slotKey")
     suspend fun deleteBySlotKey(slotKey: String)
 
@@ -36,8 +48,16 @@ interface ResearchLogDao {
     )
     suspend fun markSynced(slotKey: String, updatedAt: Long, uid: String)
 
+    /** Setelah data penelitian di server dihapus: semua baris dianggap belum terkirim. */
+    @Query("UPDATE research_logs SET isSynced = 0")
+    suspend fun markAllUnsynced()
+
     @Query("DELETE FROM research_logs WHERE ownerUid IS NOT NULL AND ownerUid != :uid")
     suspend fun deleteNotOwnedBy(uid: String)
+
+    /** Baris tamu tanpa pemilik diadopsi akun anonim yang baru dibuat di HP ini. */
+    @Query("UPDATE research_logs SET ownerUid = :uid WHERE ownerUid IS NULL")
+    suspend fun klaimTanpaPemilik(uid: String)
 
     @Query("DELETE FROM research_logs")
     suspend fun deleteAll()
@@ -68,6 +88,20 @@ interface ResearchLogDao {
     fun observeChangeTick(): Flow<String>
 
     // ---------- UI dzikir / tilawah / iqro ----------
+
+    /** Statistik bulanan: baris sholat wajib (dikerjakan & tidak) dalam rentang tanggal. */
+    @Query(
+        "SELECT * FROM research_logs WHERE jenisIbadah = 'sholat_wajib' " +
+            "AND tanggal BETWEEN :startDateKey AND :endDateKey ORDER BY tanggal ASC"
+    )
+    suspend fun getSholatWajibBetween(startDateKey: String, endDateKey: String): List<com.islami.Aha.data.model.ResearchLogEntity>
+
+    /** Statistik: semua baris "dikerjakan" dalam rentang tanggal (semua jenis). */
+    @Query(
+        "SELECT * FROM research_logs WHERE status = 'dikerjakan' " +
+            "AND tanggal BETWEEN :startDateKey AND :endDateKey ORDER BY tanggal ASC, jamPencatatan ASC"
+    )
+    suspend fun getDikerjakanBetween(startDateKey: String, endDateKey: String): List<com.islami.Aha.data.model.ResearchLogEntity>
 
     @Query(
         "SELECT * FROM research_logs WHERE tanggal = :tanggal AND jenisIbadah = :jenis " +

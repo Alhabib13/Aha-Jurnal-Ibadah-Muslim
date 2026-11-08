@@ -26,7 +26,7 @@ data class ResearchLogEntity(
     val status: String,
     val jumlah: Int?,
     val jilid: Int?,
-    /** Epoch ms dari jam HP; null untuk baris "tidak"/"udzur". */
+    /** Epoch ms dari jam HP; null untuk "udzur" dan "tidak" hasil penyimpulan (Tertinggal mengisinya). */
     val jamPencatatan: Long?,
     val sumberPencatatan: String?,
     /**

@@ -7,12 +7,53 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class GenderProfile { UNSPECIFIED, MALE, FEMALE }
 
+/**
+ * Rentang usia dari onboarding. [code] = nilai di Firestore (meta/profile.rentangUsia dan
+ * users/{uid}.rentang_umur), sama dengan ResearchSchema.Profil.RENTANG_UMUR_VALUES.
+ */
+enum class AgeRange(val code: String, val label: String) {
+    UNDER_15("<15", "Di bawah 15 tahun"),
+    AGE_15_18("15-18", "15–18 tahun"),
+    AGE_19_25("19-25", "19–25 tahun"),
+    AGE_26_35("26-35", "26–35 tahun"),
+    OVER_35(">35", "Di atas 35 tahun");
+
+    /** Rentang yang (sebagian) di bawah 18 tahun: perlu pernyataan izin orang tua/wali. */
+    val isMinor: Boolean get() = this == UNDER_15 || this == AGE_15_18
+
+    companion object {
+        /** Kode lama sebelum v1.2.0 ("<13", "13-17", "18+"): hanya "<13" yang pasti masuk rentang baru. */
+        fun fromCode(code: String?): AgeRange? =
+            entries.firstOrNull { it.code == code } ?: if (code == "<13") UNDER_15 else null
+    }
+}
+
+/** Kesibukan utama dari onboarding. [code] = users/{uid}.status_aktivitas. */
+enum class StatusAktivitas(val code: String, val label: String) {
+    PELAJAR("pelajar", "Pelajar"),
+    MAHASISWA("mahasiswa", "Mahasiswa"),
+    PEKERJA("pekerja", "Pekerja"),
+    LAINNYA("lainnya", "Lainnya");
+
+    companion object {
+        fun fromCode(code: String?): StatusAktivitas? = entries.firstOrNull { it.code == code }
+    }
+}
+
 object UserPreferencesManager {
     private const val KEY_GENDER = "gender_profile"
     private const val KEY_JUMAT_ENABLED = "jumat_enabled"
     private const val KEY_HAIDH_MODE = "haidh_mode"
     private const val KEY_HAIDH_DATES = "haidh_dates"
     private const val KEY_SEEN_PROMPT = "seen_gender_prompt"
+    private const val KEY_AGE_RANGE = "age_range"
+    private const val KEY_GUARDIAN_OK = "guardian_ok"
+    private const val KEY_STATUS_AKTIVITAS = "status_aktivitas"
+    private const val KEY_PILIHAN_AWAL = "pilihan_awal"
+    /** Pengguna sendiri memilih/menegaskan jenis kelamin di v1.2.0 (onboarding, Pengaturan, kartu konfirmasi). */
+    private const val KEY_GENDER_DIKONFIRMASI = "gender_dikonfirmasi"
+    /** Konfirmasi jenis kelamin belum sampai ke server: nilai lama di server tidak boleh menimpanya. */
+    private const val KEY_GENDER_BELUM_TERKIRIM = "gender_belum_terkirim"
     
     private val _gender = MutableStateFlow(GenderProfile.UNSPECIFIED)
     val gender: StateFlow<GenderProfile> = _gender.asStateFlow()
@@ -32,7 +73,40 @@ object UserPreferencesManager {
     private val _haidhDates = MutableStateFlow<Set<String>>(emptySet())
     val haidhDates: StateFlow<Set<String>> = _haidhDates.asStateFlow()
     
+    private val _ageRange = MutableStateFlow<AgeRange?>(null)
+    val ageRange: StateFlow<AgeRange?> = _ageRange.asStateFlow()
+
+    /** Pengguna di bawah 18 tahun menyatakan orang tua/wali sudah mengizinkan. */
+    private val _guardianOk = MutableStateFlow(false)
+    val guardianOk: StateFlow<Boolean> = _guardianOk.asStateFlow()
+
+    private val _statusAktivitas = MutableStateFlow<StatusAktivitas?>(null)
+    val statusAktivitas: StateFlow<StatusAktivitas?> = _statusAktivitas.asStateFlow()
+
+    /** Snapshot ibadah yang dicentang di onboarding; null = tidak menjawab. */
+    private val _pilihanAwal = MutableStateFlow<Set<String>?>(null)
+    val pilihanAwal: StateFlow<Set<String>?> = _pilihanAwal.asStateFlow()
+
     private var prefs: SharedPreferences? = null
+
+    private val _genderDikonfirmasi = MutableStateFlow(false)
+    private val _genderBelumTerkirim = MutableStateFlow(false)
+
+    /**
+     * Profil ibadah permanen: sekali diisi DAN ditegaskan pengguna di v1.2.0, tidak bisa diganti.
+     * Ditegaskan = dipilih sendiri di v1.2.0, atau usia sudah terisi (onboarding v1.2.0 menanyakan
+     * keduanya). Pengguna dari v1.1.1 belum ditegaskan: bug 18 Okt bisa membuat jenis kelaminnya
+     * tertimpa nilai lama dari server, jadi dikonfirmasi sekali dulu sebelum dikunci.
+     */
+    val isGenderLocked: Boolean
+        get() = _gender.value != GenderProfile.UNSPECIFIED && (_genderDikonfirmasi.value || _ageRange.value != null)
+
+    /** Jenis kelamin terisi tapi belum ditegaskan (pengguna dari v1.1.1): tampilkan konfirmasi sekali. */
+    val perluKonfirmasiGender: Boolean
+        get() = _gender.value != GenderProfile.UNSPECIFIED && !isGenderLocked
+
+    /** Konfirmasi lokal yang belum tersimpan di server (didorong saat sinkron berikutnya). */
+    val isGenderBelumTerkirim: Boolean get() = _genderBelumTerkirim.value
 
     fun init(sharedPreferences: SharedPreferences) {
         prefs = sharedPreferences
@@ -42,6 +116,12 @@ object UserPreferencesManager {
         _hasSeenPrompt.value = sharedPreferences.getBoolean(KEY_SEEN_PROMPT, false)
         _hasSeenOnboarding.value = sharedPreferences.getBoolean("seen_onboarding", false)
         _haidhDates.value = sharedPreferences.getStringSet(KEY_HAIDH_DATES, emptySet()) ?: emptySet()
+        _ageRange.value = AgeRange.fromCode(sharedPreferences.getString(KEY_AGE_RANGE, null))
+        _genderDikonfirmasi.value = sharedPreferences.getBoolean(KEY_GENDER_DIKONFIRMASI, false)
+        _genderBelumTerkirim.value = sharedPreferences.getBoolean(KEY_GENDER_BELUM_TERKIRIM, false)
+        _guardianOk.value = sharedPreferences.getBoolean(KEY_GUARDIAN_OK, false)
+        _statusAktivitas.value = StatusAktivitas.fromCode(sharedPreferences.getString(KEY_STATUS_AKTIVITAS, null))
+        _pilihanAwal.value = sharedPreferences.getStringSet(KEY_PILIHAN_AWAL, null)?.toSet()
         syncHaidhDates()
     }
 
@@ -55,7 +135,75 @@ object UserPreferencesManager {
         prefs?.edit()?.putBoolean(KEY_SEEN_PROMPT, true)?.apply()
     }
 
-    fun setGender(profile: GenderProfile) {
+    /**
+     * Set profil dari pilihan pengguna. Ditolak bila profil sudah terkunci dengan nilai lain
+     * (profil permanen; server juga menolak perubahan lewat Firestore rules).
+     * @return true bila tersimpan.
+     */
+    fun setGender(profile: GenderProfile, belumTerkirim: Boolean = false): Boolean {
+        if (isGenderLocked && profile != _gender.value) return false
+        applyGender(profile)
+        if (profile != GenderProfile.UNSPECIFIED) setGenderDikonfirmasi(true)
+        if (belumTerkirim && profile != GenderProfile.UNSPECIFIED) tandaiBelumTerkirim()
+        return true
+    }
+
+    /**
+     * Kartu "Lengkapi profil": pengguna dari v1.1.1 menegaskan (atau membetulkan) jenis kelaminnya.
+     * Setelah ini terkunci. [belumTerkirim] (akun yang login) = jangan biarkan nilai lama di server
+     * menimpanya sampai [genderTerkirim] dipanggil.
+     */
+    fun konfirmasiGender(profile: GenderProfile, belumTerkirim: Boolean) {
+        if (profile == GenderProfile.UNSPECIFIED || isGenderLocked) return
+        applyGender(profile)
+        setGenderDikonfirmasi(true)
+        if (belumTerkirim) tandaiBelumTerkirim()
+    }
+
+    private fun tandaiBelumTerkirim() {
+        _genderBelumTerkirim.value = true
+        prefs?.edit()?.putBoolean(KEY_GENDER_BELUM_TERKIRIM, true)?.apply()
+    }
+
+    /** Server sudah menerima jenis kelamin yang dikonfirmasi. */
+    fun genderTerkirim() {
+        _genderBelumTerkirim.value = false
+        prefs?.edit()?.remove(KEY_GENDER_BELUM_TERKIRIM)?.apply()
+    }
+
+    private fun setGenderDikonfirmasi(nilai: Boolean) {
+        _genderDikonfirmasi.value = nilai
+        prefs?.edit()?.putBoolean(KEY_GENDER_DIKONFIRMASI, nilai)?.apply()
+    }
+
+    /**
+     * Nilai dari server (akun yang login) menang atas pilihan lokal, KECUALI konfirmasi lokal
+     * yang belum terkirim (server masih memegang nilai lama).
+     */
+    fun setGenderFromCloud(profile: GenderProfile) {
+        if (profile == GenderProfile.UNSPECIFIED) return
+        if (_genderBelumTerkirim.value) return
+        applyGender(profile)
+    }
+
+    fun setAgeRange(range: AgeRange, guardianOk: Boolean) {
+        _ageRange.value = range
+        _guardianOk.value = range.isMinor && guardianOk
+        prefs?.edit()?.putString(KEY_AGE_RANGE, range.code)?.putBoolean(KEY_GUARDIAN_OK, _guardianOk.value)?.apply()
+    }
+
+    fun setStatusAktivitas(status: StatusAktivitas) {
+        _statusAktivitas.value = status
+        prefs?.edit()?.putString(KEY_STATUS_AKTIVITAS, status.code)?.apply()
+    }
+
+    /** Disimpan sekali saat onboarding; [pilihan] kosong = "belum ada yang rutin". */
+    fun setPilihanAwal(pilihan: Set<String>) {
+        _pilihanAwal.value = pilihan
+        prefs?.edit()?.putStringSet(KEY_PILIHAN_AWAL, pilihan)?.apply()
+    }
+
+    private fun applyGender(profile: GenderProfile) {
         _gender.value = profile
         prefs?.edit()?.putString(KEY_GENDER, profile.name)?.apply()
         
@@ -135,7 +283,19 @@ object UserPreferencesManager {
         _isHaidhMode.value = false
         _haidhDates.value = emptySet()
         _hasSeenPrompt.value = false
+        _ageRange.value = null
+        _guardianOk.value = false
+        _statusAktivitas.value = null
+        _pilihanAwal.value = null
+        _genderDikonfirmasi.value = false
+        _genderBelumTerkirim.value = false
         prefs?.edit()?.apply {
+            remove(KEY_GENDER_DIKONFIRMASI)
+            remove(KEY_GENDER_BELUM_TERKIRIM)
+            remove(KEY_AGE_RANGE)
+            remove(KEY_STATUS_AKTIVITAS)
+            remove(KEY_PILIHAN_AWAL)
+            remove(KEY_GUARDIAN_OK)
             remove(KEY_GENDER)
             remove(KEY_JUMAT_ENABLED)
             remove(KEY_HAIDH_MODE)

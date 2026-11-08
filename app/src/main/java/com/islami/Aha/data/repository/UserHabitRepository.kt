@@ -93,7 +93,10 @@ class UserHabitRepository @Inject constructor(
                 habitCompletionDao.deleteByHabitAndDate(habitKey, todayKey)
                 researchLogRepository.remove(researchSlot, todayKey)
             } else {
-                researchLogRepository.recordDikerjakan(researchSlot, todayKey)
+                researchLogRepository.recordDikerjakan(
+                    researchSlot, todayKey,
+                    sumber = com.islami.Aha.util.NotifikasiSesi.sumberUntuk(current.id, todayKey)
+                )
                 habitCompletionDao.insert(
                     HabitCompletionRecord(
                         habitKey = habitKey,
@@ -122,6 +125,35 @@ class UserHabitRepository @Inject constructor(
             completionSyncRepository.syncDelete("sunnah_${entity.id}", DateUtils.getTodayKey())
         }
         return entity.toDomain()
+    }
+
+    /**
+     * Tombol "Tertinggal" di kartu habit sunnah/puasa buatan pengguna: baris "tidak" untuk hari
+     * ini (sumber buka_aplikasi). Centang belakangan menimpanya. false bila sudah dicentang
+     * hari ini atau jenisnya tidak punya Tertinggal.
+     */
+    suspend fun markTertinggal(id: String): Boolean {
+        val todayKey = DateUtils.getTodayKey()
+        val current = userHabitDao.getHabitById(id) ?: return false
+        if (DateUtils.isToday(current.completedDateKey)) return false
+        val slot = com.islami.Aha.data.research.ResearchLogRepository
+            .slotForSunnahHabit(current.id, current.name, current.category)
+        if (!researchLogRepository.recordTidakDariNotifikasi(
+                slot, todayKey, sumber = com.islami.Aha.data.research.ResearchSchema.Sumber.BUKA_APLIKASI
+            )
+        ) return false
+        researchLogRepository.scheduleUpload()
+        return true
+    }
+
+    /** Tanda "Tertinggal" hari ini dibatalkan (baris "dikerjakan" tidak disentuh). */
+    suspend fun batalkanTertinggal(id: String): Boolean {
+        val current = userHabitDao.getHabitById(id) ?: return false
+        val slot = com.islami.Aha.data.research.ResearchLogRepository
+            .slotForSunnahHabit(current.id, current.name, current.category)
+        if (!researchLogRepository.removeTidak(slot, DateUtils.getTodayKey())) return false
+        researchLogRepository.scheduleUpload()
+        return true
     }
 
     suspend fun deleteHabit(id: String) {

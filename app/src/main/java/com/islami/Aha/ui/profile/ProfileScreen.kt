@@ -74,7 +74,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.material.icons.filled.EmojiEvents
 import com.islami.Aha.R
 import com.islami.Aha.ui.components.AhaLoadingOverlay
 import com.islami.Aha.ui.components.AhaToastHost
@@ -157,6 +156,7 @@ fun ProfileScreen(
 // Extracted EditProfileDialog
 
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreenContent(
     uiState: ProfileUiState,
@@ -166,6 +166,7 @@ fun ProfileScreenContent(
     onNavigateToLogin: () -> Unit,
     onEditProfileClick: () -> Unit = {}
 ) {
+    var lihatSemuaJejak by remember { mutableStateOf(false) }
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background
@@ -175,62 +176,42 @@ fun ProfileScreenContent(
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
-                ) {
-                    item {
-                        ProfileHeader(
-                            userInfo = uiState.userInfo,
-                            totalHabits = uiState.totalHabits,
-                            totalCompleted = uiState.totalCompleted,
-                            currentStreak = uiState.currentStreak,
-                            isSavingAvatar = uiState.isSavingAvatar,
-                            onSettingsClick = onNavigateToSettings,
-                            onLoginClick = onNavigateToLogin,
-                            onEditProfileClick = onEditProfileClick
-                        )
-                    }
-
-                    item { Spacer(modifier = Modifier.height(20.dp)) }
-
-                    item {
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 20.dp)
-                        ) {
-                            Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Filled.EmojiEvents,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.profile_achievement_title),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
+                val daftarState = androidx.compose.foundation.lazy.rememberLazyListState()
+                com.islami.Aha.ui.theme.IkonStatusBarTerang(aktif = daftarState.firstVisibleItemIndex == 0)
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = daftarState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
+                    ) {
+                        item {
+                            ProfileHeader(
+                                userInfo = uiState.userInfo,
+                                totalHabits = uiState.totalHabits,
+                                totalCompleted = uiState.totalCompleted,
+                                currentStreak = uiState.currentStreak,
+                                isSavingAvatar = uiState.isSavingAvatar,
+                                onSettingsClick = onNavigateToSettings,
+                                onLoginClick = onNavigateToLogin,
+                                onEditProfileClick = onEditProfileClick
                             )
                         }
-                        Spacer(modifier = Modifier.height(14.dp))
-                    }
 
-                    item {
-                        AchievementsGrid(achievements = uiState.achievements)
+                        item { Spacer(modifier = Modifier.height(16.dp)) }
+                        item { JejakIbadahSection(jejak = uiState.jejak, onLihatSemua = { lihatSemuaJejak = true }) }
+                        item { Spacer(modifier = Modifier.height(18.dp)) }
+                        item {
+                            KebiasaanmuSection(
+                                sholatSunnah = uiState.sholatCount,
+                                puasaSunnah = uiState.puasaCount,
+                                dzikir = uiState.dzikirCount,
+                                pengingat = uiState.reminderCount
+                            )
+                        }
                     }
-
-                    item { Spacer(modifier = Modifier.height(24.dp)) }
-
-                    item {
-                        ActivityOverviewCard(
-                            sholatCount = uiState.sholatCount,
-                            puasaCount = uiState.puasaCount,
-                            reminderCount = uiState.reminderCount
-                        )
-                    }
+                    com.islami.Aha.ui.theme.ScrimStatusBar(daftarState, warnaKepala = androidx.compose.ui.graphics.Color(0xFF0B6B52))
                 }
             }
         }
@@ -242,6 +223,13 @@ fun ProfileScreenContent(
                 .align(Alignment.TopCenter)
                 .padding(horizontal = 16.dp, vertical = 20.dp)
         )
+
+        if (lihatSemuaJejak) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { lihatSemuaJejak = false },
+                containerColor = MaterialTheme.colorScheme.surface
+            ) { SemuaJejakSheet(uiState.jejak) }
+        }
 
         AhaLoadingOverlay(
             visible = uiState.isSavingAvatar || uiState.isSavingUsername,
