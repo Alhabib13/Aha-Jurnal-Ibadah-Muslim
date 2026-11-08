@@ -57,4 +57,61 @@ object PanduanPengingat {
     }.isSuccess
 
     fun bukaAutostart(context: Context): Boolean = AutoStartHelper.openAutoStartSettings(context)
+
+    // ---------- status pengaturan (supaya layar panduan menampilkan centang bila sudah aktif) ----------
+
+    /** AKTIF/BELUM = terbaca dari sistem; TIDAK_DIKETAHUI = HP tidak menyediakan cara membacanya. */
+    enum class Status { AKTIF, BELUM, TIDAK_DIKETAHUI }
+
+    const val KEY_AUTOSTART_DIBUKA = "panduan_autostart_dibuka"
+    const val KEY_BATERAI_DIBUKA = "panduan_baterai_dibuka"
+
+    /** Pengecualian penghemat baterai Android (MIUI "Tanpa pembatasan" juga mencatatnya di sini). */
+    fun statusBaterai(context: Context): Status =
+        if (AutoStartHelper.isIgnoringBatteryOptimizations(context)) Status.AKTIF else Status.BELUM
+
+    /**
+     * Autostart hanya bisa dibaca di MIUI/HyperOS (op 10008 "mulai otomatis"). Merek lain tidak
+     * menyediakannya: TIDAK_DIKETAHUI, layar menampilkan "sudah dibuka" berdasar tanda di HP.
+     */
+    fun statusAutostart(context: Context): Status {
+        if (!keluargaXiaomi(Build.MANUFACTURER, Build.BRAND)) return Status.TIDAK_DIKETAHUI
+        val mode = runCatching {
+            val ops = context.getSystemService(android.app.AppOpsManager::class.java)
+            val cek = android.app.AppOpsManager::class.java.getMethod(
+                "checkOpNoThrow", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, String::class.java
+            )
+            cek.invoke(ops, OP_AUTOSTART_MIUI, android.os.Process.myUid(), context.packageName) as Int
+        }.getOrNull()
+        return statusDariModeMiui(mode)
+    }
+
+    private const val OP_AUTOSTART_MIUI = 10008
+
+    internal fun keluargaXiaomi(manufaktur: String?, merek: String?): Boolean =
+        listOfNotNull(manufaktur, merek).any { it.trim().lowercase() in setOf("xiaomi", "redmi", "poco") }
+
+    /** Mode AppOps MIUI: 0 = diizinkan, 1 = ditolak; lainnya / gagal dibaca = tidak diketahui. */
+    internal fun statusDariModeMiui(mode: Int?): Status = when (mode) {
+        android.app.AppOpsManager.MODE_ALLOWED -> Status.AKTIF
+        android.app.AppOpsManager.MODE_IGNORED -> Status.BELUM
+        else -> Status.TIDAK_DIKETAHUI
+    }
+
+    /** Langkah dianggap beres: terbaca aktif, atau tak terbaca tapi sudah pernah dibuka. */
+    fun beres(status: Status, dibuka: Boolean): Boolean =
+        status == Status.AKTIF || (status == Status.TIDAK_DIKETAHUI && dibuka)
+
+    /** Keterangan di bawah judul langkah. */
+    fun keteranganStatus(status: Status, dibuka: Boolean): String = when {
+        status == Status.AKTIF -> "Sudah aktif"
+        status == Status.BELUM && dibuka -> "Belum aktif · ketuk untuk membuka lagi"
+        status == Status.BELUM -> "Belum aktif · ketuk untuk membuka"
+        dibuka -> "Sudah dibuka · pastikan Aha sudah dinyalakan"
+        else -> "Ketuk untuk membuka"
+    }
+
+    fun tandaiDibuka(prefs: SharedPreferences, key: String) {
+        prefs.edit().putBoolean(key, true).apply()
+    }
 }

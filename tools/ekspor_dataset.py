@@ -35,6 +35,7 @@ PROJECT = "aha-jurnal-ibadah-muslim"
 AKUN_DIKECUALIKAN = {
     "CGaucK5NM1W8rfpSUjn4h5Q3YSv1": "akun uji penelitian (khabibhusein14)",
     "wFx2J0kZoIfNjWwbJF0pZx2I5qw2": "HP peneliti (Xiaomi, akun tanpa login)",
+    "XeBUPqWyjEWS40m6BHLstKZYBxV2": "HP uji Mi 10T Pro (akun tanpa login, 8 Nov 2026)",
 }
 
 # Urutan kolom CSV = field `logs` (ResearchSchema.Log). Field tak dikenal ditambahkan di belakang.

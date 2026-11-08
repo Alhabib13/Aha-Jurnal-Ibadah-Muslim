@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -60,6 +61,7 @@ fun SunnahHabitCard(
     } else {
         stringResource(R.string.home_not_completed_cd)
     }
+    val context = LocalContext.current
     val backgroundColor = if (sunnahHabit.isCompletedToday) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
     val checkScale = if (sunnahHabit.isCompletedToday) 1f else 0.8f
 
@@ -159,10 +161,10 @@ fun SunnahHabitCard(
                     .scale(checkScale)
                     .clip(CircleShape)
                     .then(
-                        if (sunnahHabit.isCompletedToday) {
-                            Modifier.background(InfoBlue, CircleShape)
-                        } else {
-                            Modifier.border(2.dp, InfoBlue, CircleShape)
+                        when {
+                            sunnahHabit.isCompletedToday -> Modifier.background(InfoBlue, CircleShape)
+                            tertinggal -> Modifier.background(MerahTertinggal, CircleShape)
+                            else -> Modifier.border(2.dp, InfoBlue, CircleShape)
                         }
                     )
                     .semantics {
@@ -174,17 +176,15 @@ fun SunnahHabitCard(
                         role = Role.Checkbox,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { onToggleComplete() },
+                    ) { if (tertinggal) peringatkanTertinggal(context) else onToggleComplete() },
                 contentAlignment = Alignment.Center
             ) {
-                if (sunnahHabit.isCompletedToday) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = stringResource(R.string.home_completed_cd),
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                IsiLingkaran(
+                    selesai = sunnahHabit.isCompletedToday,
+                    tertinggal = tertinggal,
+                    ukuran = 18.dp,
+                    warnaIkon = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }
