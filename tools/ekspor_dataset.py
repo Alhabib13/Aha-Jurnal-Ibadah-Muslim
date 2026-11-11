@@ -12,8 +12,14 @@ Keluaran (di folder ekspor/, diabaikan git karena berisi data responden):
   logs.csv                   log yang lolos, satu baris per dokumen (apa adanya dari server)
   logs_dengan_inferensi.csv  logs.csv + baris "tidak" hasil penyimpulan (kolom asal), lihat
                              inferensi_tidak(): keputusan B dan 4.4
-  ringkasan.txt              responden lolos/ditolak beserta alasannya, kelengkapan
-                             selisih_menit_dari_adzan, dan kode responden yang dipakai >1 ID
+  ringkasan.txt              responden lolos/ditolak beserta alasannya, rekap per kode
+                             responden (kelompok), sebaran sumber_pencatatan, log Tertinggal,
+                             merek HP, kelengkapan selisih_menit_dari_adzan, dan kode yang
+                             dipakai >1 ID
+
+kode_responden adalah kode KELOMPOK (mis. PE-01-UNP), dibakukan dengan normalisasi_kode()
+sama seperti aplikasi (huruf besar, tanpa spasi), jadi data lama "pe-01-unp " ikut terkelompok.
+Di logs.csv kode baku ditambahkan sebagai kolom kode_responden.
 
 Autentikasi: token akses Google dari variabel lingkungan AHA_ACCESS_TOKEN bila ada;
 selain itu memakai login Firebase CLI di komputer ini (`firebase login`).
@@ -43,7 +49,7 @@ AKUN_DIKECUALIKAN = {
 
 # Urutan kolom CSV = field `logs` (ResearchSchema.Log). Field tak dikenal ditambahkan di belakang.
 KOLOM_LOG = [
-    "user_id", "tanggal", "jenis_ibadah", "nama_detail", "nama_detail_asli", "status",
+    "user_id", "kode_responden", "tanggal", "jenis_ibadah", "nama_detail", "nama_detail_asli", "status",
     "jumlah", "jilid", "jam_pencatatan", "sumber_pencatatan", "jumlah_ayat", "juz",
     "offset_waktu", "selisih_menit_dari_adzan", "mode_pencatatan", "waktu_dzikir",
     "target_hitungan", "durasi_detik",
@@ -202,14 +208,61 @@ def kelengkapan_selisih(log_lolos):
     return hasil
 
 
+def normalisasi_kode(kode):
+    """Sama dengan ResearchSchema.Profil.normalisasiKodeResponden: buang semua spasi, huruf besar.
+    Kosong / bukan string = None. Format tidak divalidasi ulang di sini (sudah dijaga rules)."""
+    if not isinstance(kode, str):
+        return None
+    baku = "".join(kode.split()).upper()
+    return baku or None
+
+
+def kode_dari(users, uid):
+    return normalisasi_kode(users.get(uid, {}).get("kode_responden"))
+
+
 def kode_ganda(lolos, users):
-    """{kode_responden: [uid, ...]} untuk kode yang dipakai lebih dari satu ID (mis. instal ulang)."""
+    """{kode_responden: [uid, ...]} untuk kode yang dipakai lebih dari satu ID.
+    Catatan: kode responden adalah kode KELOMPOK, jadi satu kode memang dipakai banyak orang;
+    daftar ini hanya berguna untuk kode perorangan (bila nanti dipakai)."""
     per_kode = {}
     for u in lolos:
-        kode = users.get(u, {}).get("kode_responden")
+        kode = kode_dari(users, u)
         if kode:
-            per_kode.setdefault(kode.upper(), []).append(u)
+            per_kode.setdefault(kode, []).append(u)
     return {k: sorted(v) for k, v in per_kode.items() if len(v) > 1}
+
+
+def rekap_per_kode(lolos, users, log_lolos):
+    """{kode atau None: {"responden", "log", "pertama", "terakhir"}}; None = responden tanpa kode."""
+    hasil = {}
+    for u in lolos:
+        r = hasil.setdefault(kode_dari(users, u), {"responden": 0, "log": 0, "pertama": None, "terakhir": None})
+        r["responden"] += 1
+    for l in log_lolos:
+        r = hasil[kode_dari(users, l["user_id"])]
+        r["log"] += 1
+        t = l.get("tanggal")
+        if t:
+            r["pertama"] = t if r["pertama"] is None else min(r["pertama"], t)
+            r["terakhir"] = t if r["terakhir"] is None else max(r["terakhir"], t)
+    return hasil
+
+
+def hitung(nilai_nilai):
+    """Hitungan per nilai, terurut dari terbanyak; None ditulis "(kosong)"."""
+    h = {}
+    for v in nilai_nilai:
+        k = "(kosong)" if v is None else v
+        h[k] = h.get(k, 0) + 1
+    return sorted(h.items(), key=lambda kv: (-kv[1], str(kv[0])))
+
+
+def log_tertinggal(log_lolos):
+    """Baris status "tidak" yang TERSIMPAN = pengakuan lewat tombol Tertinggal (aplikasi tidak
+    pernah menulis "tidak" hasil penyimpulan). Hasil: hitungan per (jenis_ibadah, nama_detail)."""
+    return hitung(f"{l.get('jenis_ibadah')}/{l.get('nama_detail') or '-'}"
+                  for l in log_lolos if l.get("status") == "tidak")
 
 
 # ---------- akses Firestore (baca saja) ----------
@@ -294,9 +347,24 @@ def tulis_ringkasan(path, waktu, total_log, log_lolos, lolos, ditolak, log_ditol
         for u in uids:
             ket = f" ({dikecualikan[u]})" if u in dikecualikan else ""
             baris.append(f"      {u}{ket}")
+    rekap = rekap_per_kode(lolos, users, log_lolos)
+    baris += ["", "Rekap per kode responden (kelompok): responden, log, tanggal log pertama s.d. terakhir:"]
+    urut = sorted((k for k in rekap if k is not None)) + ([None] if None in rekap else [])
+    for k in urut:
+        r = rekap[k]
+        rentang = f"{r['pertama']} s.d. {r['terakhir']}" if r["pertama"] else "belum ada log"
+        baris.append(f"  {k or '(tanpa kode)':<16} {r['responden']:>4} responden {r['log']:>6} log   {rentang}")
+    if not rekap:
+        baris.append("  (belum ada responden)")
+    baris += ["", "Sebaran sumber_pencatatan (log masuk dataset):"]
+    baris += [f"  {k:<24} {n}" for k, n in hitung(l.get("sumber_pencatatan") for l in log_lolos)] or ["  (tidak ada log)"]
+    baris += ["", "Log Tertinggal (status 'tidak' yang tersimpan) per jenis_ibadah/nama_detail:"]
+    baris += [f"  {k:<32} {n}" for k, n in log_tertinggal(log_lolos)] or ["  (tidak ada)"]
+    baris += ["", "Merek HP (manufaktur) responden lolos:"]
+    baris += [f"  {k:<24} {n}" for k, n in hitung(users.get(u, {}).get("manufaktur") for u in lolos)] or ["  (tidak ada)"]
     baris += ["", "Responden lolos (uid, kode responden, jumlah log):"]
     for u in sorted(lolos):
-        kode = users.get(u, {}).get("kode_responden") or "-"
+        kode = kode_dari(users, u) or "-"
         baris.append(f"  {u}  {kode}  {log_per_uid.get(u, 0)}")
     kel = kelengkapan_selisih(log_lolos)
     n_null = sum(n for n, _ in kel.values())
@@ -307,7 +375,7 @@ def tulis_ringkasan(path, waktu, total_log, log_lolos, lolos, ditolak, log_ditol
         n, t = kel[u]
         baris.append(f"  {u}  kosong {n}/{t}")
     ganda = kode_ganda(lolos, users)
-    baris += ["", "Kode responden yang dipakai lebih dari satu ID (kemungkinan orang yang sama, mis. instal ulang):"]
+    baris += ["", "Kode responden yang dipakai lebih dari satu ID (wajar untuk kode kelompok):"]
     baris += [f"  {k}: {', '.join(v)}" for k, v in sorted(ganda.items())] or ["  (tidak ada)"]
     baris += ["", "Akun yang dikecualikan (AKUN_DIKECUALIKAN):"]
     baris += [f"  {u}  {k}" for u, k in dikecualikan.items()]
@@ -331,6 +399,8 @@ def main():
     log_lolos, lolos, ditolak, log_ditolak, tanpa_uid = saring(logs, users)
     dzikir = {u: [{"id": i, **f} for i, f in ambil_koleksi(f"users/{u}/dzikir_habits", token)] for u in lolos}
     inferensi = inferensi_tidak(log_lolos, users, dzikir)
+    for l in log_lolos + inferensi:
+        l["kode_responden"] = kode_dari(users, l["user_id"])
 
     tulis_csv(os.path.join(keluar, "logs.csv"), log_lolos)
     gabungan = sorted(log_lolos + inferensi, key=lambda l: (l.get("user_id", ""), l.get("tanggal", ""), l.get("_id", "")))

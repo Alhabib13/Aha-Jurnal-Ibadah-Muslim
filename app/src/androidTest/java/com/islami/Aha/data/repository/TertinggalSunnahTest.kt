@@ -102,6 +102,12 @@ class TertinggalSunnahTest {
     fun kodeResponden_disimpanHanyaBilaSetujuDanSah() {
         research.setResearchConsent(true, " UNPAM-017 ")
         assertEquals("UNPAM-017", research.kodeResponden())
+        research.setResearchConsent(true, "pe-01-unp ")
+        assertEquals("PE-01-UNP", research.kodeResponden())
+        assertEquals("PE-01-UNP", prefs.getString(ResearchLogRepository.KEY_KODE_RESPONDEN, null))
+        // Kode lama yang tersimpan sebelum dibakukan tetap dikirim dalam bentuk baku.
+        prefs.edit().putString(ResearchLogRepository.KEY_KODE_RESPONDEN, "Ti-03-Unp").commit()
+        assertEquals("TI-03-UNP", research.kodeResponden())
         research.setResearchConsent(true, "x")
         assertNull(research.kodeResponden())
         research.setResearchConsent(true, "R-0001")

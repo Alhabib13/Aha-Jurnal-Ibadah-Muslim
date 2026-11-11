@@ -132,6 +132,42 @@ class RingkasanTambahanTest(unittest.TestCase):
                 sholat("a", "2026-11-03", "ashar", "tidak")]
         self.assertEqual({"a": (1, 2)}, e.kelengkapan_selisih(logs))
 
+    def test_normalisasi_kode_sama_dengan_aplikasi(self):
+        for k in ["PE-01-UNP", "pe-01-unp", "Pe-01-Unp", "PE-01-UNP ", "  pe-01-unp	", "PE -01- UNP"]:
+            self.assertEqual("PE-01-UNP", e.normalisasi_kode(k), k)
+        self.assertEqual("LUAR-04", e.normalisasi_kode("luar-04"))
+        self.assertIsNone(e.normalisasi_kode("   "))
+        self.assertIsNone(e.normalisasi_kode(None))
+        self.assertIsNone(e.normalisasi_kode(1234))
+
+    def test_rekap_per_kode_mengelompokkan_data_lama_dan_tanpa_kode(self):
+        users = {"a": {"kode_responden": "PE-01-UNP"}, "b": {"kode_responden": "pe-01-unp "},
+                 "c": {"kode_responden": "LUAR-04"}, "d": {}, "e": {"kode_responden": "Ti-03-Unp"}}
+        logs = [sholat("a", "2026-11-05", "subuh"), sholat("b", "2026-11-03", "subuh"),
+                sholat("b", "2026-11-09", "isya"), sholat("d", "2026-11-04", "subuh")]
+        r = e.rekap_per_kode({"a", "b", "c", "d", "e"}, users, logs)
+        self.assertEqual({"responden": 2, "log": 3, "pertama": "2026-11-03", "terakhir": "2026-11-09"}, r["PE-01-UNP"])
+        self.assertEqual({"responden": 1, "log": 0, "pertama": None, "terakhir": None}, r["LUAR-04"])
+        self.assertEqual(1, r["TI-03-UNP"]["responden"])
+        self.assertEqual({"responden": 1, "log": 1, "pertama": "2026-11-04", "terakhir": "2026-11-04"}, r[None])
+
+    def test_ringkasan_memuat_rekap_sumber_tertinggal_manufaktur(self):
+        users = {"a": dict(SETUJU, kode_responden="pe-01-unp", manufaktur="Xiaomi"), "b": dict(SETUJU, manufaktur="samsung")}
+        logs = [sholat("a", "2026-11-03", "subuh", sumber_pencatatan="dari_notifikasi"),
+                sholat("a", "2026-11-03", "ashar", "tidak", sumber_pencatatan="buka_aplikasi"),
+                sholat("b", "2026-11-04", "isya", sumber_pencatatan="buka_aplikasi")]
+        log_lolos, lolos, ditolak, log_ditolak, tanpa_uid = e.saring(logs, users, dikecualikan={})
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "r.txt")
+            e.tulis_ringkasan(p, "t", 3, log_lolos, lolos, ditolak, log_ditolak, tanpa_uid, users, {})
+            teks = open(p, encoding="utf-8").read()
+        self.assertRegex(teks, r"PE-01-UNP\s+1 responden\s+2 log\s+2026-11-03 s.d. 2026-11-03")
+        self.assertRegex(teks, r"\(tanpa kode\)\s+1 responden\s+1 log")
+        self.assertRegex(teks, r"buka_aplikasi\s+2")
+        self.assertRegex(teks, r"sholat_wajib/ashar\s+1")
+        self.assertRegex(teks, r"Xiaomi\s+1")
+        self.assertNotIn("pe-01-unp", teks)
+
     def test_kode_ganda(self):
         users = {"a": {"kode_responden": "R-01"}, "b": {"kode_responden": "r-01"}, "c": {"kode_responden": "R-02"}}
         self.assertEqual({"R-01": ["a", "b"]}, e.kode_ganda({"a", "b", "c"}, users))

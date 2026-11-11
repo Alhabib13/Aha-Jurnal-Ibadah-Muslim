@@ -392,7 +392,9 @@ class ResearchLogRepository @Inject constructor(
         setResearchConsent(setuju)
     }
 
-    fun kodeResponden(): String? = sharedPreferences.getString(KEY_KODE_RESPONDEN, null)
+    /** Dinormalisasi lagi saat dibaca: kode yang tersimpan sebelum normalisasi huruf besar ikut dikirim ulang dalam bentuk baku. */
+    fun kodeResponden(): String? =
+        ResearchSchema.Profil.normalisasiKodeResponden(sharedPreferences.getString(KEY_KODE_RESPONDEN, null))
 
     /**
      * "Hapus data penelitianku": hapus semua dokumen `logs` dan profil `users/{uid}` milik akun ini di server

@@ -18,8 +18,31 @@ class KodeRespondenTertinggalTest {
         assertNull(Profil.normalisasiKodeResponden(null))
         assertNull(Profil.normalisasiKodeResponden("AB1"))
         assertNull(Profil.normalisasiKodeResponden("x".repeat(21)))
-        assertNull(Profil.normalisasiKodeResponden("ada spasi"))
-        assertEquals("abcd", Profil.normalisasiKodeResponden("abcd"))
+        assertEquals("ADASPASI", Profil.normalisasiKodeResponden("ada spasi"))
+        assertEquals("ABCD", Profil.normalisasiKodeResponden("abcd"))
+        assertNull(Profil.normalisasiKodeResponden("kode_garis"))
+        assertNull(Profil.normalisasiKodeResponden("PE.01"))
+    }
+
+    @Test
+    fun `kode kelompok dibakukan - huruf besar, tanpa spasi`() {
+        listOf("PE-01-UNP", "pe-01-unp", "Pe-01-Unp", "PE-01-UNP ", "  pe-01-unp\t", "PE -01- UNP", "pe-01-unp\n")
+            .forEach { assertEquals(it, "PE-01-UNP", Profil.normalisasiKodeResponden(it)) }
+        assertEquals("AK-02-UNP", Profil.normalisasiKodeResponden("ak-02-unp"))
+        assertEquals("TI-03-UNP", Profil.normalisasiKodeResponden(" Ti-03-Unp "))
+        assertEquals("LUAR-04", Profil.normalisasiKodeResponden("luar-04"))
+        // Bukan daftar tertutup: kode kelompok baru dengan pola lain tetap diterima.
+        assertEquals("MHS-BARU-2027", Profil.normalisasiKodeResponden("mhs-baru-2027"))
+        // Huruf i tetap I biasa walau perangkat berbahasa Turki.
+        val asal = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr"))
+            assertEquals("TI-03-UNP", Profil.normalisasiKodeResponden("ti-03-unp"))
+        } finally {
+            java.util.Locale.setDefault(asal)
+        }
+        // Panjang dihitung setelah spasi dibuang.
+        assertEquals("A".repeat(20), Profil.normalisasiKodeResponden("a".repeat(10) + " " + "a".repeat(10)))
     }
 
     @Test

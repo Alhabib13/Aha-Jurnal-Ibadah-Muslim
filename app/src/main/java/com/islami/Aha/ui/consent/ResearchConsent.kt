@@ -163,7 +163,7 @@ fun ResearchConsentContent(
                 }
                 androidx.compose.material3.OutlinedTextField(
                     value = kode,
-                    onValueChange = { kode = it.take(20) },
+                    onValueChange = { kode = it.take(40) },  // spasi dibuang saat dibakukan; panjang 4-20 dicek sesudahnya
                     label = { Text("Kode responden (kalau kamu diberi kode oleh peneliti)") },
                     supportingText = {
                         Text(

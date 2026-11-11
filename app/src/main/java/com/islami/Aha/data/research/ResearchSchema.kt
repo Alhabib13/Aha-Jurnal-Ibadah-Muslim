@@ -50,9 +50,15 @@ object ResearchSchema {
             return pilihan.filter { it in PILIHAN_AWAL_VALUES }.sorted().ifEmpty { null }
         }
 
-        /** Kode yang diketik pengguna: dipangkas; kosong = null; tidak sah = null. */
+        /**
+         * Kode yang diketik pengguna. Kode dibagikan per kelompok (mis. PE-01-UNP), jadi semua
+         * spasi dibuang dan huruf dibesarkan agar "pe-01-unp " dan "PE-01-UNP" tercatat sama.
+         * Kosong = null; tidak cocok format = null. Sengaja TIDAK ada daftar kode yang diizinkan:
+         * kelompok baru harus bisa ditambah tanpa rilis ulang.
+         */
         fun normalisasiKodeResponden(teks: String?): String? =
-            teks?.trim()?.takeIf { it.isNotEmpty() && KODE_RESPONDEN_POLA.matches(it) }
+            teks?.filterNot { it.isWhitespace() }?.uppercase(java.util.Locale.ROOT)
+                ?.takeIf { it.isNotEmpty() && KODE_RESPONDEN_POLA.matches(it) }
 
         const val LAKI_LAKI = "laki_laki"
         const val PEREMPUAN = "perempuan"
